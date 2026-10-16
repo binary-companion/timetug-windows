@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
     <RootNamespace>TimeTug.Platform</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TimeTug.Engine" />
