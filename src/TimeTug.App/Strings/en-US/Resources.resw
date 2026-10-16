@@ -128,4 +128,8 @@
   <data name="Tug_LinkCopied" xml:space="preserve"><value>Link copied</value></data>
   <data name="Tug_HeroAutomation" xml:space="preserve"><value>TimeTug</value></data>
   <data name="Tug_MirrorAutomation" xml:space="preserve"><value>TimeTug reminder on this display</value></data>
+  <data name="StartupFailure_Title" xml:space="preserve"><value>TimeTug couldn’t start</value></data>
+  <data name="StartupFailure_Body" xml:space="preserve"><value>TimeTug’s calendar engine didn’t load, so no reminders will appear. Close TimeTug and start it again; if this keeps happening, the diagnostics log in TimeTug’s data folder says why.</value></data>
+  <data name="StartupFailure_Close" xml:space="preserve"><value>Close TimeTug</value></data>
+  <data name="StartupFailure_CloseAutomation" xml:space="preserve"><value>Close TimeTug</value></data>
 </root>

@@ -15,6 +15,7 @@ public sealed class EngineClient : IEngineClient, IAsyncDisposable
     private readonly CancellationTokenSource _stop = new();
     private Task _pumps = Task.CompletedTask;
     private int _started;
+    private int _disposed;
 
     public EngineClient(Pkg.IEngine engine, IDiagnostics? diagnostics = null)
     {
@@ -81,6 +82,12 @@ public sealed class EngineClient : IEngineClient, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // A container that registers the client under two types disposes it twice.
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        {
+            return;
+        }
+
         await _stop.CancelAsync().ConfigureAwait(false);
         await _engine.DisposeAsync().ConfigureAwait(false);
         await _pumps.ConfigureAwait(false);
