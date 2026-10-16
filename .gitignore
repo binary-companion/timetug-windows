@@ -1,0 +1,15 @@
+.DS_Store
+.serena/
+.vs/
+bin/
+obj/
+TestResults/
+AppPackages/
+BundleArtifacts/
+*.user
+*.binlog
+artifacts/
+# Local OAuth client ids and other developer-only configuration; never commit.
+local.settings.json
+*.pfx
+*.snk
