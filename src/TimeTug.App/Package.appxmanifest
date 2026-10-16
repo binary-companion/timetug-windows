@@ -3,9 +3,8 @@
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
-  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap5 desktop rescap">
+  IgnorableNamespaces="uap uap5 rescap">
 
   <!-- Development identity. Store and website builds get their own identities and separate data (program design section 6). -->
   <Identity
@@ -41,7 +40,7 @@
              Release and Store manifests must not carry this alias. -->
         <uap5:Extension Category="windows.appExecutionAlias" EntryPoint="Windows.FullTrustApplication" Executable="TimeTug.exe">
           <uap5:AppExecutionAlias>
-            <desktop:ExecutionAlias Alias="timetug-dev.exe" />
+            <uap5:ExecutionAlias Alias="timetug-dev.exe" />
           </uap5:AppExecutionAlias>
         </uap5:Extension>
       </Extensions>
