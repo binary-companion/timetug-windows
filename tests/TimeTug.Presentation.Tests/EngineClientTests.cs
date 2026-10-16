@@ -35,6 +35,19 @@ public class EngineClientTests
     }
 
     [Fact]
+    public async Task Disposing_twice_is_harmless_and_disposes_the_engine_once()
+    {
+        var (engine, client) = await StartedAsync();
+
+        // A dependency-injection container that registers the client under two types disposes it twice.
+        await client.DisposeAsync();
+        var second = async () => await client.DisposeAsync();
+
+        await second.Should().NotThrowAsync();
+        engine.Disposed.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Start_sends_the_start_command_once()
     {
         var (engine, client) = await StartedAsync();
