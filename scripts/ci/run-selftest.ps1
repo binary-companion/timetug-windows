@@ -27,6 +27,7 @@ if (-not $Screenshots) {
     $Screenshots = switch ($Scenario) {
         'welcome' { @('welcome-1-connect.png', 'welcome-waiting.png', 'welcome-form.png', 'welcome-error.png', 'welcome-2-connected.png') }
         'toast' { @() }
+        'startup' { @('startup-welcome.png', 'startup-tug.png', 'startup-failure.png') }
         'tug-basic' { @('tug-basic-primary.png', 'tug-basic-mirror.png', 'tug-basic-joinfailed.png', 'tug-basic-nofocus.png', 'tug-basic-solid.png', 'tug-basic-contrast.png') }
         default { @("$Scenario.png") }
     }

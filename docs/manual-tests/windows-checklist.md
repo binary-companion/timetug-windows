@@ -4,6 +4,10 @@ The owner's checks for what automation cannot do (real accounts, how it feels). 
 
 ## First run
 
+- Install the development package and start it from the Start menu with no accounts: the welcome window opens in the middle of the screen, with a taskbar button. Google and Microsoft show "isn’t set up in this build" unless `%LOCALAPPDATA%\TimeTug\dev-oauth.json` exists (see `docs/development.md`).
+- Close the welcome window: TimeTug keeps running (no window, no tray until the tray lands); start it a second time: nothing appears and the second copy exits. End the first one in Task Manager.
+- Click Test tug on the welcome window’s second step (after connecting an account): the tug appears on every monitor, Dismiss closes it.
+
 ## Accounts
 
 ## Tug screen

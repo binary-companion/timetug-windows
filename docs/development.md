@@ -59,3 +59,22 @@ prlctl exec "Windows 11" --current-user powershell -NoProfile -ExecutionPolicy B
 (`%3B` is an encoded `;`; the logger option cannot carry a literal one through `prlctl`.) `TIMETUG_OS_TIMECHANGE=1` additionally enables a test that waits up to 90 seconds for a real clock change and a real time-zone change (`Set-Date`, `Set-TimeZone` from an elevated `prlctl exec` while it runs) and checks that the bridge reports `clockChanged` and `timeZoneChanged`. Restore the VM's time zone afterwards (`Set-TimeZone -Id "Central America Standard Time"`).
 
 Toasts need package identity, so they are checked by the packaged app: `run-selftest.ps1 -Scenario toast` registers the toast service, shows a toast and requires Windows to accept it (not part of CI yet; the buttons themselves are a manual check).
+
+## OAuth client ids for local builds
+
+Google and Microsoft sign-in need the OAuth client registrations that the Mac app uses. They are never in the repository. A development or CI build (the `SELFTEST` configurations) reads them from `%LOCALAPPDATA%\TimeTug\dev-oauth.json` on the machine running it; when the file is absent those two kinds show as "isn’t set up in this build", exactly as in pull-request CI. A Release build reads no such file (phase 9 injects the ids). The file is git-ignored by name (`dev-oauth.json`), copied onto the machine by hand and never printed or logged: diagnostics name only the families found.
+
+```json
+{
+  "google": { "clientId": "<desktop client id>", "clientSecret": "<desktop client secret>" },
+  "microsoft": { "clientId": "<application (client) id>" }
+}
+```
+
+Names are not case sensitive; a family can be left out. A Google desktop client has a secret (not confidential for an installed app); a Microsoft public client has none. A packaged app reads the real `%LOCALAPPDATA%` for this (only writes are redirected), so the file goes in `C:\Users\<you>\AppData\Local\TimeTug\`.
+
+## Running the packaged app for real
+
+`scripts\ci\build-msix.ps1` builds and installs the development package; start it like a person would, from the Start menu or with `Start-Process "shell:AppsFolder\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew!App"` in the user session (`prlctl exec "Windows 11" --current-user ...`). The engine keeps its files in the package’s `LocalState` folder (`%LOCALAPPDATA%\Packages\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew\LocalState`); `LocalState\logs\timetug.log` is the rolling diagnostics log. The `startup` self-test (`run-selftest.ps1 -Scenario startup`) runs the same composition root against the real native engine with a scripted host.
+
+The package is framework-dependent: a machine needs the .NET 10 desktop runtime for the app’s architecture (the VM has ARM64 only, so the x64 package cannot be run there).
