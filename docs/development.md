@@ -42,7 +42,7 @@ Notes learned:
 - A cold restore plus build takes about 1.5 minutes; the first run downloads the Windows App SDK packages (several hundred MB).
 - The x64 app builds on the ARM64 VM (cross-build). x64 binaries are not launched on the VM by these commands; the tests are AnyCPU and run natively as ARM64. Running the packaged x64 app needs x64 emulation, which Windows 11 ARM provides.
 - Uncommitted work reaches the VM only through git: push a branch and `git fetch`/`git checkout` it in `C:\src\timetug-windows`. No secrets or OAuth ids are copied this way (`local.settings.json` is git-ignored and is copied file to file separately when needed).
-- `prlctl exec` returns the command's output; there is no desktop, so launching or screenshotting the WinUI app needs the interactive-session approach worked out in slice 1, task 3 and 12.
+- `prlctl exec` returns the command's output; there is no desktop. To install, launch and screenshot the packaged app use `prlctl exec "Windows 11" --current-user ...` (runs in the logged-in user's session). The full recipe is in `docs/spikes/2026-10-spike-winui-ci.md`; the scripts are `scripts/ci/build-msix.ps1` (`-Stage Build` as SYSTEM, `-Stage Install` as the user) and `scripts/ci/run-selftest.ps1`.
 
 ## Pinned versions
 
