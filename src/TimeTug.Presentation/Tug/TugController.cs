@@ -15,7 +15,7 @@ namespace TimeTug.Presentation.Tug;
 /// inside that serialisation: handlers must not block waiting for another controller call.
 /// </para>
 /// </summary>
-public sealed class TugController : ITugActions, IDisposable
+public sealed class TugController : ITugActions, ITugResponder, IDisposable
 {
     private const string Category = "tug";
 

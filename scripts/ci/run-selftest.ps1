@@ -12,7 +12,9 @@ param(
     # Screenshots the scenario must produce (non-blank). Defaults to the scenario's own list.
     [string[]]$Screenshots,
     [string]$OutputFolder,
-    [int]$TimeoutSeconds = 90
+    [int]$TimeoutSeconds = 90,
+    # Keeps the first thing the scenario shows on screen this long (a screen capture or a person looks at it).
+    [int]$HoldSeconds = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,6 +27,7 @@ if (-not $Screenshots) {
     $Screenshots = switch ($Scenario) {
         'welcome' { @('welcome-1-connect.png', 'welcome-waiting.png', 'welcome-form.png', 'welcome-error.png', 'welcome-2-connected.png') }
         'toast' { @() }
+        'tug-basic' { @('tug-basic-primary.png', 'tug-basic-mirror.png', 'tug-basic-joinfailed.png', 'tug-basic-nofocus.png', 'tug-basic-solid.png', 'tug-basic-contrast.png') }
         default { @("$Scenario.png") }
     }
 }
@@ -51,8 +54,10 @@ if (Test-Path $OutputFolder) { Remove-Item -Recurse -Force $OutputFolder }
 New-Item -ItemType Directory -Force -Path $OutputFolder | Out-Null
 
 $clock = [System.Diagnostics.Stopwatch]::StartNew()
-$process = Start-Process -FilePath $alias -ArgumentList @('--selftest', $Scenario, '--out', "`"$OutputFolder`"") -PassThru
-$deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+$arguments = @('--selftest', $Scenario, '--out', "`"$OutputFolder`"")
+if ($HoldSeconds -gt 0) { $arguments += @('--hold', "$HoldSeconds") }
+$process = Start-Process -FilePath $alias -ArgumentList $arguments -PassThru
+$deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds + $HoldSeconds)
 while (-not (Test-Path $resultFile) -and [DateTime]::UtcNow -lt $deadline) {
     Start-Sleep -Milliseconds 500
 }

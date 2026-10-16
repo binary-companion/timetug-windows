@@ -73,7 +73,7 @@ internal sealed class ScriptedEngineClient(AccountFormService forms) : IEngineCl
 
     public ValueTask JoinAsync(string eventId) => Record("join:" + eventId);
 
-    public ValueTask SnoozeAsync(string eventId, TimeSpan duration) => Record("snooze:" + eventId);
+    public ValueTask SnoozeAsync(string eventId, TimeSpan duration) => Record($"snooze:{eventId}:{(int)duration.TotalSeconds}");
 
     public ValueTask DismissAsync(string eventId) => Record("dismiss:" + eventId);
 

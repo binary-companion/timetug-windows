@@ -10,13 +10,14 @@ using WinRT.Interop;
 
 namespace TimeTug.App.SelfTest;
 
-/// <summary>Parsed <c>--selftest &lt;scenario&gt; [--out &lt;folder&gt;]</c> switch.</summary>
-internal sealed record SelfTestOptions(string Scenario, string OutputFolder)
+/// <summary>Parsed <c>--selftest &lt;scenario&gt; [--out &lt;folder&gt;] [--hold &lt;seconds&gt;]</c> switch. <c>--hold</c> keeps the first thing a scenario shows on screen that long, for a person or a screen capture to look at.</summary>
+internal sealed record SelfTestOptions(string Scenario, string OutputFolder, int HoldSeconds = 0)
 {
     public static SelfTestOptions? Parse(IReadOnlyList<string> args)
     {
         string? scenario = null;
         string? output = null;
+        var hold = 0;
         for (var i = 1; i < args.Count; i++)
         {
             if (args[i] == "--selftest" && i + 1 < args.Count)
@@ -27,11 +28,15 @@ internal sealed record SelfTestOptions(string Scenario, string OutputFolder)
             {
                 output = args[++i];
             }
+            else if (args[i] == "--hold" && i + 1 < args.Count)
+            {
+                _ = int.TryParse(args[++i], System.Globalization.NumberStyles.None, CultureInfo.InvariantCulture, out hold);
+            }
         }
 
         return scenario is null
             ? null
-            : new SelfTestOptions(scenario, output ?? Path.Combine(Path.GetTempPath(), "timetug-selftest"));
+            : new SelfTestOptions(scenario, output ?? Path.Combine(Path.GetTempPath(), "timetug-selftest"), hold);
     }
 }
 
@@ -50,7 +55,7 @@ internal sealed record SelfTestResult(
 /// <summary>Runs a named self-test scenario inside the real app and writes <c>selftest-result.json</c>. Exists only in SELFTEST builds.</summary>
 internal static class SelfTestRunner
 {
-    private static readonly TimeSpan Overall = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan Overall = TimeSpan.FromSeconds(120);
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     /// <summary>Runs the scenario, writes the result and exits. <paramref name="window"/> is the hello window; other scenarios open their own.</summary>
@@ -59,13 +64,15 @@ internal static class SelfTestRunner
         SelfTestResult result;
         try
         {
-            using var timeout = new CancellationTokenSource(Overall);
+            using var timeout = new CancellationTokenSource(Overall + TimeSpan.FromSeconds(options.HoldSeconds));
             result = await RunAsync(window, options, timeout.Token);
         }
         catch (Exception ex)
         {
             // Whatever went wrong, the run must still write a result file for the script to read.
             result = Result(options, null, ex.GetType().Name + ": " + ex.Message, []);
+            Directory.CreateDirectory(options.OutputFolder);
+            await File.WriteAllTextAsync(Path.Combine(options.OutputFolder, "selftest-exception.txt"), ex.ToString());
         }
 
         Directory.CreateDirectory(options.OutputFolder);
@@ -80,6 +87,7 @@ internal static class SelfTestRunner
             "hello" when window is not null => await HelloAsync(window, options, cancellation),
             "welcome" => await WelcomeScenario.RunAsync(options, cancellation),
             "toast" => await ToastScenario.RunAsync(options, cancellation),
+            "tug-basic" => await TugBasicScenario.RunAsync(options, cancellation),
             _ => Result(options, null, "unknown scenario " + options.Scenario, []),
         };
     }

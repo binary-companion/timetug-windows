@@ -1,0 +1,20 @@
+<Window
+    x:Class="TimeTug.App.Tug.MirrorTugWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid x:Name="Root">
+    <Viewbox Stretch="Uniform" StretchDirection="DownOnly" Margin="24">
+      <StackPanel x:Name="Stack" Width="800" Spacing="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Image x:Name="AppIcon" Source="ms-appx:///Assets/tug-icon.png" Width="88" Height="88" HorizontalAlignment="Center" />
+        <StackPanel Spacing="2" HorizontalAlignment="Center">
+          <TextBlock x:Name="CountdownLabel" FontSize="18" TextAlignment="Center" />
+          <TextBlock x:Name="CountdownValue" FontSize="56" FontWeight="Medium" TextAlignment="Center" MaxLines="1"
+                     Typography.NumeralAlignment="Tabular" />
+        </StackPanel>
+        <TextBlock x:Name="TitleText" FontSize="26" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"
+                   MaxLines="2" TextTrimming="CharacterEllipsis" AutomationProperties.HeadingLevel="Level1" />
+        <TextBlock x:Name="MirrorHintText" FontSize="14" TextAlignment="Center" />
+      </StackPanel>
+    </Viewbox>
+  </Grid>
+</Window>

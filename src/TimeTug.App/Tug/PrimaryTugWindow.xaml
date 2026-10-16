@@ -1,0 +1,59 @@
+<Window
+    x:Class="TimeTug.App.Tug.PrimaryTugWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Colours, fonts and texts are set in code from the view model (palette, tone and wording change while it is up). -->
+  <Grid x:Name="Root">
+    <Viewbox Stretch="Uniform" StretchDirection="DownOnly" Margin="24">
+      <StackPanel x:Name="Stack" Width="560" Spacing="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Border x:Name="HeroFrame" Width="440" CornerRadius="20" HorizontalAlignment="Center">
+          <Image x:Name="Hero" Source="ms-appx:///Assets/hero.png" Stretch="Uniform" />
+        </Border>
+        <StackPanel x:Name="Headline" Spacing="2" HorizontalAlignment="Center">
+          <TextBlock x:Name="CountdownLabel" FontSize="15" TextAlignment="Center" />
+          <TextBlock x:Name="CountdownValue" FontSize="88" FontWeight="Medium" TextAlignment="Center" MaxLines="1"
+                     Typography.NumeralAlignment="Tabular" />
+        </StackPanel>
+        <TextBlock x:Name="TitleText" FontSize="34" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"
+                   MaxLines="2" TextTrimming="CharacterEllipsis" AutomationProperties.HeadingLevel="Level1" />
+        <TextBlock x:Name="DetailsText" FontSize="16" TextAlignment="Center" TextWrapping="Wrap" />
+        <StackPanel x:Name="Actions" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,6,0,0">
+          <Button x:Name="JoinButton" CornerRadius="23" MinHeight="46" Padding="30,0" FontSize="18" FontWeight="SemiBold" Click="OnJoinClick">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <FontIcon x:Name="JoinGlyph" Glyph="&#xE714;" FontSize="18" AutomationProperties.AccessibilityView="Raw" />
+              <TextBlock x:Name="JoinLabel" />
+            </StackPanel>
+          </Button>
+          <Button x:Name="SnoozeButton" CornerRadius="20" MinHeight="40" Padding="20,0" FontSize="15" FontWeight="Medium">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock x:Name="SnoozeLabel" />
+              <FontIcon Glyph="&#xE70D;" FontSize="11" AutomationProperties.AccessibilityView="Raw" />
+            </StackPanel>
+            <Button.Flyout>
+              <MenuFlyout x:Name="SnoozeMenu" Placement="Bottom" />
+            </Button.Flyout>
+          </Button>
+          <Button x:Name="DismissButton" CornerRadius="17" MinHeight="34" Padding="14,0" FontSize="15" Click="OnDismissClick" />
+        </StackPanel>
+        <TextBlock x:Name="HintsText" FontSize="12" TextAlignment="Center" TextWrapping="Wrap" />
+        <StackPanel x:Name="JoinFailedPanel" Spacing="8" Visibility="Collapsed" HorizontalAlignment="Center" MaxWidth="520">
+          <TextBlock x:Name="JoinFailedText" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" />
+          <Grid ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="JoinLinkBox" IsReadOnly="True" FontSize="14" />
+            <Button x:Name="CopyButton" Grid.Column="1" Click="OnCopyClick" />
+          </Grid>
+          <TextBlock x:Name="CopiedText" FontSize="12" TextAlignment="Center" Visibility="Collapsed" />
+        </StackPanel>
+      </StackPanel>
+    </Viewbox>
+    <!-- Shown when Windows did not hand over the keyboard: any click answers it by taking focus. -->
+    <Border x:Name="ClickBanner" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,28,0,0" Padding="22,10"
+            CornerRadius="20" Visibility="Collapsed">
+      <TextBlock x:Name="ClickBannerText" FontSize="16" FontWeight="SemiBold" />
+    </Border>
+  </Grid>
+</Window>
