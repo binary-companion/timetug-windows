@@ -13,3 +13,6 @@ artifacts/
 local.settings.json
 *.pfx
 *.snk
+
+# CI helper output
+/build/
