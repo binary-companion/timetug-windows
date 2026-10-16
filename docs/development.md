@@ -47,3 +47,15 @@ Notes learned:
 ## Pinned versions
 
 Every version is exact in `Directory.Packages.props`. To change one, edit it there and record why in the pull request. To look versions up: `https://api.nuget.org/v3-flatcontainer/<lowercase id>/index.json`.
+
+## Real-API smoke tests for the OS-state services
+
+`tests/TimeTug.Platform.Tests/OsState/RealApiSmokeTests.cs` checks the real Windows calls behind `SessionState`, `NotificationState`, `MonitorService`, `UiSettings` and the hidden message window. The checks that need a signed-in desktop run only when `TIMETUG_OS_SMOKE=1`. On the VM, run them as the logged-in user:
+
+```
+prlctl exec "Windows 11" --current-user powershell -NoProfile -ExecutionPolicy Bypass -Command '$env:TIMETUG_OS_SMOKE="1"; cd C:\src\timetug-windows; dotnet test tests\TimeTug.Platform.Tests -c Debug --no-build --nologo --filter "FullyQualifiedName~RealApiSmoke" --logger "console%3Bverbosity=detailed"'
+```
+
+(`%3B` is an encoded `;`; the logger option cannot carry a literal one through `prlctl`.) `TIMETUG_OS_TIMECHANGE=1` additionally enables a test that waits up to 90 seconds for a real clock change and a real time-zone change (`Set-Date`, `Set-TimeZone` from an elevated `prlctl exec` while it runs) and checks that the bridge reports `clockChanged` and `timeZoneChanged`. Restore the VM's time zone afterwards (`Set-TimeZone -Id "Central America Standard Time"`).
+
+Toasts need package identity, so they are checked by the packaged app: `run-selftest.ps1 -Scenario toast` registers the toast service, shows a toast and requires Windows to accept it (not part of CI yet; the buttons themselves are a manual check).

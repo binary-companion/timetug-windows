@@ -72,4 +72,12 @@
   <data name="Provider_microsoft" xml:space="preserve"><value>Microsoft</value></data>
   <data name="Provider_icloud" xml:space="preserve"><value>iCloud</value></data>
   <data name="Provider_caldav" xml:space="preserve"><value>Other (CalDAV)</value></data>
+  <data name="Toast_Join" xml:space="preserve"><value>Join</value></data>
+  <data name="Toast_Snooze" xml:space="preserve"><value>Snooze</value></data>
+  <data name="Toast_Dismiss" xml:space="preserve"><value>Dismiss</value></data>
+  <data name="Toast_SnoozeMinutes" xml:space="preserve"><value>{0} min</value></data>
+  <data name="Toast_SnoozeSeconds" xml:space="preserve"><value>{0} sec</value></data>
+  <data name="Toast_Details" xml:space="preserve"><value>{0}–{1}</value></data>
+  <data name="Toast_DetailsCalendar" xml:space="preserve"><value>{0}–{1} · {2}</value></data>
+  <data name="Toast_AllDay" xml:space="preserve"><value>All day</value></data>
 </root>

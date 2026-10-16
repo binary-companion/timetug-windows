@@ -4,12 +4,19 @@
     <RootNamespace>TimeTug.Platform.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The Windows App SDK build targets would generate a PRI file for this test executable; it has no resources. -->
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <GenerateProjectPriFile>false</GenerateProjectPriFile>
+    <AppxGeneratePriEnabled>false</AppxGeneratePriEnabled>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Runtime" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\TimeTug.Platform\TimeTug.Platform.csproj" />

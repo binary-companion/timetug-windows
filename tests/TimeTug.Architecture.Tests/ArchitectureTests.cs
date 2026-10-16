@@ -47,6 +47,18 @@ public partial class ArchitectureTests
     }
 
     [Fact]
+    public void The_tug_state_machine_reads_no_os_clock_and_waits_for_nothing()
+    {
+        // It reacts to engine events and uses only the injected TimeProvider.
+        var files = SourceFiles("src/TimeTug.Presentation/Tug").ToList();
+        files.Should().NotBeEmpty();
+        foreach (var file in files)
+        {
+            OsClockOrWait().IsMatch(File.ReadAllText(file)).Should().BeFalse($"{file}: the tug state machine must use only the injected TimeProvider and never wait or schedule");
+        }
+    }
+
+    [Fact]
     public void Selftest_code_is_compiled_only_under_the_SELFTEST_define()
     {
         foreach (var file in SourceFiles("src/TimeTug.App/SelfTest"))
@@ -57,6 +69,9 @@ public partial class ArchitectureTests
 
     [GeneratedRegex(@"\b(DispatcherTimer|DispatcherQueueTimer|PeriodicTimer|System\.Timers|System\.Threading\.Timer|new\s+Timer\s*\(|CreateTimer\s*\()")]
     private static partial Regex TimerUse();
+
+    [GeneratedRegex(@"\b(DateTime(Offset)?\.(Now|UtcNow|Today)|Stopwatch|Environment\.TickCount|TimeProvider\.System|Task\.Delay|Thread\.Sleep|\.Delay\()")]
+    private static partial Regex OsClockOrWait();
 
     private static string FindRepositoryRoot()
     {

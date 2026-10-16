@@ -6,7 +6,15 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="TimeTug.Platform.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="TimeTug.Engine" />
+    <!-- Win32 for the OS-state services (message window, session, notification state, monitors). -->
+    <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
+    <!-- AppNotificationManager (toasts with buttons). Only the Foundation component: the whole Windows App SDK package would add resource (PRI) generation to this class library. The App project references the full package at the version that depends on this one. -->
+    <PackageReference Include="Microsoft.WindowsAppSDK.Foundation" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" />
     <ProjectReference Include="..\TimeTug.Presentation\TimeTug.Presentation.csproj" />
   </ItemGroup>
 </Project>
