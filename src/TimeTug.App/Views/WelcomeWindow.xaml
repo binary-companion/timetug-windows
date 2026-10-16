@@ -88,13 +88,17 @@
           <Border x:Uid="TrayNoteCard" Padding="16,12" CornerRadius="6" BorderThickness="1"
                   Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                   BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-            <StackPanel Orientation="Horizontal" Spacing="12">
+            <Grid ColumnSpacing="12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
               <FontIcon Glyph="&#xE7C4;" FontSize="20" VerticalAlignment="Top" AutomationProperties.AccessibilityView="Raw" />
-              <StackPanel Spacing="4" MaxWidth="420">
+              <StackPanel Grid.Column="1" Spacing="4">
                 <TextBlock x:Uid="TrayNoteTitle" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <TextBlock x:Uid="TrayNote" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
               </StackPanel>
-            </StackPanel>
+            </Grid>
           </Border>
         </StackPanel>
       </Grid>
@@ -102,7 +106,7 @@
 
     <Grid Grid.Row="1">
       <HyperlinkButton x:Name="SkipButton" x:Uid="SkipForNow" Command="{x:Bind ViewModel.SkipCommand}"
-                       Visibility="{x:Bind ViewModel.IsConnectStep, Mode=OneWay}" HorizontalAlignment="Left" />
+                       Visibility="{x:Bind ViewModel.IsConnectStep, Mode=OneWay}" HorizontalAlignment="Left" Padding="0,5" />
       <Button x:Name="DoneButton" x:Uid="Done" Command="{x:Bind ViewModel.DoneCommand}" Style="{StaticResource AccentButtonStyle}"
               Visibility="{x:Bind ViewModel.IsConnectedStep, Mode=OneWay}" HorizontalAlignment="Right" MinWidth="96" />
     </Grid>

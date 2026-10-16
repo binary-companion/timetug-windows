@@ -99,7 +99,7 @@ internal static class WelcomeScenario
         Check(Invoke(window, "Show a test tug screen") && engine.Sent.Contains("testTug"), "Test tug sends the test takeover");
 
         // The window is left open: closing the only window would end the app before the result is written.
-        var firstShot = attempts.Any(a => a.Name == "welcome-1-connect" && a.File is not null) ? "welcome-1-connect.png" : null;
+        var firstShot = File.Exists(Path.Combine(options.OutputFolder, "welcome-1-connect.png")) ? "welcome-1-connect.png" : null;
         return SelfTestRunner.Result(options, firstShot, failures.Count == 0 ? null : string.Join("; ", failures), attempts, checks);
     }
 

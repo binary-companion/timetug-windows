@@ -72,9 +72,4 @@
   <data name="Provider_microsoft" xml:space="preserve"><value>Microsoft</value></data>
   <data name="Provider_icloud" xml:space="preserve"><value>iCloud</value></data>
   <data name="Provider_caldav" xml:space="preserve"><value>Other (CalDAV)</value></data>
-  <data name="Field_username" xml:space="preserve"><value>Username</value></data>
-  <data name="Field_password" xml:space="preserve"><value>Password</value></data>
-  <data name="Field_appPassword" xml:space="preserve"><value>App-specific password</value></data>
-  <data name="Field_serverURL" xml:space="preserve"><value>Server address</value></data>
-  <data name="Field_url" xml:space="preserve"><value>Server address</value></data>
 </root>
