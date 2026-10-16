@@ -14,13 +14,22 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+#if SELFTEST
+        var selfTest = SelfTest.SelfTestOptions.Parse(Environment.GetCommandLineArgs());
+        if (selfTest is { Scenario: not "hello" })
+        {
+            // Scenarios other than hello open their own windows against a scripted engine.
+            _ = SelfTest.SelfTestRunner.RunAndExitAsync(null, selfTest);
+            return;
+        }
+#endif
         var window = new Views.PlaceholderWindow();
         _window = window;
         window.Activate();
 #if SELFTEST
-        if (SelfTest.SelfTestOptions.Parse(Environment.GetCommandLineArgs()) is { } options)
+        if (selfTest is not null)
         {
-            _ = SelfTest.SelfTestRunner.RunAndExitAsync(window, options);
+            _ = SelfTest.SelfTestRunner.RunAndExitAsync(window, selfTest);
         }
 #endif
     }

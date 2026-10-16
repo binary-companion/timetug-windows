@@ -6,7 +6,11 @@ namespace TimeTug.Presentation.Engine;
 public sealed record AccountInfo(string ConnectionId, string KindId, string DisplayName, string Status, int CalendarCount);
 
 /// <summary>A kind of account the engine can add on this platform.</summary>
-public sealed record AccountKindInfo(string Id, string DisplayName, bool IsConfigured);
+/// <summary><see cref="Authorization"/> is <c>oauth</c> (the browser), <c>password</c> (a form in the app) or <c>system</c>; empty when unknown.</summary>
+public sealed record AccountKindInfo(string Id, string DisplayName, bool IsConfigured, string Authorization = "");
+
+/// <summary>What the engine is doing about accounts right now. <see cref="WaitingStyle"/> is <c>browser</c> or <c>inApp</c>. <see cref="ErrorMessage"/> is the engine's own text, shown only as detail.</summary>
+public sealed record AccountActivity(bool IsWorking, string? ErrorMessage, string WaitingStyle);
 
 /// <summary>One event as the tray and the held-tug rule need it. All-day events carry the local midnights of their dates.</summary>
 public sealed record EventSummary(string Id, string Title, DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, bool HasJoinLink);
@@ -26,7 +30,8 @@ public sealed record AppState(
     NextMeetingInfo? NextMeeting,
     NextTakeoverInfo? NextTakeover,
     bool TakeoverVisible,
-    bool Enabled);
+    bool Enabled,
+    AccountActivity? Activity = null);
 
 /// <summary>A takeover the engine says is due.</summary>
 public sealed record TakeoverRequest(
@@ -51,12 +56,16 @@ public static class EngineMapping
         var next = state.Agenda.NextEventID is { } id ? events.FirstOrDefault(e => e.Id == id) : null;
         return new AppState(
             state.Accounts.Select(account => ToAccount(account, state)).ToList(),
-            state.AvailableAccountKinds.Select(k => new AccountKindInfo(k.Id, k.DisplayName, k.IsConfigured)).ToList(),
+            state.AvailableAccountKinds.Select(k => new AccountKindInfo(k.Id, k.DisplayName, k.IsConfigured, k.Authorization ?? "")).ToList(),
             events,
             next is null ? null : new NextMeetingInfo(next.Title, next.Start, next.HasJoinLink),
             state.NextTakeover is { } t ? new NextTakeoverInfo(t.EventID, t.FireAt) : null,
             state.TakeoverVisible,
-            state.Settings.Takeover.Enabled);
+            state.Settings.Takeover.Enabled,
+            new AccountActivity(
+                state.AccountStatus.IsWorking,
+                string.IsNullOrWhiteSpace(state.AccountStatus.ErrorMessage) ? null : state.AccountStatus.ErrorMessage,
+                state.AccountStatus.WaitingStyle ?? "browser"));
     }
 
     public static TakeoverRequest ToRequest(Pkg.TakeoverRequest request)

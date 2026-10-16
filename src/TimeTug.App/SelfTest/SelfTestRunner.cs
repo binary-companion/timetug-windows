@@ -44,15 +44,17 @@ internal sealed record SelfTestResult(
     string Architecture,
     string? PackageFullName,
     string? ScreenshotFile,
-    IReadOnlyList<SelfTestShot> Attempts);
+    IReadOnlyList<SelfTestShot> Attempts,
+    IReadOnlyList<string>? Checks = null);
 
 /// <summary>Runs a named self-test scenario inside the real app and writes <c>selftest-result.json</c>. Exists only in SELFTEST builds.</summary>
 internal static class SelfTestRunner
 {
-    private static readonly TimeSpan Overall = TimeSpan.FromSeconds(45);
+    private static readonly TimeSpan Overall = TimeSpan.FromSeconds(60);
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public static async Task RunAndExitAsync(Window window, SelfTestOptions options)
+    /// <summary>Runs the scenario, writes the result and exits. <paramref name="window"/> is the hello window; other scenarios open their own.</summary>
+    public static async Task RunAndExitAsync(Window? window, SelfTestOptions options)
     {
         SelfTestResult result;
         try
@@ -60,8 +62,9 @@ internal static class SelfTestRunner
             using var timeout = new CancellationTokenSource(Overall);
             result = await RunAsync(window, options, timeout.Token);
         }
-        catch (Exception ex) when (ex is OperationCanceledException or COMException or IOException or InvalidOperationException)
+        catch (Exception ex)
         {
+            // Whatever went wrong, the run must still write a result file for the script to read.
             result = Result(options, null, ex.GetType().Name + ": " + ex.Message, []);
         }
 
@@ -70,13 +73,19 @@ internal static class SelfTestRunner
         Application.Current.Exit();
     }
 
-    public static async Task<SelfTestResult> RunAsync(Window window, SelfTestOptions options, CancellationToken cancellation)
+    public static async Task<SelfTestResult> RunAsync(Window? window, SelfTestOptions options, CancellationToken cancellation)
     {
-        if (options.Scenario != "hello")
+        return options.Scenario switch
         {
-            return Result(options, null, "unknown scenario " + options.Scenario, []);
-        }
+            "hello" when window is not null => await HelloAsync(window, options, cancellation),
+            "welcome" => await WelcomeScenario.RunAsync(options, cancellation),
+            _ => Result(options, null, "unknown scenario " + options.Scenario, []),
+        };
+    }
 
+    /// <summary>Waits until the window's content has loaded and had a moment to present its first frame.</summary>
+    internal static async Task WaitForFrameAsync(Window window, CancellationToken cancellation, int settleMilliseconds = 1500)
+    {
         var root = (FrameworkElement)window.Content;
         if (!root.IsLoaded)
         {
@@ -85,31 +94,42 @@ internal static class SelfTestRunner
             await loaded.Task.WaitAsync(cancellation);
         }
 
-        // Give the compositor a moment to present the first frame.
-        await Task.Delay(1500, cancellation);
+        await Task.Delay(settleMilliseconds, cancellation);
+    }
 
+    /// <summary>
+    /// Saves <c>&lt;name&gt;.png</c>: the window as Windows draws it (so dialogs and Mica are included), or the XAML root
+    /// when that comes out blank. The attempts are returned for the result file.
+    /// </summary>
+    internal static async Task<(SelfTestShot? Best, List<SelfTestShot> Attempts)> CaptureAsync(Window window, string folder, string name)
+    {
         var attempts = new List<SelfTestShot>();
-        var folder = options.OutputFolder;
+        var printWindow = await ScreenCapture.WindowAsync(WindowNative.GetWindowHandle(window), Path.Combine(folder, name + "-printwindow.png"));
+        attempts.Add(new SelfTestShot(name + "-printwindow", printWindow.Method, printWindow.Path, printWindow.DistinctColours, printWindow.Error));
 
-        var printWindow = await ScreenCapture.WindowAsync(WindowNative.GetWindowHandle(window), Path.Combine(folder, "hello-printwindow.png"));
-        attempts.Add(new SelfTestShot("hello-printwindow", printWindow.Method, printWindow.Path, printWindow.DistinctColours, printWindow.Error));
-
-        var xaml = await CaptureXamlAsync(root, Path.Combine(folder, "hello-xaml.png"));
+        var xaml = await CaptureXamlAsync((FrameworkElement)window.Content, Path.Combine(folder, name + "-xaml.png"), name + "-xaml");
         attempts.Add(xaml);
 
-        // hello.png is the first attempt that is not blank.
+        // <name>.png is the first attempt that is not blank.
         var best = printWindow.Succeeded
-            ? new SelfTestShot("hello", printWindow.Method, printWindow.Path, printWindow.DistinctColours, null)
-            : xaml.DistinctColours > 1 ? xaml with { Name = "hello" } : null;
+            ? new SelfTestShot(name, printWindow.Method, printWindow.Path, printWindow.DistinctColours, null)
+            : xaml.DistinctColours > 1 ? xaml with { Name = name } : null;
         if (best?.File is { } source)
         {
-            File.Copy(source, Path.Combine(folder, "hello.png"), overwrite: true);
+            File.Copy(source, Path.Combine(folder, name + ".png"), overwrite: true);
         }
 
+        return (best, attempts);
+    }
+
+    private static async Task<SelfTestResult> HelloAsync(Window window, SelfTestOptions options, CancellationToken cancellation)
+    {
+        await WaitForFrameAsync(window, cancellation);
+        var (best, attempts) = await CaptureAsync(window, options.OutputFolder, "hello");
         return Result(options, best?.File is null ? null : "hello.png", best is null ? "no capture method produced a non-blank image" : null, attempts);
     }
 
-    private static async Task<SelfTestShot> CaptureXamlAsync(FrameworkElement root, string path)
+    private static async Task<SelfTestShot> CaptureXamlAsync(FrameworkElement root, string path, string name)
     {
         const string method = "RenderTargetBitmap";
         try
@@ -124,15 +144,15 @@ internal static class SelfTestRunner
             }
 
             await PngWriter.WriteAsync(pixels, bitmap.PixelWidth, bitmap.PixelHeight, path);
-            return new SelfTestShot("hello-xaml", method, path, PixelAnalysis.CountDistinctColours(pixels, 1000), null);
+            return new SelfTestShot(name, method, path, PixelAnalysis.CountDistinctColours(pixels, 1000), null);
         }
         catch (Exception ex) when (ex is COMException or IOException or ArgumentException or InvalidOperationException)
         {
-            return new SelfTestShot("hello-xaml", method, null, 0, ex.GetType().Name + ": " + ex.Message);
+            return new SelfTestShot(name, method, null, 0, ex.GetType().Name + ": " + ex.Message);
         }
     }
 
-    private static SelfTestResult Result(SelfTestOptions options, string? screenshot, string? error, IReadOnlyList<SelfTestShot> attempts)
+    internal static SelfTestResult Result(SelfTestOptions options, string? screenshot, string? error, IReadOnlyList<SelfTestShot> attempts, IReadOnlyList<string>? checks = null)
     {
         string? package = null;
         try
@@ -151,7 +171,8 @@ internal static class SelfTestRunner
             Architecture: RuntimeInformation.ProcessArchitecture.ToString().ToUpper(CultureInfo.InvariantCulture),
             PackageFullName: package,
             ScreenshotFile: screenshot,
-            Attempts: attempts);
+            Attempts: attempts,
+            Checks: checks);
     }
 }
 #endif

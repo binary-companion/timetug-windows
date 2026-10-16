@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="WelcomeWindowTitle" xml:space="preserve"><value>TimeTug</value></data>
+  <data name="WelcomeTitle.Text" xml:space="preserve"><value>Welcome to TimeTug</value></data>
+  <data name="WelcomeSubtitle.Text" xml:space="preserve"><value>Connect a calendar and TimeTug will take over your screen shortly before a meeting starts, so you never miss one.</value></data>
+  <data name="ProvidersList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Calendar providers</value></data>
+  <data name="BrowserNote.Text" xml:space="preserve"><value>Google and Microsoft open your browser to sign in.</value></data>
+  <data name="CancelSignIn.Content" xml:space="preserve"><value>Cancel</value></data>
+  <data name="CancelSignIn.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Cancel sign-in</value></data>
+  <data name="SignInProgress.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Signing in</value></data>
+  <data name="SkipForNow.Content" xml:space="preserve"><value>Skip for now</value></data>
+  <data name="SkipForNow.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Skip for now</value></data>
+  <data name="ConnectedTitle.Text" xml:space="preserve"><value>You’re connected</value></data>
+  <data name="AccountsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Connected accounts</value></data>
+  <data name="AddAnother.Content" xml:space="preserve"><value>Add another</value></data>
+  <data name="AddAnother.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Add another account</value></data>
+  <data name="TestTug.Content" xml:space="preserve"><value>Test tug</value></data>
+  <data name="TestTug.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Show a test tug screen</value></data>
+  <data name="TrayNoteTitle.Text" xml:space="preserve"><value>TimeTug lives in the system tray</value></data>
+  <data name="TrayNote.Text" xml:space="preserve"><value>Look for its icon near the clock. If you don’t see it, select the arrow in the taskbar and drag the TimeTug icon out to keep it visible.</value></data>
+  <data name="TrayNoteCard.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Where to find TimeTug</value></data>
+  <data name="Done.Content" xml:space="preserve"><value>Done</value></data>
+  <data name="Done.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Done</value></data>
+  <data name="CredentialDialog.PrimaryButtonText" xml:space="preserve"><value>Sign in</value></data>
+  <data name="CredentialDialog.CloseButtonText" xml:space="preserve"><value>Cancel</value></data>
+  <data name="CredentialDialogTitle" xml:space="preserve"><value>Sign in</value></data>
+  <data name="WaitingBrowser" xml:space="preserve"><value>Waiting for your browser…</value></data>
+  <data name="WaitingInApp" xml:space="preserve"><value>Signing in…</value></data>
+  <data name="TestTugTitle" xml:space="preserve"><value>Test meeting</value></data>
+  <data name="TestTugCalendar" xml:space="preserve"><value>TimeTug</value></data>
+  <data name="ConnectFailed" xml:space="preserve"><value>Couldn’t connect to {0}. Check your details and try again.</value></data>
+  <data name="ProviderUnavailable" xml:space="preserve"><value>Sign-in for {0} isn’t set up in this build.</value></data>
+  <data name="ProviderOpensBrowser" xml:space="preserve"><value>Opens your browser to sign in</value></data>
+  <data name="ProviderAsksDetails" xml:space="preserve"><value>Asks for your details here</value></data>
+  <data name="ConnectProviderAutomation" xml:space="preserve"><value>Connect {0}</value></data>
+  <data name="CalendarsNone" xml:space="preserve"><value>looking for calendars…</value></data>
+  <data name="CalendarsOne" xml:space="preserve"><value>1 calendar</value></data>
+  <data name="CalendarsMany" xml:space="preserve"><value>{0} calendars</value></data>
+  <data name="AccountSummary" xml:space="preserve"><value>{0} · {1} · {2}</value></data>
+  <data name="Status_authExpired" xml:space="preserve"><value>Sign in again</value></data>
+  <data name="Status_needsPermission" xml:space="preserve"><value>Calendar access is off</value></data>
+  <data name="Status_failing" xml:space="preserve"><value>Can’t reach this calendar right now</value></data>
+  <data name="NextNone" xml:space="preserve"><value>No upcoming meetings found yet.</value></data>
+  <data name="NextToday" xml:space="preserve"><value>Next: {0} at {1}</value></data>
+  <data name="NextLater" xml:space="preserve"><value>Next: {0}, {1} at {2}</value></data>
+  <data name="Provider_google" xml:space="preserve"><value>Google</value></data>
+  <data name="Provider_microsoft" xml:space="preserve"><value>Microsoft</value></data>
+  <data name="Provider_icloud" xml:space="preserve"><value>iCloud</value></data>
+  <data name="Provider_caldav" xml:space="preserve"><value>Other (CalDAV)</value></data>
+  <data name="Field_username" xml:space="preserve"><value>Username</value></data>
+  <data name="Field_password" xml:space="preserve"><value>Password</value></data>
+  <data name="Field_appPassword" xml:space="preserve"><value>App-specific password</value></data>
+  <data name="Field_serverURL" xml:space="preserve"><value>Server address</value></data>
+  <data name="Field_url" xml:space="preserve"><value>Server address</value></data>
+</root>
