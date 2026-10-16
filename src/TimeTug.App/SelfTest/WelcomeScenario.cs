@@ -37,8 +37,8 @@ internal static class WelcomeScenario
 
         var queue = DispatcherQueue.GetForCurrentThread();
         var text = new ResourceLoaderLocalizer();
-        var forms = new AccountFormService(queue, text);
-        var engine = new ScriptedEngineClient(forms) { ShowFormFor = "icloud" };
+        using var forms = new AccountFormService(queue, text);
+        using var engine = new ScriptedEngineClient(forms) { ShowFormFor = "icloud" };
         engine.Push(Scenes.Empty());
         var window = WelcomeWindowFactory.Create(engine, forms, text, new FixedClock(Noon));
         var model = window.ViewModel;

@@ -11,7 +11,7 @@ namespace TimeTug.App;
 /// Shows the credential form as a dialog over the welcome window. The engine asks from its own thread; this hops to the UI
 /// thread, shows one dialog at a time, and closes the dialog when the engine cancels the request.
 /// </summary>
-public sealed class AccountFormService(DispatcherQueue queue, ILocalizer text) : IAccountFormService
+public sealed class AccountFormService(DispatcherQueue queue, ILocalizer text) : IAccountFormService, IDisposable
 {
     private readonly SemaphoreSlim _one = new(1, 1);
 
@@ -24,7 +24,7 @@ public sealed class AccountFormService(DispatcherQueue queue, ILocalizer text) :
         try
         {
             var result = new TaskCompletionSource<IReadOnlyDictionary<string, string>?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (!queue.TryEnqueue(() => _ = RunAsync(request, cancellationToken, result)))
+            if (!queue.TryEnqueue(() => _ = RunAsync(request, result, cancellationToken)))
             {
                 return null;
             }
@@ -38,7 +38,9 @@ public sealed class AccountFormService(DispatcherQueue queue, ILocalizer text) :
         }
     }
 
-    private async Task RunAsync(AccountFormRequest request, CancellationToken cancellationToken, TaskCompletionSource<IReadOnlyDictionary<string, string>?> result)
+    public void Dispose() => _one.Dispose();
+
+    private async Task RunAsync(AccountFormRequest request, TaskCompletionSource<IReadOnlyDictionary<string, string>?> result, CancellationToken cancellationToken)
     {
         try
         {

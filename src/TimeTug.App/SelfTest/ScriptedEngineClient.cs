@@ -8,7 +8,7 @@ namespace TimeTug.App.SelfTest;
 /// A scripted stand-in for the engine in self-test scenarios: the scenario pushes states, the commands the app sends are
 /// recorded. Adding the kind named in <see cref="ShowFormFor"/> opens the real credential form through the form service.
 /// </summary>
-internal sealed class ScriptedEngineClient(AccountFormService forms) : IEngineClient
+internal sealed class ScriptedEngineClient(AccountFormService forms) : IEngineClient, IDisposable
 {
     private readonly Channel<AppState> _state = new(replay: true);
     private readonly Channel<EngineDiagnosticInfo> _diagnostics = new(replay: false);
@@ -80,6 +80,8 @@ internal sealed class ScriptedEngineClient(AccountFormService forms) : IEngineCl
     public ValueTask SetEnabledAsync(bool enabled) => Record("enabled:" + enabled);
 
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => Record("system:" + kind);
+
+    public void Dispose() => _form?.Dispose();
 
     private async Task ShowFormAsync(CancellationToken cancellation)
     {
