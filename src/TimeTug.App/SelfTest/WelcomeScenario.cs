@@ -73,7 +73,12 @@ internal static class WelcomeScenario
 
         // iCloud asks for its details in a dialog built from the engine's field descriptions.
         await model.ConnectAsync("icloud");
-        await Settle(1200);
+        for (var i = 0; i < 20 && VisualTreeHelper.GetOpenPopupsForXamlRoot(((FrameworkElement)window.Content).XamlRoot).Count == 0; i++)
+        {
+            await Settle(250);
+        }
+
+        await Settle(600);
         Check(VisualTreeHelper.GetOpenPopupsForXamlRoot(((FrameworkElement)window.Content).XamlRoot).Count > 0, "the credential form is open");
         Check(Unnamed(window).Count == 0, "every control, dialog included, has an automation name: " + string.Join(", ", Unnamed(window)));
         await Shot("welcome-form");
