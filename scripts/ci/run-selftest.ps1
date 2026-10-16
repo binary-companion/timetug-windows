@@ -24,6 +24,7 @@ $resultFile = Join-Path $OutputFolder 'selftest-result.json'
 if (-not $Screenshots) {
     $Screenshots = switch ($Scenario) {
         'welcome' { @('welcome-1-connect.png', 'welcome-waiting.png', 'welcome-form.png', 'welcome-error.png', 'welcome-2-connected.png') }
+        'toast' { @() }
         default { @("$Scenario.png") }
     }
 }

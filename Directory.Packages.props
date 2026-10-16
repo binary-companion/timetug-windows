@@ -10,6 +10,11 @@
 
     <!-- App -->
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <!-- The Foundation component Microsoft.WindowsAppSDK 2.5.1 depends on (AppNotificationManager), referenced alone by TimeTug.Platform. -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Foundation" Version="2.3.12" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
+    <!-- Satisfies the Windows App SDK build targets in the Platform test project (an executable that references the Foundation component). Same version the metapackage requires. -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Runtime" Version="2.5.1" />
     <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />

@@ -79,6 +79,7 @@ internal static class SelfTestRunner
         {
             "hello" when window is not null => await HelloAsync(window, options, cancellation),
             "welcome" => await WelcomeScenario.RunAsync(options, cancellation),
+            "toast" => await ToastScenario.RunAsync(options, cancellation),
             _ => Result(options, null, "unknown scenario " + options.Scenario, []),
         };
     }
