@@ -4,7 +4,6 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
 using TimeTug.App.Tray;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
@@ -89,7 +88,7 @@ internal static class TrayScenario
         Check(model.Current.Icon.State == TrayIconState.Soon && model.Current.Icon.FileName == "tray-color.ico", "8 minutes ahead: soon, " + model.Current.Icon.FileName);
         Check(Rows()[0] == "Join Design review", "a link that is near turns the row into Join: " + Rows()[0]);
         Check(model.Current.Tooltip == "Design review in 8 min", "tooltip counts down: " + model.Current.Tooltip);
-        var (menuShot, menuAttempts) = await ShowMenuAsync(anchor, model.Current, options, "tray-menu", cancellation);
+        var (menuShot, menuAttempts) = await ShowMenuAsync(model.Current, options, "tray-menu", cancellation);
         attempts.AddRange(menuAttempts);
         Check(menuShot is not null, "tray-menu.png (the menu with Join, soon icon state) is not blank");
 
@@ -145,21 +144,37 @@ internal static class TrayScenario
         return SelfTestRunner.Result(options, menuShot is null ? null : "tray-menu.png", failures.Count == 0 ? null : string.Join("; ", failures), attempts, checks);
     }
 
-    /// <summary>Shows the flyout built from <paramref name="view"/> in a small window and captures it (the real tray menu is drawn by Windows and is checked by a person or a screen capture).</summary>
-    private static async Task<(SelfTestShot? Best, List<SelfTestShot> Attempts)> ShowMenuAsync(Window anchor, TrayView view, SelfTestOptions options, string name, CancellationToken cancellation)
+    /// <summary>
+    /// Draws the rows of <paramref name="view"/> as a menu in a small window and captures it. Windows draws the real tray menu in
+    /// its own popup window, which a window capture does not include, so this is a picture of the rows (text, check mark,
+    /// unavailable rows greyed, separators); the real menu is checked on a screen capture.
+    /// </summary>
+    private static async Task<(SelfTestShot? Best, List<SelfTestShot> Attempts)> ShowMenuAsync(TrayView view, SelfTestOptions options, string name, CancellationToken cancellation)
     {
-        var button = new Button { Content = "TimeTug", Margin = new Thickness(16, 8, 0, 0), VerticalAlignment = VerticalAlignment.Top };
-        var window = new Window { Title = "TimeTug tray menu", Content = new Grid { Width = 340, Height = 320, Children = { button } } };
-        window.AppWindow.Resize(new Windows.Graphics.SizeInt32(380, 400));
+        var panel = new StackPanel { Width = 300, Padding = new Thickness(4), Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White) };
+        foreach (var row in view.Rows)
+        {
+            if (row.Kind == TrayRowKind.Separator)
+            {
+                panel.Children.Add(new Border { Height = 1, Margin = new Thickness(0, 4, 0, 4), Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.LightGray) });
+                continue;
+            }
+
+            var line = new Grid { Padding = new Thickness(8, 6, 8, 6), ColumnDefinitions = { new ColumnDefinition { Width = new GridLength(24) }, new ColumnDefinition() } };
+            var foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(row.IsEnabled ? Microsoft.UI.Colors.Black : Microsoft.UI.Colors.Gray);
+            line.Children.Add(new TextBlock { Text = row.IsChecked ? "\u2713" : string.Empty, Foreground = foreground });
+            var label = new TextBlock { Text = row.Text, Foreground = foreground };
+            Grid.SetColumn(label, 1);
+            line.Children.Add(label);
+            panel.Children.Add(line);
+        }
+
+        var window = new Window { Title = "TimeTug tray menu", Content = new Grid { Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.WhiteSmoke), Children = { panel } } };
+        window.AppWindow.Resize(new Windows.Graphics.SizeInt32(420, 420));
         window.Activate();
-        await SelfTestRunner.WaitForFrameAsync(window, cancellation, 600);
-        var flyout = TrayMenu.Build(view, _ => new RelayCommand(() => { }));
-        flyout.ShowAt(button, new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft, ShowMode = FlyoutShowMode.Standard });
-        await Task.Delay(1200, cancellation);
+        await SelfTestRunner.WaitForFrameAsync(window, cancellation, 800);
         var result = await SelfTestRunner.CaptureAsync(window, options.OutputFolder, name);
-        flyout.Hide();
         window.Close();
-        _ = anchor;
         return result;
     }
 
