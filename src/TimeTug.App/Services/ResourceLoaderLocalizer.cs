@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Windows.ApplicationModel.Resources;
 using TimeTug.Presentation.Abstractions;
 
@@ -12,7 +13,15 @@ public sealed class ResourceLoaderLocalizer : ILocalizer
 
     public string? TryGetString(string key)
     {
-        var value = _loader.GetString(key);
-        return string.IsNullOrEmpty(value) ? null : value;
+        try
+        {
+            var value = _loader.GetString(key);
+            return string.IsNullOrEmpty(value) ? null : value;
+        }
+        catch (Exception e) when (e is COMException or ArgumentException or InvalidOperationException)
+        {
+            // A missing key may throw rather than return empty; callers fall back to the engine's English text.
+            return null;
+        }
     }
 }
