@@ -9,6 +9,7 @@ using TimeTug.Platform.OsState;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Startup;
+using TimeTug.Presentation.Tray;
 using TimeTug.Presentation.Tug;
 using Pkg = TimeTug.Engine;
 
@@ -143,14 +144,20 @@ internal static class StartupScenario
             Check(controller.State == TugState.Hidden && controller.Current is null, "the controller owes the engine nothing after Dismiss");
         }
 
-        // ---- a second test tug is left outstanding so that quitting must close it ------------------------------------------
-        await runtime.TestTugAsync();
+        // ---- the tray: the icon is in the notification area and its Test tug item reaches the real engine ----------------------
+        Check(shell.TrayIcon is { IsCreated: true }, "the tray icon was created in the notification area");
+        Check(shell.TrayModel is { } tray && tray.Current.Rows.Single(r => r.Command == TrayCommand.Quit).IsEnabled, "the tray menu offers Quit");
+        checks.Add("info: tray icon file " + shell.TrayIcon?.AppliedIconFile + ", tooltip \"" + shell.TrayIcon?.AppliedTooltip + "\"");
+
+        // ---- a second test tug (from the tray menu) is left outstanding so that quitting must close it -----------------------
+        await shell.TrayModel!.InvokeAsync(TrayCommand.TestTug);
         Check(await WaitFor(() => windows.WindowCount == monitors.Monitors.Count), "a second test takeover is shown");
         Check(controller.Current is not null, "the second request is outstanding");
 
         // ---- quit: the open request is closed first, then everything is disposed ------------------------------------------------
         await shell.QuitAsync(exitProcess: false).WaitAsync(TimeSpan.FromSeconds(30), cancellation);
         Check(controller.Current is null && controller.State == TugState.Hidden, "quitting closed the outstanding request");
+        Check(shell.TrayIcon is null, "quitting removed the tray icon");
         Check(await WaitFor(() => windows.WindowCount == 0, 3000), "quitting closed the tug windows");
         var files = Directory.GetFiles(dataDirectory, "*", SearchOption.AllDirectories);
         checks.Add("info: the engine wrote " + files.Length + " file(s) under its data folder: " + string.Join(", ", files.Select(f => Path.GetRelativePath(dataDirectory, f))));

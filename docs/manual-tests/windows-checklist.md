@@ -5,7 +5,7 @@ The owner's checks for what automation cannot do (real accounts, how it feels). 
 ## First run
 
 - Install the development package and start it from the Start menu with no accounts: the welcome window opens in the middle of the screen, with a taskbar button. Google and Microsoft show "isn’t set up in this build" unless `%LOCALAPPDATA%\TimeTug\dev-oauth.json` exists (see `docs/development.md`).
-- Close the welcome window: TimeTug keeps running (no window, no tray until the tray lands); start it a second time: nothing appears and the second copy exits. End the first one in Task Manager.
+- Close the welcome window: TimeTug keeps running with its icon in the notification area; start it a second time: nothing appears and the second copy exits. Quit from the tray menu.
 - Click Test tug on the welcome window’s second step (after connecting an account): the tug appears on every monitor, Dismiss closes it.
 
 ## Accounts
@@ -24,3 +24,13 @@ The owner's checks for what automation cannot do (real accounts, how it feels). 
 - Press Join, Snooze and Dismiss on a real toast (the self-test checks only that Windows accepts the toast).
 
 ## Tray
+
+- Start TimeTug: a puppy icon appears in the notification area (it may be in the overflow flyout until pinned: drag it out to keep it visible). It follows the taskbar theme: switch Settings > Personalization > Colors > "Choose your mode" and the Windows taskbar theme separately and check the icon stays readable (dark puppy on a light taskbar, light puppy on a dark one).
+- Hover the icon: the tooltip names the next meeting and the minutes left ("Design review in 4 min"); it updates each minute.
+- Right-click: Next (greyed), Enable Tug (checked), Test tug, Settings… (greyed), Quit TimeTug. Turn Enable Tug off and on again: the check follows. Test tug shows the tug. Quit removes the icon at once and ends the process (no TimeTug in Task Manager).
+- With a meeting less than ten minutes away the icon turns to the colour puppy and the first row reads "Join <title>" when the meeting has a link (the row is information only until the flyout arrives).
+- Left-click with no account connected: the welcome window opens. With an account nothing happens yet.
+- Make a toast get refused (Do Not Disturb with a tug due): the icon shows the red attention dot until the tug is dealt with.
+- Display scaling 100, 125, 150 and 200 percent: the icon is sharp at each (it has 16, 20, 24 and 32 px pictures).
+- Restart Explorer (Task Manager > Windows Explorer > Restart): the icon comes back.
+- After an update the notification-area setting "Always show" may need to be switched on again (Windows ties it to the package path).

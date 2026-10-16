@@ -3,19 +3,22 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using TimeTug.App.Composition;
+using TimeTug.App.Tray;
 using TimeTug.App.Tug;
 using TimeTug.App.Views;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Startup;
+using TimeTug.Presentation.Tray;
+using TimeTug.Presentation.Tug;
 
 namespace TimeTug.App;
 
 /// <summary>
 /// The running app on the UI thread: it builds the host, keeps a hidden window alive (closing the last visible window ends a WinUI
-/// app, and the tray that will own the app's lifetime arrives in a later task), opens the welcome window once the engine's first
-/// state says this is a first run, and quits in the order the engine needs: an outstanding takeover is closed first, then the
-/// engine is disposed, then the process exits.
+/// app), puts the icon in the notification area (whose Quit is how a person ends the app), opens the welcome window once the
+/// engine's first state says this is a first run, and quits in the order the engine needs: the tray icon is removed, an outstanding
+/// takeover is closed, the engine is disposed, then the process exits.
 /// </summary>
 internal sealed class AppShell
 {
@@ -26,6 +29,8 @@ internal sealed class AppShell
     private Window? _anchor;
     private Window? _failure;
     private WelcomeWindow? _welcome;
+    private TrayViewModel? _trayModel;
+    private TrayIconService? _tray;
     private int _quitting;
 
     /// <param name="replace">Replaces registrations after the real ones (the self-test scripts the engine host and the OS state this way).</param>
@@ -40,6 +45,12 @@ internal sealed class AppShell
 
     /// <summary>The first-run welcome window while it is open.</summary>
     public WelcomeWindow? Welcome => _welcome;
+
+    /// <summary>The notification-area icon (null before startup finishes, after quitting, or when startup failed).</summary>
+    internal TrayIconService? TrayIcon => _tray;
+
+    /// <summary>What the tray shows and does (null when there is no tray).</summary>
+    internal TrayViewModel? TrayModel => _trayModel;
 
     /// <summary>True when startup failed and the failure window is showing.</summary>
     public bool Failed => _failure is not null;
@@ -58,6 +69,7 @@ internal sealed class AppShell
             _anchor = new Window { Title = "TimeTug" };
             _host = AppComposition.CreateHost(_queue, _diagnostics, _replace);
             await _host.StartAsync();
+            StartTray();
             if (await Services.GetRequiredService<AppRuntime>().ShouldShowWelcome)
             {
                 ShowWelcome();
@@ -69,6 +81,23 @@ internal sealed class AppShell
             _diagnostics.Record("error", "startup", "TimeTug could not start. " + FailureReason);
             ShowFailure();
         }
+    }
+
+    /// <summary>Puts the icon in the notification area. The person quits from its menu, so a failure to create it is recorded, not fatal.</summary>
+    private void StartTray()
+    {
+        var runtime = Services.GetRequiredService<AppRuntime>();
+        var host = new DelegateTrayHost(ShowWelcome, () => runtime.TestTugAsync(), () => new ValueTask(QuitAsync()));
+        _trayModel = new TrayViewModel(
+            Services.GetRequiredService<IEngineClient>(),
+            Services.GetRequiredService<TugController>(),
+            Services.GetRequiredService<IUiSettings>(),
+            Services.GetRequiredService<ILocalizer>(),
+            host,
+            Services.GetRequiredService<TimeProvider>(),
+            Services.GetRequiredService<IMinuteTicker>());
+        _tray = new TrayIconService(_trayModel, Services.GetRequiredService<IUiDispatcher>(), _diagnostics);
+        _tray.Start();
     }
 
     public void ShowWelcome()
@@ -96,6 +125,12 @@ internal sealed class AppShell
         {
             return;
         }
+
+        // The icon goes first, so a quit never leaves a ghost icon in the notification area.
+        _tray?.Dispose();
+        _trayModel?.Dispose();
+        _tray = null;
+        _trayModel = null;
 
         try
         {

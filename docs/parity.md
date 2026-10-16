@@ -10,13 +10,13 @@ One row per capability of the Mac app (`Apps/macOS/Sources` in `binary-companion
 | Tug screen | Takeover | Safe Join link opening (SafeJoin, JoinLabel); link shown to copy if opening fails | done | Slice 1. Built and self-tested (task 8), composed in task 9 |
 | Tug screen | Takeover | Late return of a tug held while locked or covered | done | Windows-specific rule, slice 1. Composed in task 9 (`AppRuntime` carries unlock, full-screen-ended and monitor changes to the controller); `LateReturnTests` cover the rule end to end. A real lock and unlock is a manual check |
 | Tug screen | Takeover | Toast fallback when the screen cannot be shown | done | Windows-specific, slice 1. `ToastService` is composed in task 9 and Windows accepts the toast in the packaged self-test; the button presses are a manual check |
-| Tug screen | Takeover | Test tug | not yet | Slice 1. The welcome window's Test tug button works through the real engine (`startup` self-test); the tray item arrives with the tray (task 10) |
-| Tray | Menu bar item | Status item with icon states (MenuBarIconState: idle, soon) | not yet | Tray icon; minimal in slice 1, states in slice 2 |
+| Tug screen | Takeover | Test tug | done | Slice 1. The welcome window's Test tug button works through the real engine (`startup` self-test); the tray's Test tug item does the same |
+| Tray | Menu bar item | Status item with icon states (MenuBarIconState: idle, soon) | done | Slice 1. Idle follows the taskbar theme (`SystemUsesLightTheme`), Soon is the colour puppy when the engine's next takeover is for a meeting starting within ten minutes (the Mac's window), plus a Windows-only attention state (a held tug or a refused toast). Live tooltip ("Design review in 4 min"). Icons: `Assets/Tray`, made by `scripts/ci/make-icons.py` |
 | Tray | Menu bar item | Menu bar text modes (MenuBarDisplayMode) and countdown | differs on purpose, later | Icon only, or icon with digits for the final ten minutes, plus live tooltip; pinned countdown chip deferred |
 | Tray | Popup | Dropdown with the day's agenda (DropdownView, PopupRowModel, CalendarGrouping, CalendarSections) | not yet | Flyout, slice 2 |
 | Tray | Popup | Popup card style (PopupCardStyle, PopupPalette, PopupStyle) | not yet | Slice 3, Appearance |
 | Tray | Popup | Popup keyboard shortcut (PopupShortcut) | not yet | Global hotkey, slice 2 |
-| Tray | Popup | Gear button opens Settings; Enable Tug and Quit | not yet | Slice 1 (minimal) and 2 |
+| Tray | Popup | Gear button opens Settings; Enable Tug and Quit | not yet | Slice 1 has the right-click menu (Next, Enable Tug, Test tug, Settings… disabled, Quit); the Join row is information only until the flyout (slice 2); Settings opens in slice 3 |
 | Settings | General | Launch at login | not yet | Settings toggle plus the ask in the welcome window; slice 3 |
 | Settings | General | Popup shortcut recorder | not yet | Slice 3 |
 | Settings | General | Other copy installed notice (CollisionNotice, InstanceArbiter) | not yet | Single instance in slice 2; notice to decide |
