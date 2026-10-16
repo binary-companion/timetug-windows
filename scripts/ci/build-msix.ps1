@@ -82,11 +82,22 @@ if ($Stage -in 'Install', 'All') {
         $dependencies = @(Get-ChildItem -Path (Join-Path $msix.DirectoryName "Dependencies\$arch") -Filter '*.msix' -ErrorAction SilentlyContinue | ForEach-Object FullName)
 
         Get-AppxPackage -Name $packageName | Remove-AppxPackage
-        if ($dependencies.Count -gt 0) {
-            Add-AppxPackage -Path $msix.FullName -DependencyPath $dependencies
-        }
-        else {
-            Add-AppxPackage -Path $msix.FullName
+        for ($attempt = 1; $attempt -le 2; $attempt++) {
+            try {
+                if ($dependencies.Count -gt 0) { Add-AppxPackage -Path $msix.FullName -DependencyPath $dependencies }
+                else { Add-AppxPackage -Path $msix.FullName }
+                break
+            }
+            catch {
+                # Installing the Windows App Runtime framework fails with 0x80073D02 while another package that
+                # uses it is running (on the windows-11-arm runner the Widgets / Web Experience pack is).
+                if ($attempt -eq 2 -or $_.Exception.Message -notmatch '0x80073D02') { throw }
+                Write-Host "Install blocked by running apps; stopping them and retrying: $($_.Exception.Message)"
+                Get-Process -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Path -like '*WebExperience*' -or $_.Name -in 'Widgets', 'WidgetService', 'WidgetBoard' } |
+                    Stop-Process -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 3
+            }
         }
     }
 
