@@ -80,4 +80,52 @@
   <data name="Toast_Details" xml:space="preserve"><value>{0}–{1}</value></data>
   <data name="Toast_DetailsCalendar" xml:space="preserve"><value>{0}–{1} · {2}</value></data>
   <data name="Toast_AllDay" xml:space="preserve"><value>All day</value></data>
+  <data name="Tug_WindowTitle" xml:space="preserve"><value>TimeTug</value></data>
+  <data name="Tug_StartsInLabel" xml:space="preserve"><value>Starts in</value></data>
+  <data name="Tug_StartingNow" xml:space="preserve"><value>Starting now</value></data>
+  <data name="Tug_StartedAgo" xml:space="preserve"><value>Started {0} ago</value></data>
+  <data name="Tug_Minutes" xml:space="preserve"><value>{0} min</value></data>
+  <data name="Tug_HoursMinutes" xml:space="preserve"><value>{0}h {1}m</value></data>
+  <data name="Tug_Spoken_StartsIn" xml:space="preserve"><value>Starts in {0}</value></data>
+  <data name="Tug_Spoken_StartedAgo" xml:space="preserve"><value>Started {0} ago</value></data>
+  <data name="Tug_Spoken_Hour_One" xml:space="preserve"><value>1 hour</value></data>
+  <data name="Tug_Spoken_Hour_Other" xml:space="preserve"><value>{0} hours</value></data>
+  <data name="Tug_Spoken_Minute_One" xml:space="preserve"><value>1 minute</value></data>
+  <data name="Tug_Spoken_Minute_Other" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="Tug_Spoken_Second_One" xml:space="preserve"><value>1 second</value></data>
+  <data name="Tug_Spoken_Second_Other" xml:space="preserve"><value>{0} seconds</value></data>
+  <data name="Tug_Spoken_LessThanAMinute" xml:space="preserve"><value>less than a minute</value></data>
+  <data name="Tug_Announce_StartsIn" xml:space="preserve"><value>{0} starts in {1}</value></data>
+  <data name="Tug_Announce_StartingNow" xml:space="preserve"><value>{0} is starting now</value></data>
+  <data name="Tug_Announce_StartedAgo" xml:space="preserve"><value>{0} started {1} ago</value></data>
+  <data name="Tug_Range" xml:space="preserve"><value>{0} – {1}</value></data>
+  <data name="Tug_AllDay" xml:space="preserve"><value>All day</value></data>
+  <data name="Tug_People" xml:space="preserve"><value>{0} people</value></data>
+  <data name="Tug_DetailsSeparator" xml:space="preserve"><value> · </value></data>
+  <data name="Tug_Hint_Join" xml:space="preserve"><value>Return joins</value></data>
+  <data name="Tug_Hint_Dismiss" xml:space="preserve"><value>Esc dismisses</value></data>
+  <data name="Tug_Hint_SnoozeOne" xml:space="preserve"><value>{0} snoozes</value></data>
+  <data name="Tug_Hint_SnoozeMany" xml:space="preserve"><value>{0} or {1} snoozes</value></data>
+  <data name="Tug_Hint_ListSeparator" xml:space="preserve"><value>, </value></data>
+  <data name="Tug_SpokenHint_Join" xml:space="preserve"><value>Return joins.</value></data>
+  <data name="Tug_SpokenHint_Dismiss" xml:space="preserve"><value>Escape dismisses.</value></data>
+  <data name="Tug_SpokenHint_SnoozeFirst" xml:space="preserve"><value>{0} snoozes for {1}</value></data>
+  <data name="Tug_SpokenHint_SnoozeNext" xml:space="preserve"><value>{0} for {1}</value></data>
+  <data name="Tug_Join" xml:space="preserve"><value>Join</value></data>
+  <data name="Tug_JoinAutomation" xml:space="preserve"><value>Join meeting</value></data>
+  <data name="Tug_Snooze" xml:space="preserve"><value>Snooze</value></data>
+  <data name="Tug_SnoozeAutomation" xml:space="preserve"><value>Snooze this reminder</value></data>
+  <data name="Tug_Dismiss" xml:space="preserve"><value>Dismiss</value></data>
+  <data name="Tug_DismissAutomation" xml:space="preserve"><value>Dismiss this reminder</value></data>
+  <data name="Tug_SnoozeMinute_One" xml:space="preserve"><value>1 minute</value></data>
+  <data name="Tug_SnoozeMinute_Other" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="Tug_ClickToRespond" xml:space="preserve"><value>Click anywhere to respond</value></data>
+  <data name="Tug_MirrorHint" xml:space="preserve"><value>Dismiss on your main display</value></data>
+  <data name="Tug_JoinFailed" xml:space="preserve"><value>TimeTug couldn’t open the meeting link. Copy it and open it yourself.</value></data>
+  <data name="Tug_JoinLinkAutomation" xml:space="preserve"><value>Meeting link</value></data>
+  <data name="Tug_CopyLink" xml:space="preserve"><value>Copy link</value></data>
+  <data name="Tug_CopyLinkAutomation" xml:space="preserve"><value>Copy the meeting link</value></data>
+  <data name="Tug_LinkCopied" xml:space="preserve"><value>Link copied</value></data>
+  <data name="Tug_HeroAutomation" xml:space="preserve"><value>TimeTug</value></data>
+  <data name="Tug_MirrorAutomation" xml:space="preserve"><value>TimeTug reminder on this display</value></data>
 </root>

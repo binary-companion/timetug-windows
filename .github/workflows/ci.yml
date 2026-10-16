@@ -38,6 +38,10 @@ jobs:
         shell: pwsh
         timeout-minutes: 5
         run: ./scripts/ci/run-selftest.ps1 -Scenario welcome -OutputFolder build/selftest-welcome -TimeoutSeconds 120
+      - name: Self-test tug window (x64)
+        shell: pwsh
+        timeout-minutes: 5
+        run: ./scripts/ci/run-selftest.ps1 -Scenario tug-basic -OutputFolder build/selftest-tug-basic -TimeoutSeconds 150
       - name: Upload self-test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -46,6 +50,7 @@ jobs:
           path: |
             build/selftest/
             build/selftest-welcome/
+            build/selftest-tug-basic/
           if-no-files-found: warn
           retention-days: 14
 
@@ -72,6 +77,10 @@ jobs:
         shell: pwsh
         timeout-minutes: 5
         run: ./scripts/ci/run-selftest.ps1 -Scenario welcome -OutputFolder build/selftest-welcome -TimeoutSeconds 120
+      - name: Self-test tug window (ARM64)
+        shell: pwsh
+        timeout-minutes: 5
+        run: ./scripts/ci/run-selftest.ps1 -Scenario tug-basic -OutputFolder build/selftest-tug-basic -TimeoutSeconds 150
       - name: Upload self-test results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -80,6 +89,7 @@ jobs:
           path: |
             build/selftest/
             build/selftest-welcome/
+            build/selftest-tug-basic/
           if-no-files-found: warn
           retention-days: 14
 

@@ -4,10 +4,10 @@ One row per capability of the Mac app (`Apps/macOS/Sources` in `binary-companion
 
 | Area | Feature | Mac capability | Status | Notes |
 |---|---|---|---|---|
-| Tug screen | Takeover | Full-screen takeover with hero picture, live countdown, title, details line (OverlayView, OverlayController, TakeoverText) | not yet | Slice 1, tasks 7-9 |
-| Tug screen | Takeover | Join (primary), Snooze 1/5/10 minutes, Dismiss; Return, Esc and 1, 5, 0 keys | not yet | Slice 1 |
-| Tug screen | Takeover | Mirror on other monitors ("Dismiss on your main display") | not yet | Slice 1 |
-| Tug screen | Takeover | Safe Join link opening (SafeJoin, JoinLabel); link shown to copy if opening fails | not yet | Slice 1 |
+| Tug screen | Takeover | Full-screen takeover with hero picture, live countdown, title, details line (OverlayView, OverlayController, TakeoverText) | not yet | Slice 1. The window (`TugWindowHost`, `PrimaryTugWindow`, `TugViewModel`) exists and passes the `tug-basic` self-test; the running app composes it in task 9 |
+| Tug screen | Takeover | Join (primary), Snooze 1/5/10 minutes, Dismiss; Return, Esc and 1, 5, 0 keys | not yet | Slice 1. Built and self-tested (task 8); composed in task 9 |
+| Tug screen | Takeover | Mirror on other monitors ("Dismiss on your main display") | not yet | Slice 1. Built and self-tested (task 8); composed in task 9 |
+| Tug screen | Takeover | Safe Join link opening (SafeJoin, JoinLabel); link shown to copy if opening fails | not yet | Slice 1. Built and self-tested (task 8); composed in task 9 |
 | Tug screen | Takeover | Late return of a tug held while locked or covered | not yet | Windows-specific rule, slice 1. The state machine (`TugController`) and the lock, full-screen and monitor services exist; the window and the composition follow (tasks 8, 9) |
 | Tug screen | Takeover | Toast fallback when the screen cannot be shown | not yet | Windows-specific, slice 1. `ToastService` and the controller rule exist and Windows accepts the toast in the packaged self-test; button presses are wired in task 9 |
 | Tug screen | Takeover | Test tug | not yet | Slice 1 |
