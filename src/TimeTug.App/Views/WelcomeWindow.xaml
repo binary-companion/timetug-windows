@@ -1,0 +1,114 @@
+<Window
+    x:Class="TimeTug.App.Views.WelcomeWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:welcome="using:TimeTug.Presentation.Welcome"
+    xmlns:ctl="using:Microsoft.UI.Xaml.Controls">
+  <Window.SystemBackdrop>
+    <MicaBackdrop />
+  </Window.SystemBackdrop>
+  <Grid x:Name="Root" Padding="40,28,40,24" RowSpacing="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" IsTabStop="False">
+      <Grid>
+        <!-- Step 1: Welcome to TimeTug -->
+        <StackPanel x:Name="ConnectPanel" Spacing="12" Visibility="{x:Bind ViewModel.IsConnectStep, Mode=OneWay}">
+          <TextBlock x:Uid="WelcomeTitle" Style="{StaticResource TitleLargeTextBlockStyle}" TextWrapping="Wrap"
+                     AutomationProperties.HeadingLevel="Level1" />
+          <TextBlock x:Uid="WelcomeSubtitle" TextWrapping="Wrap" Margin="0,0,0,8"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          <ItemsControl x:Uid="ProvidersList" x:Name="ProvidersList" ItemsSource="{x:Bind ViewModel.Providers}" IsTabStop="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="welcome:ProviderItem">
+                <StackPanel Spacing="4" Margin="0,0,0,10">
+                  <Button Command="{x:Bind ConnectCommand}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="16,12"
+                          AutomationProperties.Name="{x:Bind AutomationName}">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" />
+                      <TextBlock Text="{x:Bind Hint}" Style="{StaticResource CaptionTextBlockStyle}"
+                                 TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                  </Button>
+                  <StackPanel Visibility="{x:Bind HasError, Mode=OneWay}" Margin="4,0,0,0" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <FontIcon Glyph="&#xE783;" FontSize="14" Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                AutomationProperties.AccessibilityView="Raw" />
+                      <TextBlock Text="{x:Bind Error, Mode=OneWay}" TextWrapping="Wrap"
+                                 Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                 AutomationProperties.LiveSetting="Assertive" />
+                    </StackPanel>
+                    <TextBlock Text="{x:Bind ErrorDetail, Mode=OneWay}" TextWrapping="Wrap" Margin="20,0,0,0"
+                               Style="{StaticResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  </StackPanel>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <StackPanel Orientation="Horizontal" Spacing="12" Visibility="{x:Bind ViewModel.Accounts.IsBusy, Mode=OneWay}">
+            <ProgressRing x:Uid="SignInProgress" IsActive="{x:Bind ViewModel.Accounts.IsBusy, Mode=OneWay}" Width="20" Height="20" />
+            <TextBlock Text="{x:Bind ViewModel.Accounts.WaitingText, Mode=OneWay}" VerticalAlignment="Center"
+                       AutomationProperties.LiveSetting="Polite" />
+            <Button x:Uid="CancelSignIn" Command="{x:Bind ViewModel.Accounts.CancelCommand}" />
+          </StackPanel>
+          <TextBlock x:Uid="BrowserNote" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+        </StackPanel>
+
+        <!-- Step 2: You're connected -->
+        <StackPanel x:Name="ConnectedPanel" Spacing="12" Visibility="{x:Bind ViewModel.IsConnectedStep, Mode=OneWay}">
+          <TextBlock x:Uid="ConnectedTitle" Style="{StaticResource TitleLargeTextBlockStyle}" TextWrapping="Wrap"
+                     AutomationProperties.HeadingLevel="Level1" />
+          <ItemsControl x:Uid="AccountsList" ItemsSource="{x:Bind ViewModel.Accounts.Accounts}" IsTabStop="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="welcome:AccountRow">
+                <Border Padding="16,12" Margin="0,0,0,8" CornerRadius="6" BorderThickness="1"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        AutomationProperties.Name="{x:Bind Summary}">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{x:Bind Summary}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind Problem}" Style="{StaticResource CaptionTextBlockStyle}"
+                               Visibility="{x:Bind HasProblem}" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="{x:Bind ViewModel.Accounts.NextMeetingText, Mode=OneWay}" TextWrapping="Wrap"
+                     AutomationProperties.LiveSetting="Polite" />
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,8">
+            <Button x:Name="AddAnotherButton" x:Uid="AddAnother" Command="{x:Bind ViewModel.AddAnotherCommand}" />
+            <Button x:Uid="TestTug" Command="{x:Bind ViewModel.Accounts.TestTugCommand}" />
+          </StackPanel>
+          <Border x:Uid="TrayNoteCard" Padding="16,12" CornerRadius="6" BorderThickness="1"
+                  Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+            <Grid ColumnSpacing="12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <FontIcon Glyph="&#xE7C4;" FontSize="20" VerticalAlignment="Top" AutomationProperties.AccessibilityView="Raw" />
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock x:Uid="TrayNoteTitle" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Uid="TrayNote" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </StackPanel>
+      </Grid>
+    </ScrollViewer>
+
+    <Grid Grid.Row="1">
+      <HyperlinkButton x:Name="SkipButton" x:Uid="SkipForNow" Command="{x:Bind ViewModel.SkipCommand}"
+                       Visibility="{x:Bind ViewModel.IsConnectStep, Mode=OneWay}" HorizontalAlignment="Left" Padding="0,5" />
+      <Button x:Name="DoneButton" x:Uid="Done" Command="{x:Bind ViewModel.DoneCommand}" Style="{StaticResource AccentButtonStyle}"
+              Visibility="{x:Bind ViewModel.IsConnectedStep, Mode=OneWay}" HorizontalAlignment="Right" MinWidth="96" />
+    </Grid>
+  </Grid>
+</Window>

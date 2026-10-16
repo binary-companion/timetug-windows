@@ -9,6 +9,8 @@
 [CmdletBinding()]
 param(
     [string]$Scenario = 'hello',
+    # Screenshots the scenario must produce (non-blank). Defaults to the scenario's own list.
+    [string[]]$Screenshots,
     [string]$OutputFolder,
     [int]$TimeoutSeconds = 90
 )
@@ -19,6 +21,12 @@ if (-not $OutputFolder) { $OutputFolder = Join-Path $repo 'build\selftest' }
 $OutputFolder = [System.IO.Path]::GetFullPath($OutputFolder)
 $alias = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\timetug-dev.exe'
 $resultFile = Join-Path $OutputFolder 'selftest-result.json'
+if (-not $Screenshots) {
+    $Screenshots = switch ($Scenario) {
+        'welcome' { @('welcome-1-connect.png', 'welcome-waiting.png', 'welcome-form.png', 'welcome-error.png', 'welcome-2-connected.png') }
+        default { @("$Scenario.png") }
+    }
+}
 
 function Get-DistinctColours([string]$Path, [int]$Limit = 50) {
     Add-Type -AssemblyName System.Drawing
@@ -60,12 +68,13 @@ Write-Host (Get-Content -Raw $resultFile)
 $failures = @()
 if ($result.ok -ne $true) { $failures += "ok is not true: $($result.error)" }
 if (-not $result.packageFullName) { $failures += 'the app ran without package identity' }
-$shot = Join-Path $OutputFolder 'hello.png'
-if (-not (Test-Path $shot)) { $failures += 'hello.png is missing' }
-else {
+foreach ($name in $Screenshots) {
+    $shot = Join-Path $OutputFolder $name
+    if (-not (Test-Path $shot)) { $failures += "$name is missing"; continue }
     $colours = Get-DistinctColours $shot
-    Write-Host "hello.png distinct colours (sampled): $colours"
-    if ($colours -le 1) { $failures += 'hello.png is blank' }
+    Write-Host "$name distinct colours (sampled): $colours"
+    if ($colours -le 1) { $failures += "$name is blank" }
 }
+foreach ($check in @($result.checks)) { if ($check -like 'FAIL:*') { $failures += $check } }
 if ($failures.Count -gt 0) { throw ('self-test failed: ' + ($failures -join '; ')) }
 Write-Host 'self-test passed'
