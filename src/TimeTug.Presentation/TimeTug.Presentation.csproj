@@ -6,5 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <!-- Message types and IEngine only; the package native assets are runtimes/win-* and unused here. -->
+    <PackageReference Include="TimeTug.Engine" />
   </ItemGroup>
 </Project>
