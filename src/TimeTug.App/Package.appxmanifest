@@ -2,8 +2,9 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
+  IgnorableNamespaces="uap uap5 rescap">
 
   <!-- Development identity. Store and website builds get their own identities and separate data (program design section 6). -->
   <Identity
@@ -34,6 +35,15 @@
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <!-- Development builds only: lets the CI and VM scripts launch the app with a command line while keeping package identity.
+             Release and Store manifests must not carry this alias. -->
+        <uap5:Extension Category="windows.appExecutionAlias" EntryPoint="Windows.FullTrustApplication" Executable="TimeTug.exe">
+          <uap5:AppExecutionAlias>
+            <uap5:ExecutionAlias Alias="timetug-dev.exe" />
+          </uap5:AppExecutionAlias>
+        </uap5:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

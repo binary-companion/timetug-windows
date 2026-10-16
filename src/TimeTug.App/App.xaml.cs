@@ -14,7 +14,14 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _window = new Views.PlaceholderWindow();
-        _window.Activate();
+        var window = new Views.PlaceholderWindow();
+        _window = window;
+        window.Activate();
+#if SELFTEST
+        if (SelfTest.SelfTestOptions.Parse(Environment.GetCommandLineArgs()) is { } options)
+        {
+            _ = SelfTest.SelfTestRunner.RunAndExitAsync(window, options);
+        }
+#endif
     }
 }

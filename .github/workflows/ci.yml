@@ -26,6 +26,22 @@ jobs:
       - name: Build and test (x64)
         shell: pwsh
         run: ./scripts/verify.ps1 -Platform x64 -Configuration CI
+      - name: Build and install the development MSIX (x64)
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/ci/build-msix.ps1 -Platform x64
+      - name: Self-test (x64)
+        shell: pwsh
+        timeout-minutes: 5
+        run: ./scripts/ci/run-selftest.ps1 -TimeoutSeconds 90
+      - name: Upload self-test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: selftest-x64
+          path: build/selftest/
+          if-no-files-found: warn
+          retention-days: 14
 
   windows-arm64:
     runs-on: windows-11-arm
@@ -38,6 +54,22 @@ jobs:
       - name: Build and test (ARM64)
         shell: pwsh
         run: ./scripts/verify.ps1 -Platform ARM64 -Configuration CI
+      - name: Build and install the development MSIX (ARM64)
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/ci/build-msix.ps1 -Platform ARM64
+      - name: Self-test (ARM64)
+        shell: pwsh
+        timeout-minutes: 5
+        run: ./scripts/ci/run-selftest.ps1 -TimeoutSeconds 90
+      - name: Upload self-test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: selftest-arm64
+          path: build/selftest/
+          if-no-files-found: warn
+          retention-days: 14
 
   architecture:
     runs-on: ubuntu-latest
