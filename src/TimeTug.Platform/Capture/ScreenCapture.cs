@@ -74,10 +74,10 @@ public static partial class ScreenCapture
             }
             finally
             {
-                SelectObject(memory, previous);
-                DeleteObject(bitmap);
-                DeleteDC(memory);
-                ReleaseDC(0, screen);
+                _ = SelectObject(memory, previous);
+                _ = DeleteObject(bitmap);
+                _ = DeleteDC(memory);
+                _ = ReleaseDC(0, screen);
             }
         }
         catch (Exception ex) when (ex is COMException or IOException or InvalidOperationException or UnauthorizedAccessException)
