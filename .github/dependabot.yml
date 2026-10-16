@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # TimeTug.Engine keeps a backward-compatible surface (see AGENTS.md): a non-major bump needs no app
+      # change, so it is merged as soon as CI is green and gets its own pull request.
+      timetug-engine:
+        patterns: ["TimeTug.Engine"]
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
