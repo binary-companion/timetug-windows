@@ -20,6 +20,7 @@ namespace TimeTug.App;
 /// engine's first state says this is a first run, and quits in the order the engine needs: the tray icon is removed, an outstanding
 /// takeover is closed, the engine is disposed, then the process exits.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "QuitAsync disposes the tray; the shell lives as long as the process and has one ordered shutdown.")]
 internal sealed class AppShell
 {
     private readonly DispatcherQueue _queue;
