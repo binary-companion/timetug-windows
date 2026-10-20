@@ -126,7 +126,7 @@ internal static class TrayStatesScenario
         Expect("idle-again", TrayIconState.Idle, null, false, "Design review in 2 hr 21 min");
 
         // ---- the screenshots: the applied icons enlarged, and the contact sheet ---------------------------------------------------------------
-        const int Zoom = 6;
+        const int Zoom = 4; // small enough that the window fits on the screen (a window partly off screen is not captured)
         var strip = new StackPanel { Spacing = 8, Padding = new Thickness(12) };
         foreach (var (name, background) in new[] { ("dark taskbar", Microsoft.UI.Colors.Black), ("light taskbar", Microsoft.UI.Colors.WhiteSmoke) })
         {
@@ -141,7 +141,7 @@ internal static class TrayStatesScenario
         }
 
         var stripWindow = new Window { Title = "TimeTug tray states", Content = new Grid { Background = new SolidColorBrush(Microsoft.UI.Colors.Gray), Children = { strip } } };
-        stripWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Min(2200, 60 + (applied.Count * ((size * Zoom) + 8))), (2 * ((size * Zoom) + 60)) + 80));
+        stripWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Min(1300, 60 + (applied.Count * ((size * Zoom) + 8))), (2 * ((size * Zoom) + 60)) + 80));
         stripWindow.Activate();
         await SelfTestRunner.WaitForFrameAsync(stripWindow, cancellation, 1500);
         await run.ShotAsync(stripWindow, "states-enlarged");
