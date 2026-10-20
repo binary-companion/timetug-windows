@@ -11,6 +11,12 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="TimeTug.Engine" GeneratePathProperty="true" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The engine package's own golden state, so the mapping is tested against what the real engine writes. -->
+    <None Include="$(PkgTimeTug_Engine)/contentFiles/any/any/fixtures/state.json" Link="fixtures/state.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(PkgTimeTug_Engine)/contentFiles/any/any/fixtures/edge-state-all-day-only.json" Link="fixtures/edge-state-all-day-only.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\TimeTug.Presentation\TimeTug.Presentation.csproj" />
