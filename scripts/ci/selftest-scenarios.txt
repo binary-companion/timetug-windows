@@ -8,6 +8,7 @@ welcome                  5  120  selftest
 toast                    0  90   selftest
 startup                  3  150  selftest
 tray                     1  120  selftest
+tray-states              2  120  selftest
 tug-basic                2  150  selftest
 tug-join                 1  120  selftest
 tug-snooze               1  120  selftest
