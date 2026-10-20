@@ -73,7 +73,7 @@ Set-Content -LiteralPath (Join-Path $Destination 'README.txt') -Value @"
 TimeTug development package ($Platform), built from commit $Commit.
 
 This is a development build signed with a throwaway certificate (dev.cer, public part only; the key was deleted by the
-build and is not here). It expires two days after the build.
+build and is not here). It is valid for 15 days after the build.
 
 Install (elevated PowerShell, once, trusts the certificate and installs for you):
     powershell -ExecutionPolicy Bypass -File .\vm-install.ps1

@@ -3,7 +3,7 @@
   Builds the development MSIX for one architecture, signs it with a throwaway certificate, trusts that
   certificate on this machine and installs the package.
 .DESCRIPTION
-  The certificate is created here, lives two days and is never exported with its private key, so no
+  The certificate is created here, lives 15 days (as long as a CI artifact is kept, so the artifact stays installable) and is never exported with its private key, so no
   signing material exists outside this run. Trusting it needs an elevated session (CI runners are; the
   VM's `prlctl exec` runs as SYSTEM). Installing registers the package for the current user, so on the
   VM run -Stage Build as SYSTEM and -Stage Install as the interactive user (see docs/development.md).
@@ -48,7 +48,7 @@ if ($Stage -in 'Build', 'All') {
     Invoke-Step 'certificate' {
         $script:cert = New-SelfSignedCertificate -Type Custom -Subject $publisher -KeyUsage DigitalSignature `
             -FriendlyName 'TimeTug development (throwaway)' -CertStoreLocation Cert:\CurrentUser\My `
-            -NotAfter (Get-Date).AddDays(2) `
+            -NotAfter (Get-Date).AddDays(15) `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')
         Export-Certificate -Cert $script:cert -FilePath (Join-Path $OutputFolder 'dev.cer') | Out-Null
     }
