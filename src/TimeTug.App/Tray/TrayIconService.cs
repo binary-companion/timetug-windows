@@ -62,9 +62,11 @@ internal sealed class TrayIconService : IDisposable, ITrayIconSink
             };
             _icon = icon;
             Apply(_model.Current);
+            // Follow the plan even when Windows cannot take the icon yet (no taskbar, as on the hosted ARM64 runner): the library
+            // creates it when a taskbar appears, and it must then show the current plan, not the first one.
+            _model.Changed += OnChanged;
             // The efficiency mode the library offers would throttle the whole process, including the engine; keep it off.
             icon.ForceCreate(enablesEfficiencyMode: false);
-            _model.Changed += OnChanged;
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
