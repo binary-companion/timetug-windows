@@ -32,6 +32,9 @@ internal static class TrayStatesScenario
         void Check(bool condition, string description) => run.Check(condition, description);
 
         var queue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+
+        // Closing the last window ends a WinUI app; this one stays open (never shown) while the picture windows come and go.
+        var anchor = new Window();
         var text = new ResourceLoaderLocalizer();
         using var forms = new AccountFormService(queue, text);
         using var engine = new ScriptedEngineClient(forms);
@@ -156,6 +159,7 @@ internal static class TrayStatesScenario
         await SelfTestRunner.WaitForFrameAsync(sheetWindow, cancellation, 1500);
         await run.ShotAsync(sheetWindow, "contact-sheet");
         sheetWindow.Close();
+        anchor.Close();
 
         Check(diagnostics.Entries.All(e => e.Category != "tray" || e.Level != "error" || e.Message.Contains("TryCreate", StringComparison.Ordinal) || e.Message.Contains("could not be created", StringComparison.Ordinal)),
             "no icon could be drawn wrongly (only a tray that could not be created may be recorded): " + string.Join("; ", diagnostics.Entries.Select(e => e.Message)));
