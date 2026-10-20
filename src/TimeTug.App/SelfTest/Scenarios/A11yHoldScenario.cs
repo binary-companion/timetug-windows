@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Welcome;
 
 namespace TimeTug.App.SelfTest.Scenarios;
@@ -10,9 +11,9 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// <summary>
 /// Scenario <c>a11y-hold</c>: shows the welcome window and the tug (the main window, on one monitor) and holds them open while
 /// the accessibility scanner (<c>tests/TimeTug.App.A11y</c>, axe-windows) reads them. Round 0 is a canary: a window with a button that
-/// has no name, which the scanner must flag (a scan that finds nothing there is not seeing the app, and fails). Then two rounds: the
+/// has no name, which the scanner must flag (a scan that finds nothing there is not seeing the app, and fails). Then three rounds: the
 /// welcome window's Connect step with the tug as it first appears, then its Connected step with the tug showing the link to copy after a
-/// failed Join. A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
+/// failed Join, then the flyout (a problem row and a long day). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
 /// <c>done-N.txt</c>; without it the scenario gives up after <see cref="WaitForScanner"/>.
 /// </summary>
 internal static class A11yHoldScenario
@@ -20,7 +21,7 @@ internal static class A11yHoldScenario
     public const string Name = "a11y-hold";
 
     /// <summary>How many rounds the scanner is told to expect (<c>scripts/ci/run-a11y.ps1</c> passes the same number).</summary>
-    public const int Rounds = 2;
+    public const int Rounds = 3;
 
     private static readonly TimeSpan WaitForScanner = TimeSpan.FromSeconds(120);
 
@@ -59,6 +60,16 @@ internal static class A11yHoldScenario
 
         run.Check(ScenarioUi.Invoke(rig.Host.Primary!, "Dismiss this reminder"), "Dismiss can be pressed");
         run.Check(await rig.WaitHiddenAsync(), "the tug closes");
+        welcome.Close();
+
+        // Round 3: the flyout, with a problem row above a day that has every kind of card (and the scrolling list).
+        using var flyout = FlyoutRig.Over(rig);
+        rig.Engine.Push(flyout.State(flyout.LongDay(), [new SourceProblem("google-conn-1", "you@example.com", ProblemKind.AuthExpired, null, "conn-1")]));
+        var flyoutWindow = await flyout.OpenAsync();
+        run.Check(flyoutWindow is not null, "the flyout opens");
+        await rig.Settle();
+        run.Check(await HoldForScannerAsync(rig, 3, "the flyout with a problem and a long day", cancellation), "the scanner finished round 3");
+        flyout.Host.Close();
         return rig.Finish();
     }
 

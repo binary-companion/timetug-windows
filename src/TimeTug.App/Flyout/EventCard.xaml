@@ -1,0 +1,59 @@
+<UserControl
+    x:Class="TimeTug.App.Flyout.EventCard"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- One agenda item. Colours and texts are set in code from the view model's row (they change with the clock and the theme). -->
+  <Border x:Name="Frame" CornerRadius="12" Padding="12" BorderThickness="1">
+    <StackPanel Spacing="8">
+      <Grid ColumnSpacing="8">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="52" />
+          <ColumnDefinition Width="4" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <TextBlock x:Name="TimeText" FontSize="12" FontWeight="Medium" TextAlignment="Right" Margin="0,1,0,0"
+                   Typography.NumeralAlignment="Tabular" AutomationProperties.AccessibilityView="Raw" />
+        <Border x:Name="Bar" Grid.Column="1" Width="4" CornerRadius="2" />
+        <StackPanel Grid.Column="2" Spacing="2">
+          <Grid ColumnSpacing="6">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="TitleText" FontSize="14" FontWeight="SemiBold" MaxLines="1" TextTrimming="CharacterEllipsis" />
+            <Border x:Name="Pill" Grid.Column="1" CornerRadius="10" Padding="8,2" VerticalAlignment="Center" Visibility="Collapsed">
+              <TextBlock x:Name="PillText" FontSize="11" FontWeight="SemiBold" Typography.NumeralAlignment="Tabular" />
+            </Border>
+          </Grid>
+          <TextBlock x:Name="MetaText" FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis" />
+          <StackPanel x:Name="MergePanel" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
+            <FontIcon x:Name="MergeIcon" Glyph="&#xE8FD;" FontSize="11" AutomationProperties.AccessibilityView="Raw" />
+            <TextBlock x:Name="MergeText" FontSize="11" MaxLines="1" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+          <ProgressBar x:Name="Progress" Height="3" MinHeight="3" Margin="0,4,0,0" Minimum="0" Maximum="1" Visibility="Collapsed"
+                       AutomationProperties.AccessibilityView="Raw" />
+        </StackPanel>
+        <Button x:Name="JoinButton" Grid.Column="3" VerticalAlignment="Top" CornerRadius="14" MinHeight="28" Padding="12,0"
+                Style="{StaticResource AccentButtonStyle}" Click="OnJoinClick">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <FontIcon Glyph="&#xE714;" FontSize="11" AutomationProperties.AccessibilityView="Raw" />
+            <TextBlock x:Name="JoinLabel" FontSize="12" FontWeight="SemiBold" />
+          </StackPanel>
+        </Button>
+      </Grid>
+      <StackPanel x:Name="FailedPanel" Spacing="6" Visibility="Collapsed">
+        <TextBlock x:Name="FailedText" FontSize="12" TextWrapping="Wrap" />
+        <Grid ColumnSpacing="8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBox x:Name="LinkBox" IsReadOnly="True" FontSize="12" />
+          <Button x:Name="CopyButton" Grid.Column="1" FontSize="12" Click="OnCopyClick" />
+        </Grid>
+        <TextBlock x:Name="CopiedText" FontSize="11" Visibility="Collapsed" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>
