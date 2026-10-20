@@ -1,0 +1,4 @@
+{
+  "comment": "Errors axe-windows reports that are accepted, each with the reason. Prefer fixing the XAML: an entry here is a decision, not a convenience. A rule id and an element name (both exact) must match; \"name\" may be omitted to accept the rule for every element, which needs an especially good reason.",
+  "suppressions": []
+}
