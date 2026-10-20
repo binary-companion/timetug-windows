@@ -20,4 +20,9 @@ tug-meeting-gone         0  150  selftest
 tug-join-fails           1  120  selftest
 tug-monitors             1  120  selftest
 tug-contrast-and-motion  4  120  selftest
+flyout-empty              3  120  selftest
+flyout-day                3  150  selftest
+flyout-problems           1  120  selftest
+flyout-tug-wins           1  150  selftest
+flyout-anchor            1  150  selftest
 a11y-hold                0  300  a11y

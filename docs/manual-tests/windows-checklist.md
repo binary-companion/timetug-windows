@@ -60,7 +60,7 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 
 - **Build:** `msix-x64` (or `msix-arm64`), after one of the sign-ins in section 2 succeeded.
 - **Do:** quit TimeTug from the tray menu (check 5.4), then start it again from the Start menu.
-- **Expect:** no welcome window. The tray icon appears and its tooltip names the next meeting. Left-click on the icon does nothing yet (the flyout is slice 2).
+- **Expect:** no welcome window. The tray icon appears and its tooltip names the next meeting. Left-click on the icon does nothing yet (the flyout window exists; the click is wired in slice 2).
 - **Automated:** partly. `AppRuntimeTests` cover "welcome only when the first state has no accounts"; the `startup` scenario covers the no-account case. Not automated: a restart with a real stored account.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
@@ -268,6 +268,14 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Do:** Task Manager, Windows Explorer, Restart. Later install a newer artifact over the old one.
 - **Expect:** after the Explorer restart the icon comes back by itself. After an update the notification-area "Always show" choice may need to be switched on again (Windows ties it to the package path); note whether it did.
 - **Automated:** no (H.NotifyIcon recreates the icon on TaskbarCreated; not exercised on CI, which has no taskbar).
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 5.6 The flyout next to the icon (once the left click opens it, slice 2 task 8)
+
+- **Build:** `msix-x64` (or `msix-arm64`), one account connected and a calendar with a few meetings today.
+- **Do:** left-click the tray icon with the icon in the overflow, then pinned to the taskbar; again with the taskbar at 100, 150 and 200 percent scaling, with the taskbar set to hide itself, and (if you have two monitors) with the icon's monitor not the main one. Press Esc, click elsewhere, and click the icon twice in a row. Press Tab and Enter on a Join button. Open a maximized window first.
+- **Expect:** the flyout opens above the icon (or the overflow button) on that monitor with an even gap, 360 DIP wide and never taller than 520 DIP (a long day scrolls under a fixed header), over the maximized window and not behind it. Esc, clicking elsewhere and a second click on the icon close it (the second click does not close it and open it again). It has no taskbar button and is not in Alt+Tab. With transparency effects off or a contrast theme it is a solid fill; with animations off it appears without sliding. When a tug appears it closes and cannot be opened over the tug.
+- **Automated:** partly. `flyout-empty`, `flyout-day`, `flyout-problems`, `flyout-tug-wins` and `flyout-anchor` open the real window and check text, placement, keyboard focus, Join and the screenshots; `FlyoutPlacementTests` cover every taskbar edge, several monitors and scales; the axe-windows scan reads the flyout. Not automated: clicking the real icon, pinned versus overflow on other machines, a second monitor.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ---

@@ -70,6 +70,11 @@ internal static class SelfTestRunner
         [TugJoinFailsScenario.Name] = TugJoinFailsScenario.RunAsync,
         [TugMonitorsScenario.Name] = TugMonitorsScenario.RunAsync,
         [TugContrastAndMotionScenario.Name] = TugContrastAndMotionScenario.RunAsync,
+        [FlyoutEmptyScenario.Name] = FlyoutEmptyScenario.RunAsync,
+        [FlyoutDayScenario.Name] = FlyoutDayScenario.RunAsync,
+        [FlyoutProblemsScenario.Name] = FlyoutProblemsScenario.RunAsync,
+        [FlyoutTugWinsScenario.Name] = FlyoutTugWinsScenario.RunAsync,
+        [FlyoutAnchorScenario.Name] = FlyoutAnchorScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
     };
 
