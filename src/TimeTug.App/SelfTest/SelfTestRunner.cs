@@ -89,6 +89,7 @@ internal static class SelfTestRunner
             "toast" => await ToastScenario.RunAsync(options, cancellation),
             "tug-basic" => await TugBasicScenario.RunAsync(options, cancellation),
             "startup" => await StartupScenario.RunAsync(options, cancellation),
+            "tray" => await TrayScenario.RunAsync(options, cancellation),
             _ => Result(options, null, "unknown scenario " + options.Scenario, []),
         };
     }

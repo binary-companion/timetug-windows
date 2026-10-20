@@ -9,6 +9,7 @@ using TimeTug.Platform.OsState;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Startup;
+using TimeTug.Presentation.Tray;
 using TimeTug.Presentation.Tug;
 using Pkg = TimeTug.Engine;
 
@@ -143,19 +144,28 @@ internal static class StartupScenario
             Check(controller.State == TugState.Hidden && controller.Current is null, "the controller owes the engine nothing after Dismiss");
         }
 
-        // ---- a second test tug is left outstanding so that quitting must close it ------------------------------------------
-        await runtime.TestTugAsync();
+        // ---- the tray: the icon is in the notification area and its Test tug item reaches the real engine ----------------------
+        // A runner without a taskbar (the hosted ARM64 image has none) cannot take the icon: that must be recorded, not fatal,
+        // and the icon appears when a taskbar does (the library recreates it on TaskbarCreated).
+        var trayCreated = shell.TrayIcon is { IsCreated: true };
+        Check(trayCreated || diagnostics.Entries.Any(e => e.Category == "tray" && e.Level == "error"), "the tray icon was created in the notification area, or its failure was recorded: created=" + trayCreated);
+        Check(shell.TrayModel is { } tray && tray.Current.Rows.Single(r => r.Command == TrayCommand.Quit).IsEnabled, "the tray menu offers Quit");
+        checks.Add("info: tray icon file " + shell.TrayIcon?.AppliedIconFile + ", tooltip \"" + shell.TrayIcon?.AppliedTooltip + "\"");
+
+        // ---- a second test tug (from the tray menu) is left outstanding so that quitting must close it -----------------------
+        await shell.TrayModel!.InvokeAsync(TrayCommand.TestTug);
         Check(await WaitFor(() => windows.WindowCount == monitors.Monitors.Count), "a second test takeover is shown");
         Check(controller.Current is not null, "the second request is outstanding");
 
         // ---- quit: the open request is closed first, then everything is disposed ------------------------------------------------
         await shell.QuitAsync(exitProcess: false).WaitAsync(TimeSpan.FromSeconds(30), cancellation);
         Check(controller.Current is null && controller.State == TugState.Hidden, "quitting closed the outstanding request");
+        Check(shell.TrayIcon is null, "quitting removed the tray icon");
         Check(await WaitFor(() => windows.WindowCount == 0, 3000), "quitting closed the tug windows");
         var files = Directory.GetFiles(dataDirectory, "*", SearchOption.AllDirectories);
         checks.Add("info: the engine wrote " + files.Length + " file(s) under its data folder: " + string.Join(", ", files.Select(f => Path.GetRelativePath(dataDirectory, f))));
         Check(files.Length > 0, "the engine used its data folder");
-        Check(diagnostics.Entries.All(e => e.Level != "error"), "nothing was recorded as an error: " + string.Join("; ", diagnostics.Entries.Where(e => e.Level == "error").Select(e => e.Category + ": " + e.Message)));
+        Check(diagnostics.Entries.All(e => e.Level != "error" || e.Category == "tray"), "nothing was recorded as an error (a tray that could not be created aside): " + string.Join("; ", diagnostics.Entries.Where(e => e.Level == "error").Select(e => e.Category + ": " + e.Message)));
         lock (host.Diagnostics)
         {
             Check(host.Diagnostics.All(d => d.Level != "error"), "the engine reported no error: " + string.Join("; ", host.Diagnostics.Where(d => d.Level == "error").Select(d => d.Category + ": " + d.Message)));

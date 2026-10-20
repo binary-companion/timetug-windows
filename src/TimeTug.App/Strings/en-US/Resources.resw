@@ -132,4 +132,20 @@
   <data name="StartupFailure_Body" xml:space="preserve"><value>TimeTug’s calendar engine didn’t load, so no reminders will appear. Close TimeTug and start it again; if this keeps happening, the diagnostics log in TimeTug’s data folder says why.</value></data>
   <data name="StartupFailure_Close" xml:space="preserve"><value>Close TimeTug</value></data>
   <data name="StartupFailure_CloseAutomation" xml:space="preserve"><value>Close TimeTug</value></data>
+  <data name="Tray_Starting" xml:space="preserve"><value>Starting…</value></data>
+  <data name="Tray_NoUpcoming" xml:space="preserve"><value>No upcoming meetings</value></data>
+  <data name="Tray_Next" xml:space="preserve"><value>Next: {0} · {1}</value></data>
+  <data name="Tray_Join" xml:space="preserve"><value>Join {0}</value></data>
+  <data name="Tray_EnableTug" xml:space="preserve"><value>Enable Tug</value></data>
+  <data name="Tray_TestTug" xml:space="preserve"><value>Test tug</value></data>
+  <data name="Tray_Settings" xml:space="preserve"><value>Settings…</value></data>
+  <data name="Tray_Quit" xml:space="preserve"><value>Quit TimeTug</value></data>
+  <data name="Tray_Tooltip_Default" xml:space="preserve"><value>TimeTug</value></data>
+  <data name="Tray_Tooltip_InMinutes" xml:space="preserve"><value>{0} in {1} min</value></data>
+  <data name="Tray_Tooltip_InHours" xml:space="preserve"><value>{0} in {1} hr</value></data>
+  <data name="Tray_Tooltip_InHoursMinutes" xml:space="preserve"><value>{0} in {1} hr {2} min</value></data>
+  <data name="Tray_Tooltip_StartsNow" xml:space="preserve"><value>{0} starts now</value></data>
+  <data name="Tray_Tooltip_Started" xml:space="preserve"><value>{0} has started</value></data>
+  <data name="Tray_Tooltip_TugOff" xml:space="preserve"><value>{0} · Tug is off</value></data>
+  <data name="Tray_Tooltip_Attention" xml:space="preserve"><value>TimeTug: a meeting needs you</value></data>
 </root>

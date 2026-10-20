@@ -6,6 +6,7 @@ using TimeTug.Engine;
 using TimeTug.Platform;
 using TimeTug.Platform.Auth;
 using TimeTug.Platform.OsState;
+using TimeTug.Platform.Tray;
 using TimeTug.Platform.Tug;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Accounts;
@@ -40,6 +41,7 @@ internal static class AppComposition
         services.AddSingleton<IUiDispatcher>(new DispatcherQueueDispatcher(queue));
         services.AddSingleton<ILocalizer, ResourceLoaderLocalizer>();
         services.AddSingleton<ISecondTicker>(sp => new SecondTicker(sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<IMinuteTicker>(sp => new MinuteTicker(sp.GetRequiredService<TimeProvider>()));
 
         // ---- the engine -----------------------------------------------------------------------------------------
         services.AddSingleton(sp => new AccountFormService(queue, sp.GetRequiredService<ILocalizer>()));
