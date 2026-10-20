@@ -138,27 +138,17 @@ internal static class TrayStatesScenario
         await SelfTestRunner.WaitForFrameAsync(sheetWindow, cancellation, 1500);
         await run.ShotAsync(sheetWindow, "contact-sheet");
         sheetWindow.Close();
-        const int Zoom = 4; // small enough that the window fits on the screen (a window partly off screen is not captured)
-        var strip = new StackPanel { Spacing = 8, Padding = new Thickness(12) };
-        foreach (var (name, background) in new[] { ("dark taskbar", Microsoft.UI.Colors.Black), ("light taskbar", Microsoft.UI.Colors.WhiteSmoke) })
+        var strip = BuildStrip(applied.Select(a => a.Image).ToList(), zoom: 4);
+        var stripWindow = new Window
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Padding = new Thickness(8), Background = new SolidColorBrush(background) };
-            foreach (var (_, image) in applied)
-            {
-                row.Children.Add(new Image { Width = size * Zoom, Height = size * Zoom, Source = ToBitmap(Enlarge(image, Zoom)) });
-            }
-
-            strip.Children.Add(new TextBlock { Text = name });
-            strip.Children.Add(row);
-        }
-
-        var stripWindow = new Window { Title = "TimeTug tray states", Content = new Grid { Background = new SolidColorBrush(Microsoft.UI.Colors.Gray), Children = { strip } } };
-        stripWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Min(1300, 60 + (applied.Count * ((size * Zoom) + 8))), (2 * ((size * Zoom) + 60)) + 80));
+            Title = "TimeTug tray states",
+            Content = new Grid { Background = new SolidColorBrush(Microsoft.UI.Colors.Gray), Children = { new Image { Stretch = Stretch.Uniform, Source = ToBitmap(strip) } } },
+        };
+        stripWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(1000, 480));
         stripWindow.Activate();
         await SelfTestRunner.WaitForFrameAsync(stripWindow, cancellation, 1500);
         await run.ShotAsync(stripWindow, "states-enlarged");
         stripWindow.Close();
-
         anchor.Close();
 
         Check(diagnostics.Entries.All(e => e.Category != "tray" || e.Level != "error" || e.Message.Contains("TryCreate", StringComparison.Ordinal) || e.Message.Contains("could not be created", StringComparison.Ordinal)),
@@ -198,24 +188,45 @@ internal static class TrayStatesScenario
         return true;
     }
 
-    private static TrayIconImage Enlarge(TrayIconImage image, int factor)
+    /// <summary>Every applied icon, enlarged by whole pixels, in a row on a dark and in a row on a light taskbar colour.</summary>
+    private static TrayIconImage BuildStrip(IReadOnlyList<TrayIconImage> icons, int zoom)
     {
-        var rgba = new byte[image.Width * factor * image.Height * factor * 4];
-        var width = image.Width * factor;
-        for (var y = 0; y < image.Height * factor; y++)
+        const int Gap = 8;
+        var cell = (icons[0].Width * zoom) + Gap;
+        var width = Gap + (icons.Count * cell);
+        var band = cell + Gap;
+        var rgba = new byte[width * 2 * band * 4];
+        for (var y = 0; y < 2 * band; y++)
         {
+            var light = y >= band;
             for (var x = 0; x < width; x++)
             {
-                var (r, g, b, a) = image.PixelAt(x / factor, y / factor);
                 var i = ((y * width) + x) * 4;
-                rgba[i] = r;
-                rgba[i + 1] = g;
-                rgba[i + 2] = b;
-                rgba[i + 3] = a;
+                rgba[i] = rgba[i + 1] = rgba[i + 2] = (byte)(light ? 243 : 32);
+                rgba[i + 3] = 255;
             }
         }
 
-        return new TrayIconImage(width, image.Height * factor, rgba);
+        for (var n = 0; n < icons.Count; n++)
+        {
+            for (var row = 0; row < 2; row++)
+            {
+                var background = row == 1 ? 243 : 32;
+                for (var py = 0; py < icons[n].Height * zoom; py++)
+                {
+                    for (var px = 0; px < icons[n].Width * zoom; px++)
+                    {
+                        var (r, g, b, a) = icons[n].PixelAt(px / zoom, py / zoom);
+                        var i = ((((row * band) + Gap + py) * width) + Gap + (n * cell) + px) * 4;
+                        rgba[i] = (byte)(((r * a) + (background * (255 - a))) / 255);
+                        rgba[i + 1] = (byte)(((g * a) + (background * (255 - a))) / 255);
+                        rgba[i + 2] = (byte)(((b * a) + (background * (255 - a))) / 255);
+                    }
+                }
+            }
+        }
+
+        return new TrayIconImage(width, 2 * band, rgba);
     }
 
     private static WriteableBitmap ToBitmap(TrayIconImage image)
