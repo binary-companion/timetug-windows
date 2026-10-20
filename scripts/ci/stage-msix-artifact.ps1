@@ -5,7 +5,7 @@
   After build-msix.ps1 has built (and signed) the development package, this copies into one folder:
     the .msix, Dependencies\<arch>\*.msix, dev.cer (the PUBLIC certificate), vm-install.ps1, commit.txt, README.txt.
   Then it checks the folder against an allow-list of file types and fails on anything that could hold a private key
-  (.pfx, .p12, .pvk, .key, .pem, .snk, ...) or any file that carries one. The workflow uploads only this folder.
+  (PFX, P12, PVK, key, PEM and SNK files, ...) or any file that carries one. The workflow uploads only this folder.
 .PARAMETER Platform
   x64 or ARM64: the package that was just built.
 .PARAMETER BuildFolder
