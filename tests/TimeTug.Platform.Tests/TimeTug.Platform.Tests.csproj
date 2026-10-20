@@ -18,6 +18,10 @@
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.WindowsAppSDK.Runtime" />
   </ItemGroup>
+  <!-- The app's real tray icon files, which the renderer draws the digits on. -->
+  <ItemGroup>
+    <None Include="..\..\src\TimeTug.App\Assets\Tray\*.ico" Link="Assets\Tray\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\TimeTug.Platform\TimeTug.Platform.csproj" />
   </ItemGroup>

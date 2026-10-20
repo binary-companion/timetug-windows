@@ -37,6 +37,16 @@ Check 'platform comes from the package name' {
     Assert-Equal (Get-PackagePlatform 'TimeTug.msix') $null
 }
 
+Check 'the processes that block an install (0x80073D02) are recognised' {
+    foreach ($name in 'Widgets', 'WidgetService', 'WidgetBoard', 'StartMenuExperienceHost', 'Microsoft.StartExperiencesApp', 'MicrosoftStartFeedProvider') {
+        Assert-Equal (Test-InstallBlocker ([pscustomobject]@{ Name = $name; Path = $null })) $true
+    }
+    Assert-Equal (Test-InstallBlocker ([pscustomobject]@{ Name = 'Anything'; Path = 'C:\Windows\SystemApps\MicrosoftWindows.Client.WebExperience_x\Widgets.exe' })) $true
+    Assert-Equal (Test-InstallBlocker ([pscustomobject]@{ Name = 'Other'; Path = 'C:\Program Files\WindowsApps\Microsoft.StartExperiencesApp_1.398.2.0_arm64__8wekyb3d8bbwe\Other.exe' })) $true
+    Assert-Equal (Test-InstallBlocker ([pscustomobject]@{ Name = 'explorer'; Path = 'C:\Windows\explorer.exe' })) $false
+    Assert-Equal (Test-InstallBlocker ([pscustomobject]@{ Name = 'TimeTug'; Path = $null })) $false
+}
+
 Check 'the artifact layout is found, with only its own architecture dependencies' {
     $root = New-Tree $artifact
     $files = Find-PackageFiles -Folder $root

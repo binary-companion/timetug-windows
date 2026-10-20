@@ -58,6 +58,7 @@ internal static class SelfTestRunner
         [ToastScenario.Name] = ToastScenario.RunAsync,
         [StartupScenario.Name] = StartupScenario.RunAsync,
         [TrayScenario.Name] = TrayScenario.RunAsync,
+        [TrayStatesScenario.Name] = TrayStatesScenario.RunAsync,
         [TugBasicScenario.Name] = TugBasicScenario.RunAsync,
         [TugJoinScenario.Name] = TugJoinScenario.RunAsync,
         [TugSnoozeScenario.Name] = TugSnoozeScenario.RunAsync,

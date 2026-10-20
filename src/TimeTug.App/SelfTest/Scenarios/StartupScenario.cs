@@ -138,7 +138,7 @@ internal static class StartupScenario
         var trayCreated = shell.TrayIcon is { IsCreated: true };
         Check(trayCreated || diagnostics.Entries.Any(e => e.Category == "tray" && e.Level == "error"), "the tray icon was created in the notification area, or its failure was recorded: created=" + trayCreated);
         Check(shell.TrayModel is { } tray && tray.Current.Rows.Single(r => r.Command == TrayCommand.Quit).IsEnabled, "the tray menu offers Quit");
-        run.Info("tray icon file " + shell.TrayIcon?.AppliedIconFile + ", tooltip \"" + shell.TrayIcon?.AppliedTooltip + "\"");
+        run.Info("tray icon " + shell.TrayIcon?.AppliedIcon?.Width + " px, tooltip \"" + shell.TrayIcon?.AppliedTooltip + "\"");
 
         // ---- a second test tug (from the tray menu) is left outstanding so that quitting must close it -----------------------
         await shell.TrayModel!.InvokeAsync(TrayCommand.TestTug);

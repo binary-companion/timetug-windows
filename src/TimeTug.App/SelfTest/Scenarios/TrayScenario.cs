@@ -167,7 +167,7 @@ internal static class TrayScenario
         window.Close();
     }
 
-    private sealed class FixedTime(DateTimeOffset start) : TimeProvider
+    internal sealed class FixedTime(DateTimeOffset start) : TimeProvider
     {
         private DateTimeOffset _now = start;
 
@@ -178,7 +178,7 @@ internal static class TrayScenario
         public void Advance(TimeSpan by) => _now += by;
     }
 
-    private sealed class FakeAttention : ITugAttention
+    internal sealed class FakeAttention : ITugAttention
     {
         private bool _needs;
 
@@ -195,7 +195,7 @@ internal static class TrayScenario
         public event Action? AttentionChanged;
     }
 
-    private sealed class ManualTicker : IMinuteTicker
+    internal sealed class ManualTicker : IMinuteTicker
     {
         private Action? _tick;
 
@@ -213,7 +213,7 @@ internal static class TrayScenario
         }
     }
 
-    private sealed class CountingHost : ITrayHost
+    internal sealed class CountingHost : ITrayHost
     {
         public int Welcomes { get; private set; }
 
