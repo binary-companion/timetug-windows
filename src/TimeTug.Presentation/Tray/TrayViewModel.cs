@@ -17,10 +17,7 @@ namespace TimeTug.Presentation.Tray;
 public sealed class TrayViewModel : IDisposable
 {
     /// <summary>How far ahead of its start the icon turns colour and the Next row offers Join (the Mac's value).</summary>
-    public static readonly TimeSpan SoonWindow = TimeSpan.FromMinutes(10);
-
-    /// <summary>The notification area shows at most 127 characters of tooltip.</summary>
-    private const int MaxTooltip = 127;
+    public static readonly TimeSpan SoonWindow = TrayIconPlan.SoonWindow;
 
     private const int MaxMenuTitle = 60;
     private const string Ellipsis = "…";
@@ -191,34 +188,9 @@ public sealed class TrayViewModel : IDisposable
     private TrayView Build()
     {
         var now = _time.GetUtcNow();
-        var (near, offersJoin) = Nearness(_state, now);
-        var attention = _attention.NeedsAttention;
-        var icon = new TrayIconView(
-            attention ? TrayIconState.Attention : near ? TrayIconState.Soon : TrayIconState.Idle,
-            _ui.TaskbarUsesLightTheme);
-        return new TrayView(BuildRows(_state, offersJoin), icon, BuildTooltip(_state, now, attention));
-    }
-
-    /// <summary>
-    /// Whether the engine has a takeover pending for a meeting that starts within the window (or has started), and whether that
-    /// meeting is the one the Next row names and has a join link, so the row may say Join.
-    /// </summary>
-    private static (bool Near, bool OffersJoin) Nearness(AppState? state, DateTimeOffset now)
-    {
-        if (state is not { NextTakeover: { } takeover })
-        {
-            return (false, false);
-        }
-
-        var scheduled = state.Events.FirstOrDefault(e => e.Id == takeover.EventId);
-        var start = scheduled?.Start ?? takeover.FireAt;
-        if (start - now > SoonWindow)
-        {
-            return (false, false);
-        }
-
-        var sameMeeting = state.NextMeeting is { } next && scheduled is not null && next.Title == scheduled.Title && next.Start == scheduled.Start;
-        return (true, sameMeeting && state.NextMeeting!.HasJoinLink);
+        var nearness = TrayIconPlan.Measure(_state, now);
+        var plan = TrayIconPlan.Create(nearness, _state, now, _attention.NeedsAttention, _text, _culture);
+        return new TrayView(BuildRows(_state, nearness.OffersJoin), new TrayIconView(plan.State, _ui.TaskbarUsesLightTheme, plan.Digit), plan.Tooltip);
     }
 
     private TrayRow[] BuildRows(AppState? state, bool offersJoin)
@@ -263,58 +235,6 @@ public sealed class TrayViewModel : IDisposable
         var local = TimeZoneInfo.ConvertTime(start, _time.LocalTimeZone);
         // Newer ICU data writes a narrow no-break space before AM/PM; the menu uses an ordinary space.
         return local.ToString("t", _culture).Replace(' ', ' ').Replace(' ', ' ');
-    }
-
-    private string BuildTooltip(AppState? state, DateTimeOffset now, bool attention)
-    {
-        if (attention)
-        {
-            return _text.GetString("Tray_Tooltip_Attention");
-        }
-
-        var off = state is { Enabled: false };
-        if (state?.NextMeeting is not { } next)
-        {
-            return off ? string.Format(_culture, _text.GetString("Tray_Tooltip_TugOff"), _text.GetString("Tray_Tooltip_Default")) : _text.GetString("Tray_Tooltip_Default");
-        }
-
-        string Compose(string title)
-        {
-            var line = WhenText(title, next.Start - now);
-            return off ? string.Format(_culture, _text.GetString("Tray_Tooltip_TugOff"), line) : line;
-        }
-
-        var tooltip = Compose(next.Title);
-        if (tooltip.Length <= MaxTooltip)
-        {
-            return tooltip;
-        }
-
-        // Shorten only the title, so the time stays readable.
-        var title = next.Title;
-        var excess = tooltip.Length - MaxTooltip + Ellipsis.Length;
-        title = title[..Math.Max(1, title.Length - excess)] + Ellipsis;
-        return Compose(title);
-    }
-
-    private string WhenText(string title, TimeSpan until)
-    {
-        if (until <= TimeSpan.Zero)
-        {
-            return string.Format(_culture, _text.GetString(until > -TimeSpan.FromMinutes(1) ? "Tray_Tooltip_StartsNow" : "Tray_Tooltip_Started"), title);
-        }
-
-        var minutes = (int)Math.Ceiling(until.TotalMinutes);
-        if (minutes < 60)
-        {
-            return string.Format(_culture, _text.GetString("Tray_Tooltip_InMinutes"), title, minutes);
-        }
-
-        var hours = minutes / 60;
-        var rest = minutes % 60;
-        return rest == 0
-            ? string.Format(_culture, _text.GetString("Tray_Tooltip_InHours"), title, hours)
-            : string.Format(_culture, _text.GetString("Tray_Tooltip_InHoursMinutes"), title, hours, rest);
     }
 
     private static string Shorten(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + Ellipsis;

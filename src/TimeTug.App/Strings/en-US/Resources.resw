@@ -140,6 +140,7 @@
   <data name="Tray_TestTug" xml:space="preserve"><value>Test tug</value></data>
   <data name="Tray_Settings" xml:space="preserve"><value>Settings…</value></data>
   <data name="Tray_Quit" xml:space="preserve"><value>Quit TimeTug</value></data>
+  <data name="Tray_Tooltip_NoMore" xml:space="preserve"><value>No more meetings today</value></data>
   <data name="Tray_Tooltip_Default" xml:space="preserve"><value>TimeTug</value></data>
   <data name="Tray_Tooltip_InMinutes" xml:space="preserve"><value>{0} in {1} min</value></data>
   <data name="Tray_Tooltip_InHours" xml:space="preserve"><value>{0} in {1} hr</value></data>

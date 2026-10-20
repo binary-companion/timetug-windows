@@ -516,11 +516,29 @@ public sealed class TrayViewModelTests : IDisposable
     }
 
     [Fact]
-    public void The_tooltip_names_the_app_when_there_is_no_meeting()
+    public void The_tooltip_says_no_more_meetings_when_the_day_has_none_left()
     {
         _engine.Push(State());
 
+        _model.Current.Tooltip.Should().Be("No more meetings today");
+    }
+
+    [Fact]
+    public void The_tooltip_names_the_app_before_the_engine_has_spoken_and_with_no_account()
+    {
         _model.Current.Tooltip.Should().Be("TimeTug");
+
+        _engine.Push(State(accounts: []));
+
+        _model.Current.Tooltip.Should().Be("TimeTug");
+    }
+
+    [Fact]
+    public void The_tooltip_says_when_the_tug_is_off_even_with_no_meeting_left()
+    {
+        _engine.Push(State(enabled: false));
+
+        _model.Current.Tooltip.Should().Be("No more meetings today · Tug is off");
     }
 
     [Fact]
@@ -547,6 +565,219 @@ public sealed class TrayViewModelTests : IDisposable
 
         _model.Current.Tooltip.Length.Should().BeLessThanOrEqualTo(127);
         _model.Current.Tooltip.Should().EndWith(" in 4 min");
+    }
+
+    [Theory]
+    [InlineData(270, "Design review in 4 min")]
+    [InlineData(59, "Design review in 1 min")]
+    [InlineData(1, "Design review in 1 min")]
+    [InlineData(5400 + 59, "Design review in 1 hr 30 min")]
+    public void The_tooltip_counts_whole_minutes_down_like_the_digit_does(int seconds, string expected)
+    {
+        _engine.Push(State(next: Meeting(0) with { Start = Noon.AddSeconds(seconds), End = Noon.AddSeconds(seconds + 1800) }));
+
+        _model.Current.Tooltip.Should().Be(expected);
+    }
+
+    // ---- the minute digit ---------------------------------------------------------------------------------------
+    // The rules follow the Mac's menu-bar code: the icon turns "soon" when the next pending takeover starts within ten minutes
+    // (MenuBarIconState.soonWindow, inclusive) and the countdown is TimeFormatting.compact, which truncates to whole minutes and
+    // switches to seconds below one minute.
+
+    private static EventSummary Starting(int seconds, bool allDay = false, string id = "evt-1") =>
+        new(id, "Design review", Noon.AddSeconds(seconds), Noon.AddSeconds(seconds + 1800), allDay, false);
+
+    [Theory]
+    [InlineData(1800, null)]
+    [InlineData(601, null)]
+    [InlineData(600, null)]
+    [InlineData(599, 9)]
+    [InlineData(541, 9)]
+    [InlineData(540, 9)]
+    [InlineData(539, 8)]
+    [InlineData(300, 5)]
+    [InlineData(299, 4)]
+    [InlineData(61, 1)]
+    [InlineData(60, 1)]
+    [InlineData(59, null)]
+    [InlineData(30, null)]
+    [InlineData(1, null)]
+    [InlineData(0, null)]
+    [InlineData(-30, null)]
+    [InlineData(-900, null)]
+    public void The_digit_is_the_remaining_whole_minutes_in_the_last_ten(int remainingSeconds, int? digit)
+    {
+        TrayIconPlan.DigitFor(TimeSpan.FromSeconds(remainingSeconds)).Should().Be(digit);
+        _engine.Push(State(next: Starting(remainingSeconds)));
+
+        _model.Current.Icon.Digit.Should().Be(digit);
+        _model.Current.Plan.Digit.Should().Be(digit);
+    }
+
+    [Fact]
+    public void A_digit_goes_with_the_soon_icon_and_the_plan_says_so()
+    {
+        _engine.Push(State(next: Starting(300)));
+
+        _model.Current.Plan.Should().Be(new TrayIconPlan(TrayIconState.Soon, 5, "Design review in 5 min"));
+    }
+
+    [Fact]
+    public void Outside_the_window_the_plan_is_idle_with_no_digit()
+    {
+        _engine.Push(State(next: Starting(3600)));
+
+        _model.Current.Plan.Should().Be(new TrayIconPlan(TrayIconState.Idle, null, "Design review in 1 hr"));
+    }
+
+    [Fact]
+    public void There_is_no_digit_with_no_next_meeting()
+    {
+        _engine.Push(State());
+
+        _model.Current.Plan.Should().Be(new TrayIconPlan(TrayIconState.Idle, null, "No more meetings today"));
+    }
+
+    [Fact]
+    public void There_is_no_digit_when_the_engine_has_no_takeover_pending_for_the_meeting()
+    {
+        _engine.Push(State(next: Starting(300), takeoverPending: false));
+
+        _model.Current.Icon.Should().Match<TrayIconView>(i => i.State == TrayIconState.Idle && i.Digit == null);
+    }
+
+    [Fact]
+    public void Attention_overrides_the_digit()
+    {
+        _engine.Push(State(next: Starting(300)));
+        _model.Current.Icon.Digit.Should().Be(5);
+
+        _attention.NeedsAttention = true;
+
+        _model.Current.Plan.Should().Be(new TrayIconPlan(TrayIconState.Attention, null, "TimeTug: a meeting needs you"));
+
+        _attention.NeedsAttention = false;
+        _model.Current.Icon.Digit.Should().Be(5);
+    }
+
+    [Fact]
+    public void An_all_day_event_never_produces_a_digit()
+    {
+        // The next all-day event starts at midnight; with a takeover pending for it, five minutes before midnight is "soon" for the icon
+        // but there is no countdown to count.
+        _engine.Push(State(next: Starting(300, allDay: true)));
+
+        _model.Current.Icon.Digit.Should().BeNull();
+    }
+
+    [Fact]
+    public void The_digit_comes_from_the_start_of_the_meeting_not_from_the_moment_the_takeover_fires()
+    {
+        // The engine fires the tug a minute (the lead time) before the start; the countdown is to the meeting.
+        _engine.Push(State(next: Starting(300)));
+
+        _model.Current.Icon.Digit.Should().Be(5, "not 4, which is the time left until the takeover fires");
+    }
+
+    [Fact]
+    public void The_digit_counts_down_on_the_minute_ticker_and_raises_Changed()
+    {
+        _engine.Push(State(next: Starting(599)));
+        _model.Current.Icon.Digit.Should().Be(9);
+        var before = _changes;
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        _ticker.Tick();
+
+        _model.Current.Icon.Digit.Should().Be(8);
+        _changes.Should().BeGreaterThan(before);
+    }
+
+    [Fact]
+    public void The_digit_appears_when_the_clock_enters_the_window_and_goes_when_the_meeting_starts()
+    {
+        _engine.Push(State(next: Starting(700)));
+        _model.Current.Icon.Digit.Should().BeNull();
+
+        _time.Advance(TimeSpan.FromSeconds(101));
+        _ticker.Tick();
+        _model.Current.Icon.Digit.Should().Be(9);
+
+        _time.Advance(TimeSpan.FromSeconds(560));
+        _ticker.Tick();
+        _model.Current.Icon.Digit.Should().BeNull("under a minute left");
+
+        _time.Advance(TimeSpan.FromSeconds(60));
+        _ticker.Tick();
+        _model.Current.Icon.Digit.Should().BeNull("started");
+    }
+
+    [Fact]
+    public void A_tick_that_leaves_the_digit_alone_raises_nothing()
+    {
+        _engine.Push(State(next: Starting(599)));
+        var before = _changes;
+
+        _time.Advance(TimeSpan.FromSeconds(30));
+        _ticker.Tick();
+
+        _changes.Should().Be(before);
+    }
+
+    [Fact]
+    public void The_digit_follows_a_midnight_crossing()
+    {
+        // 23:55:30 on the 16th, a meeting at 00:05 on the 17th.
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 16, 23, 55, 30, TimeSpan.Zero));
+        var midnightMeeting = new EventSummary("evt-1", "Early call", new DateTimeOffset(2026, 10, 17, 0, 5, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 17, 0, 35, 0, TimeSpan.Zero), false, false);
+        _engine.Push(State(next: midnightMeeting));
+        _model.Current.Icon.Digit.Should().Be(9);
+
+        _time.SetUtcNow(new DateTimeOffset(2026, 10, 17, 0, 0, 30, TimeSpan.Zero));
+        _ticker.Tick();
+
+        _model.Current.Icon.Digit.Should().Be(4);
+    }
+
+    [Fact]
+    public void A_clock_change_is_recomputed_on_the_next_tick_and_the_engines_new_state_wins_at_once()
+    {
+        _engine.Push(State(next: Starting(540)));
+        _model.Current.Icon.Digit.Should().Be(9);
+
+        // The clock jumps forward past the start: the next tick drops the digit.
+        _time.Advance(TimeSpan.FromMinutes(20));
+        _ticker.Tick();
+        _model.Current.Icon.Digit.Should().BeNull();
+
+        // The engine, told about the change, names the next meeting; its state is used immediately.
+        _engine.Push(State(next: Meeting(23, title: "Next one")));
+        _model.Current.Icon.Digit.Should().Be(3);
+        _model.Current.Tooltip.Should().Be("Next one in 3 min");
+    }
+
+    [Fact]
+    public void A_time_zone_change_does_not_move_the_digit_because_it_counts_instants()
+    {
+        _engine.Push(State(next: Starting(300)));
+
+        _time.SetLocalTimeZone(TimeZoneInfo.CreateCustomTimeZone("test", TimeSpan.FromHours(7), "test", "test"));
+        _ticker.Tick();
+
+        _model.Current.Icon.Digit.Should().Be(5);
+    }
+
+    [Fact]
+    public void Disposing_stops_the_digit_updating()
+    {
+        _engine.Push(State(next: Starting(599)));
+        _model.Dispose();
+        var before = _changes;
+
+        _time.Advance(TimeSpan.FromMinutes(1));
+        _ticker.Tick();
+
+        _changes.Should().Be(before);
     }
 
     // ---- left click ---------------------------------------------------------------------------------------------

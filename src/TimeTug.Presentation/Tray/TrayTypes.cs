@@ -37,8 +37,11 @@ public sealed record TrayRow(TrayCommand? Command, TrayRowKind Kind, string Text
     public static TrayRow Separator { get; } = new(null, TrayRowKind.Separator, string.Empty, false);
 }
 
-/// <summary>The file the tray icon is drawn from: one multi-size icon per variant.</summary>
-public sealed record TrayIconView(TrayIconState State, bool LightTaskbar)
+/// <summary>
+/// The file the tray icon is drawn from: one multi-size icon per variant, with the remaining whole minutes (1 to 9) drawn on the
+/// colour icon in the last ten minutes. <see cref="Digit"/> is null for every other case.
+/// </summary>
+public sealed record TrayIconView(TrayIconState State, bool LightTaskbar, int? Digit = null)
 {
     /// <summary>
     /// <c>light</c> and <c>dark</c> are the quiet puppy for a light or a dark taskbar (the taskbar theme, not the app theme);
@@ -57,6 +60,9 @@ public sealed record TrayIconView(TrayIconState State, bool LightTaskbar)
 /// <summary>Everything the tray shows right now.</summary>
 public sealed record TrayView(IReadOnlyList<TrayRow> Rows, TrayIconView Icon, string Tooltip)
 {
+    /// <summary>What the icon and its tooltip should be right now.</summary>
+    public TrayIconPlan Plan => new(Icon.State, Icon.Digit, Tooltip);
+
     public bool SameAs(TrayView other) => Icon == other.Icon && Tooltip == other.Tooltip && Rows.SequenceEqual(other.Rows);
 }
 
