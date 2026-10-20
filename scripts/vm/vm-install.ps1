@@ -94,11 +94,12 @@ function Find-PackageFiles([string]$Folder, [string]$Package, [string]$Certifica
     return [pscustomobject]@{ Package = $msix.FullName; Platform = $arch; Dependencies = $dependencies; Certificate = $cer }
 }
 
-# True for the shell hosts that hold the Windows App Runtime while the package installs (0x80073D02): the Widgets pack and
-# its WebExperience host, the Start menu host and the Start experiences app.
+# True for the shell hosts that hold the Windows App Runtime while the package installs (0x80073D02): the Widgets pack and its
+# WebExperience host, the Start menu host, and the process of the Start experiences app (MicrosoftStartFeedProvider.exe, found by
+# the package folder it runs from). All of them restart by themselves.
 function Test-InstallBlocker($Process) {
-    $names = 'Widgets', 'WidgetService', 'WidgetBoard', 'StartMenuExperienceHost', 'Microsoft.StartExperiencesApp'
-    return ($Process.Path -like '*WebExperience*') -or ($names -contains $Process.Name)
+    $names = 'Widgets', 'WidgetService', 'WidgetBoard', 'StartMenuExperienceHost', 'Microsoft.StartExperiencesApp', 'MicrosoftStartFeedProvider'
+    return ($Process.Path -like '*WebExperience*') -or ($Process.Path -like '*\Microsoft.StartExperiencesApp_*') -or ($names -contains $Process.Name)
 }
 
 function Test-Elevated {
