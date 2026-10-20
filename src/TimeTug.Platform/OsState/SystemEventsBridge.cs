@@ -206,8 +206,10 @@ public sealed class SystemEventsBridge : IDisposable
             {
                 await _engine.SystemEventAsync(kind, timeZone);
             }
-            catch (Exception e) when (e is not OperationCanceledException)
+            catch (Exception e)
             {
+                // Any failure, a cancellation included, must not end the loop: after it nothing would reach the engine
+                // again (wake, clock, zone, day and network changes) for the rest of the process.
                 _diagnostics.Record("error", "system", $"the engine did not accept system event {kind} ({e.GetType().Name})");
             }
         }
