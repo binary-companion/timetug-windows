@@ -46,7 +46,10 @@ public partial class App : Application
         }
 
         _shell = new AppShell(DispatcherQueue.GetForCurrentThread(), diagnostics);
-        _ = _shell.RunAsync();
+        // RunAsync records its own failures; this only makes sure a fault that escapes it is logged, not lost.
+        _ = _shell.RunAsync().ContinueWith(
+            t => FanOutDiagnostics.CreateDefault().Record("error", "startup", "startup faulted " + t.Exception?.GetBaseException().GetType().Name),
+            TaskContinuationOptions.OnlyOnFaulted);
     }
 
     /// <summary>The package family name (it separates the development, Store and website builds), or a fixed name when running without package identity.</summary>

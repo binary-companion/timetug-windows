@@ -40,6 +40,9 @@ internal sealed class RecordingEngineClient : IEngineClient
 
     public bool Fail { get; set; }
 
+    /// <summary>When set, the engine reports a cancellation instead of failing.</summary>
+    public bool Cancel { get; set; }
+
     public IObservable<AppState> State => throw new NotSupportedException();
 
     public IObservable<TakeoverRequest> TakeoversDue => throw new NotSupportedException();
@@ -50,6 +53,11 @@ internal sealed class RecordingEngineClient : IEngineClient
 
     public ValueTask SystemEventAsync(string kind, string? timeZone = null)
     {
+        if (Cancel)
+        {
+            throw new OperationCanceledException();
+        }
+
         if (Fail)
         {
             throw new InvalidOperationException("engine gone");

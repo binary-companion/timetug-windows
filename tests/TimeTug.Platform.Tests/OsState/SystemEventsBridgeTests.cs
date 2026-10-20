@@ -48,6 +48,20 @@ public sealed class BridgeRig : IDisposable
 public class SystemEventsBridgeTests
 {
     [Fact]
+    public async Task A_cancellation_from_the_engine_does_not_stop_later_events_reaching_it()
+    {
+        using var rig = new BridgeRig();
+        rig.Engine.Cancel = true;
+        rig.Source.Raise(WindowMessage.TimeChange);
+        await Wait.UntilAsync(() => rig.Diagnostics.Entries.Count > 0, "the failure to be recorded");
+
+        rig.Engine.Cancel = false;
+        rig.Source.Raise(WindowMessage.TimeChange);
+
+        (await rig.SettledAsync()).Should().Equal("clockChanged");
+    }
+
+    [Fact]
     public async Task Power_resume_sends_wake_once_and_other_power_messages_send_nothing()
     {
         using var rig = new BridgeRig();
