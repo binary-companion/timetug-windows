@@ -69,6 +69,10 @@ scripts/vm/vm-selftest.sh --artifact build/msix-arm64      # install it in the V
 
 On a real PC, from an elevated PowerShell in the unpacked folder: `powershell -ExecutionPolicy Bypass -File .\vm-install.ps1` (trusts the certificate, installs for you; `-Stage Trust` and `-Stage Install` do the halves separately, `-Stage Uninstall` removes the package and the trusted certificate). The manual checklist (`docs/manual-tests/windows-checklist.md`) starts from this.
 
+### Tray digit pictures
+
+The tray icon with its minute digit is drawn in managed code (`TimeTug.Platform/Tray`) from the committed icon files and the bundled digit strokes (`src/TimeTug.App/Assets/Tray/Glyphs`). `tests/TimeTug.Platform.Tests/data/tray-digit-*.png` are golden pictures compared within 2 of 255 per channel; they are never rewritten by a normal test run. After a deliberate change run `scripts/ci/tray-goldens.ps1 -Update` (or on a Mac `TIMETUG_UPDATE_TRAY_GOLDENS=1 dotnet test tests/TimeTug.Platform.Tests -p:EnableWindowsTargeting=true -p:EnableMsixTooling=false -p:GenerateProjectPriFile=false -p:AppxGeneratePriEnabled=false --filter Update_the_goldens_when_asked`), look at the pictures and `docs/screenshots/tray-digits-contact-sheet.png`, and commit them.
+
 ### Tests for the helper scripts
 
 `scripts/vm/tests/test-vm-scripts.sh` checks the shell scripts against a stub `prlctl` (argument parsing, VM state handling, what is sent to the VM, patch contents); `scripts/vm/tests/vm-install.tests.ps1` checks how `vm-install.ps1` finds the package, dependencies and certificate (plain PowerShell: Windows PowerShell 5.1 and `pwsh`). Both, and `shellcheck`, run in the `architecture` CI job through `scripts/ci/architecture.sh`.

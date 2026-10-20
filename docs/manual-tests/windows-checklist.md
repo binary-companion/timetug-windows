@@ -150,6 +150,12 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Do:** right-click the tray icon, choose Test tug. Also try the Test tug button on the welcome window’s second step.
 - **Expect:** a "Test meeting" tug appears on every monitor; Dismiss closes it; the engine does not keep a stuck request (choose Test tug again and it works again).
 - **Automated:** `startup` (the tray’s Test tug through the real engine) and `tray`. Left for you: the real right-click and the real second monitor.
+
+### 3.6 Minute digit in the tray icon
+
+- **Do:** with an account connected, create an event that starts in about 12 minutes. Watch the notification area (pin the TimeTug icon to the taskbar corner first: Settings > Personalization > Taskbar > Other system tray icons). Try display scaling 100, 125, 150 and 200 percent, and a light and a dark taskbar theme.
+- **Expect:** at 10 minutes the icon turns to the colour puppy; from 9 minutes it shows a white digit with a dark outline (9, then 8 ... 1) that changes on each whole minute; the tooltip counts the same minutes. In the last minute the digit goes and the icon stays colour. The digit is legible at every scaling.
+- **Automated:** `tray-states` (real tray service, tooltip text and icon pixels at each step, pictures in `docs/screenshots/tray-states-enlarged.png`) and the golden pictures in the Platform tests. Left for you: how it looks on the real taskbar.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ### 3.6 The tug on a real second monitor
