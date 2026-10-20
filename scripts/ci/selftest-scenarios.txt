@@ -25,4 +25,5 @@ flyout-day                3  150  selftest
 flyout-problems           1  120  selftest
 flyout-tug-wins           1  150  selftest
 flyout-anchor            1  150  selftest
+second-launch            1  150  selftest
 a11y-hold                0  300  a11y

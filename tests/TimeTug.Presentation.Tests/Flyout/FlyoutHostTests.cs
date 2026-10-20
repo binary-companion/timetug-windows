@@ -221,6 +221,72 @@ public sealed class FlyoutHostTests : IDisposable
         _host.Toggle().Should().BeTrue();
     }
 
+    // ---- Show: what a second launch or another trigger that only wants it open calls -----------------------------
+
+    [Fact]
+    public void Show_opens_a_closed_flyout()
+    {
+        _host.Show().Should().BeTrue();
+
+        _host.IsOpen.Should().BeTrue();
+        _factory.Created.Should().ContainSingle();
+        _openChanges.Should().Be(1);
+    }
+
+    [Fact]
+    public void Show_leaves_an_open_flyout_as_it_is_where_Toggle_would_close_it()
+    {
+        _host.Toggle();
+
+        _host.Show().Should().BeTrue();
+
+        _host.IsOpen.Should().BeTrue();
+        _factory.Created.Should().ContainSingle("no second window");
+        _factory.Last!.Closes.Should().Be(0);
+        _openChanges.Should().Be(1);
+    }
+
+    [Fact]
+    public void Two_Shows_in_a_row_open_one_window()
+    {
+        _host.Show();
+        _host.Show();
+
+        _factory.Created.Should().ContainSingle();
+        _openChanges.Should().Be(1);
+    }
+
+    [Fact]
+    public void Show_is_refused_while_a_tug_is_showing()
+    {
+        _tug.IsTugShowing = true;
+
+        _host.Show().Should().BeFalse();
+
+        _host.IsOpen.Should().BeFalse();
+        _factory.Created.Should().BeEmpty();
+        _diagnostics.Has("stays closed while the tug is showing").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Show_opens_right_after_a_deactivation_because_it_is_not_a_tray_click()
+    {
+        _host.Toggle();
+        _factory.Last!.RaiseDeactivated();
+
+        _host.Show().Should().BeTrue();
+    }
+
+    [Fact]
+    public void Show_after_the_host_is_disposed_does_nothing()
+    {
+        _host.Dispose();
+
+        _host.Show().Should().BeFalse();
+
+        _factory.Created.Should().BeEmpty();
+    }
+
     [Fact]
     public void A_window_closed_by_someone_else_is_forgotten()
     {

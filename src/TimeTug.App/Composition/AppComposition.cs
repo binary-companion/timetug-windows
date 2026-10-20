@@ -11,6 +11,7 @@ using TimeTug.Platform.Tug;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Accounts;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Flyout;
 using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tug;
 using Pkg = TimeTug.Engine;
@@ -91,6 +92,8 @@ internal static class AppComposition
             sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IToastService>(), sp.GetRequiredService<IUrlLauncher>(),
             sp.GetRequiredService<IDiagnostics>(), sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<ITugActions>(sp => sp.GetRequiredService<TugController>());
+        services.AddSingleton(sp => new TugPresence(sp.GetRequiredService<TugController>()));
+        services.AddSingleton<ITugPresence>(sp => sp.GetRequiredService<TugPresence>());
         services.AddSingleton(sp => new TugWindowHost(
             sp.GetRequiredService<TugController>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<IUiSettings>(),
             sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ISecondTicker>()));

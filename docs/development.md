@@ -39,7 +39,7 @@ Typical session:
 
 ```
 scripts/vm/vm-sync.sh                    # the VM checks out your pushed branch (or: vm-sync.sh --patch for uncommitted work)
-scripts/vm/vm-selftest.sh                # build, install, run all 17 scenarios, results in build/vm-selftest/<time>/
+scripts/vm/vm-selftest.sh                # build, install, run every scenario, results in build/vm-selftest/<time>/
 scripts/vm/vm-selftest.sh tug-basic --no-build --hold 40 &   # reuse the installed package, keep the tug up 40 s ...
 sleep 15; scripts/vm/vm-screenshot.sh build/tug.png           # ... and look at it
 scripts/vm/vm-run.sh --user --ps 'Get-Content "$env:LOCALAPPDATA\Packages\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew\LocalState\logs\timetug.log" -Tail 30'
@@ -119,6 +119,12 @@ On the VM use `scripts/vm/vm-selftest.sh` (above); it builds, installs and runs 
 `flyout-empty`, `flyout-day`, `flyout-problems` and `flyout-tug-wins` open the real flyout window through `FlyoutHost` over a `TugRig` (scripted engine, real `TugController`), on a standing clock (Friday 16 October 2026, 10:20 UTC) and the real monitors; the tray icon is stood in for by a rectangle near the bottom-right corner. `flyout-anchor` uses the real tray icon and `TrayAnchor`, and writes `anchor.txt`, a dump of the taskbar's UI Automation elements (`taskbar-uia.txt`; it contains the live tooltip, so it names the next meeting) and, with `--hold N`, `anchor-log.txt` (the anchor every two seconds); `docs/spikes/2026-10-flyout-anchor.md` records what it found. Real losses of the active state are ignored in these scenarios (`FlyoutWindow.IgnoreSystemDeactivation`): on the VM, Parallels' foreground helper takes the keyboard whenever a script runs a command in it, which would close the flyout under the scenario; the "lost the active state" path is pressed with `LoseActivation` instead.
 
 To see the flyout over another window on the VM: `Start-Process notepad -WindowStyle Maximized` in the user session, `vm-selftest.sh flyout-anchor --no-build --hold 40` and, while it holds, a screen capture. `vm-screenshot.sh` (`prlctl capture`) comes back black while the Mac's own screen is locked; a capture taken inside the VM's user session works then: PowerShell with `SetProcessDPIAware`, `Graphics.CopyFromScreen` over `SystemInformation.VirtualScreen`, saved as a PNG and copied out with `prlctl exec ... cmd /c type file.png > file.png`. Close Notepad (or any app that modern packages share resources with) before `vm-selftest.sh` installs a new build, or the install fails with 0x80073D02. To see the pinned icon, set `IsPromoted` to 1 under `HKCU\Control Panel\NotifyIconSettings\<id>` and restart Explorer, and remove it afterwards; the VM hides its taskbar through byte 8 of `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3` (3 hides, 2 shows): put it back as it was.
+
+## Single instance and the second-launch scenario
+
+`AppInstanceService` (`TimeTug.Platform/Instance`) registers the key `TimeTug.Main` through the Windows App SDK `AppInstance` as soon as the app starts. The first launch is the primary; a later launch calls `RedirectActivationToAsync` (with a 10 second limit) and exits with code 0, writing only to ETW, so it never touches the first copy's engine data or log files. The primary holds one early activation until `MarkReady` (the shell calls it after the engine's first state), ignores one while a tug shows (logged) and folds launches within 500 ms into one. Without package identity (unit tests) the registry falls back to the named mutex of `SingleInstanceGuard`.
+
+The `second-launch` scenario makes the self-test process the first copy (the real key), starts `timetug-dev.exe` again for real and checks each second launch's exit code and the process count. Do not run it while a real TimeTug is running: it would not be the first copy. `FlyoutTriggers.OpenOnActivation(instance, flyoutHost, ui)` is the hook that opens the flyout (`FlyoutHost.Show`, never `Toggle`) from an activation.
 
 ## OAuth client ids for local builds
 

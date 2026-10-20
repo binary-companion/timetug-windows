@@ -53,7 +53,7 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Build:** `msix-x64` (or `msix-arm64`).
 - **Do:** from 1.1 select "Skip for now" (or close the window). Look for the tray icon. Start TimeTug again from the Start menu.
 - **Expect:** the process keeps running and the icon stays near the clock. The second start shows no window and its process ends by itself (Task Manager shows one TimeTug).
-- **Automated:** partly. The single-instance guard has unit tests and the VM run of `startup` showed the second launch exiting with a log note. Left for you: the real second launch.
+- **Automated:** partly. `AppInstanceService` has unit tests over a fake registry, and the `second-launch` self-test starts the packaged app again through its alias (exit code 0 in about a second, one process left, held until startup finished, ignored while a tug shows). Left for you: the real Start-menu launch and the tray.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ### 1.3 An account is already configured: the window does not appear

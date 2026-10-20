@@ -5,10 +5,10 @@ using TimeTug.Platform.Instance;
 
 namespace TimeTug.App;
 
-/// <summary>Application entry point: guards against a second copy, then hands over to <see cref="AppShell"/>.</summary>
+/// <summary>Application entry point: hands a second copy over to the first, then hands over to <see cref="AppShell"/>.</summary>
 public partial class App : Application
 {
-    private SingleInstanceGuard? _instance;
+    private AppInstanceService? _instance;
     private AppShell? _shell;
 
     public App()
@@ -35,25 +35,49 @@ public partial class App : Application
             return;
         }
 #endif
-        var diagnostics = FanOutDiagnostics.CreateDefault();
-        _instance = SingleInstanceGuard.TryAcquire(SingleInstanceGuard.NameFor(Identity()));
-        if (_instance is null)
+        _ = LaunchAsync();
+    }
+
+    /// <summary>
+    /// The first launch becomes the primary and starts the app. Any later launch hands itself to the primary (which opens the flyout) and
+    /// exits at once: it writes only to ETW, never starts the engine and never touches the first copy's files.
+    /// </summary>
+    private async Task LaunchAsync()
+    {
+        try
         {
-            // Single instance proper is slice 2. Until then a second launch must not touch the data the first one is using.
-            diagnostics.Record("info", "app", "another TimeTug is already running for this package; this launch exits without showing anything");
+            _instance = AppInstanceService.CreateDefault(PackageFamilyName(), EtwDiagnostics.Log);
+            if (!_instance.IsPrimary)
+            {
+                await _instance.RedirectAsync(ActivationKind.Flyout);
+                Exit();
+                return;
+            }
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // Without knowing whether another copy runs it is safer to end than to start a second one on the same data.
+            EtwDiagnostics.Log.Record("error", "app", "the single-instance check faulted " + e.GetType().Name);
             Exit();
             return;
         }
 
-        _shell = new AppShell(DispatcherQueue.GetForCurrentThread(), diagnostics);
-        // RunAsync records its own failures; this only makes sure a fault that escapes it is logged, not lost.
-        _ = _shell.RunAsync().ContinueWith(
-            t => FanOutDiagnostics.CreateDefault().Record("error", "startup", "startup faulted " + t.Exception?.GetBaseException().GetType().Name),
-            TaskContinuationOptions.OnlyOnFaulted);
+        var diagnostics = FanOutDiagnostics.CreateDefault();
+        _instance.Diagnostics = diagnostics;
+        _shell = new AppShell(DispatcherQueue.GetForCurrentThread(), diagnostics, instance: _instance);
+        try
+        {
+            // RunAsync records its own failures; this only makes sure a fault that escapes it is logged, not lost.
+            await _shell.RunAsync();
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            diagnostics.Record("error", "startup", "startup faulted " + e.GetType().Name);
+        }
     }
 
-    /// <summary>The package family name (it separates the development, Store and website builds), or a fixed name when running without package identity.</summary>
-    private static string Identity()
+    /// <summary>The package family name (it separates the development, Store and website builds), or null when running without package identity.</summary>
+    private static string? PackageFamilyName()
     {
         try
         {
@@ -61,7 +85,7 @@ public partial class App : Application
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
         {
-            return "unpackaged";
+            return null;
         }
     }
 }
