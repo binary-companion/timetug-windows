@@ -39,7 +39,7 @@ Typical session:
 
 ```
 scripts/vm/vm-sync.sh                    # the VM checks out your pushed branch (or: vm-sync.sh --patch for uncommitted work)
-scripts/vm/vm-selftest.sh                # build, install, run all 16 scenarios, results in build/vm-selftest/<time>/
+scripts/vm/vm-selftest.sh                # build, install, run all 17 scenarios, results in build/vm-selftest/<time>/
 scripts/vm/vm-selftest.sh tug-basic --no-build --hold 40 &   # reuse the installed package, keep the tug up 40 s ...
 sleep 15; scripts/vm/vm-screenshot.sh build/tug.png           # ... and look at it
 scripts/vm/vm-run.sh --user --ps 'Get-Content "$env:LOCALAPPDATA\Packages\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew\LocalState\logs\timetug.log" -Tail 30'
