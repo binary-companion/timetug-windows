@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Repository invariants that the compiler does not enforce. Usage: check-repository-contracts.py [root]"""
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -121,6 +122,70 @@ if scenario_list.is_file() and scenario_folder.is_dir():
         declared |= set(re.findall(r'const string Name = "([a-z0-9-]+)"', source.read_text()))
     require(declared == set(listed),
             f'self-test scenarios differ: only in the classes {sorted(declared - set(listed))}, only in selftest-scenarios.txt {sorted(set(listed) - declared)}')
+
+# The development MSIX is built for both architectures on every run and uploaded with its PUBLIC certificate and the install
+# script only. The signing key is throwaway and never leaves the job: no key file is committed or uploaded, and no script
+# exports one.
+KEY_EXTENSIONS = ('.pfx', '.p12', '.pvk', '.key', '.pem', '.snk', '.jks', '.keystore')
+if ci.is_file():
+    jobs = load(ci).get('jobs')
+    for job, artifact in (('windows-x64', 'msix-x64'), ('windows-arm64', 'msix-arm64')):
+        steps = jobs.get(job, {}).get('steps', []) if isinstance(jobs, dict) and isinstance(jobs.get(job), dict) else []
+        commands = ' '.join(str(step.get('run', '')) for step in steps if isinstance(step, dict))
+        for script in ('build-msix.ps1', 'stage-msix-artifact.ps1'):
+            require(script in commands, f'.github/workflows/ci.yml: job {job} does not run {script}')
+        uploads = [step.get('with', {}) for step in steps if isinstance(step, dict)
+                   and str(step.get('uses', '')).startswith('actions/upload-artifact@') and isinstance(step.get('with'), dict)]
+        msix_upload = [upload for upload in uploads if upload.get('name') == artifact]
+        require(len(msix_upload) == 1, f'.github/workflows/ci.yml: job {job} must upload exactly one artifact named {artifact}')
+        for upload in msix_upload:
+            require(str(upload.get('path', '')).strip() == 'build/msix-artifact/',
+                    f'.github/workflows/ci.yml: {artifact} must upload only build/msix-artifact/ (the staged public files)')
+            require(upload.get('retention-days') == 14, f'.github/workflows/ci.yml: {artifact} must have retention-days: 14')
+
+for workflow in workflows:
+    for job in (load(workflow).get('jobs') or {}).values():
+        for step in (job.get('steps') or []) if isinstance(job, dict) else []:
+            if not (isinstance(step, dict) and str(step.get('uses', '')).startswith('actions/upload-artifact@')):
+                continue
+            paths = str((step.get('with') or {}).get('path', '')).splitlines()
+            for path in (line.strip().lstrip('!').strip() for line in paths):
+                if not path:
+                    continue
+                require(path not in ('.', './', '*', '**', '**/*', '/'), f'{workflow.name}: an artifact uploads the whole workspace ({path})')
+                require(not any(extension in path.lower() for extension in KEY_EXTENSIONS),
+                        f'{workflow.name}: an artifact path names key material ({path})')
+
+gitignore = root / '.gitignore'
+if gitignore.is_file():
+    ignored = {line.strip() for line in gitignore.read_text().splitlines()}
+    for extension in ('.pfx', '.p12', '.pvk', '.key', '.snk'):
+        require('*' + extension in ignored, f'.gitignore: *{extension} is not ignored')
+else:
+    require(False, 'missing documented path: .gitignore')
+
+def tracked_files():
+    """Paths that are committed (git ls-files) or, outside a git checkout, every file under root."""
+    try:
+        listing = subprocess.run(['git', '-C', str(root), 'ls-files', '-z'], capture_output=True, check=True).stdout
+        names = [name for name in listing.decode().split('\0') if name]
+        if names:
+            return [root / name for name in names]
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    return [path for path in root.rglob('*') if path.is_file() and '.git' not in path.relative_to(root).parts]
+
+PRIVATE_KEY_BLOCK = re.compile('-----BEGIN ' + r'(?:[A-Z0-9]+ )*' + 'PRIVATE KEY' + '-----')
+KEY_EXPORT = re.compile(r'Export-PfxCertificate|ExportPkcs12|X509ContentType\]?::(?:Pfx|Pkcs12)|openssl\s+pkcs12|\.pfx\b', re.I)
+for path in tracked_files():
+    relative = path.relative_to(root)
+    require(path.suffix.lower() not in KEY_EXTENSIONS, f'{relative}: key material is committed')
+    if not path.is_file() or path.stat().st_size > 2_000_000:
+        continue
+    text = path.read_text(errors='ignore')
+    require(not PRIVATE_KEY_BLOCK.search(text), f'{relative}: contains a private key block')
+    if path.suffix in ('.ps1', '.sh', '.yml', '.yaml'):
+        require(not KEY_EXPORT.search(text), f'{relative}: exports or names a signing key file (the throwaway key must never leave the job)')
 
 # Pull-request code never meets secrets: no pull_request_target, and only the automatic token anywhere.
 for workflow in workflows:

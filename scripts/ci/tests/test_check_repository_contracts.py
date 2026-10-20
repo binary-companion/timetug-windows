@@ -3,23 +3,33 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'check-repository-contracts.py'
 SHA = 'a' * 40
-CI = f'''name: CI
-on: [pull_request]
-jobs:
-  windows-x64:
-    runs-on: windows-latest
+def windows_job(name, runner, artifact):
+    return f'''  {name}:
+    runs-on: {runner}
     steps:
       - uses: actions/checkout@{SHA} # v7
       - run: echo "${{{{ secrets.GITHUB_TOKEN }}}}"
+      - run: ./scripts/ci/build-msix.ps1
+      - run: ./scripts/ci/stage-msix-artifact.ps1
       - run: ./scripts/ci/run-selftest.ps1
       - run: ./scripts/ci/run-a11y.ps1
-  windows-arm64:
-    runs-on: windows-11-arm
-    steps:
-      - uses: ./local-action
-      - run: ./scripts/ci/run-selftest.ps1
-      - run: ./scripts/ci/run-a11y.ps1
-  architecture:
+      - uses: actions/upload-artifact@{SHA} # v7
+        with:
+          name: {artifact}
+          path: build/msix-artifact/
+          retention-days: 14
+      - uses: actions/upload-artifact@{SHA} # v7
+        with:
+          name: selftest
+          path: |
+            build/selftest/
+            !build/selftest/**/engine-data/**
+'''
+
+CI = f'''name: CI
+on: [pull_request]
+jobs:
+{windows_job('windows-x64', 'windows-latest', 'msix-x64')}{windows_job('windows-arm64', 'windows-11-arm', 'msix-arm64')}  architecture:
     runs-on: ubuntu-latest
     steps:
       - run: echo ok
@@ -41,6 +51,7 @@ def make(root: Path, **overrides):
         '.gitattributes': '* text=auto eol=lf\n',
         '.github/dependabot.yml': 'version: 2\n',
         '.github/workflows/ci.yml': CI,
+        '.gitignore': '*.pfx\n*.p12\n*.pvk\n*.key\n*.snk\n',
         'scripts/ci/selftest-scenarios.txt': SCENARIOS,
         **SCENARIO_CLASSES,
     }
@@ -94,6 +105,40 @@ class RepositoryContracts(unittest.TestCase):
     def test_both_windows_jobs_must_run_the_selftest_and_the_accessibility_scan(self):
         for script in ('run-selftest.ps1', 'run-a11y.ps1'):
             self.fails(f'job windows-x64 does not run {script}', **{'.github/workflows/ci.yml': CI.replace(script, 'other.ps1', 1)})
+
+    def test_both_windows_jobs_must_build_stage_and_upload_the_development_msix(self):
+        for script in ('build-msix.ps1', 'stage-msix-artifact.ps1'):
+            self.fails(f'job windows-arm64 does not run {script}', **{'.github/workflows/ci.yml': CI.replace(script, 'other.ps1').replace('other.ps1', script, 1)})
+        self.fails('job windows-x64 must upload exactly one artifact named msix-x64', **{'.github/workflows/ci.yml': CI.replace('msix-x64', 'package-x64')})
+        self.fails('job windows-arm64 must upload exactly one artifact named msix-arm64', **{'.github/workflows/ci.yml': CI.replace('name: msix-arm64', 'name: selftest')})
+
+    def test_the_msix_artifact_uploads_only_the_staged_folder_for_14_days(self):
+        self.fails('must upload only build/msix-artifact/', **{'.github/workflows/ci.yml': CI.replace('path: build/msix-artifact/', 'path: build/msix', 1)})
+        self.fails('retention-days: 14', **{'.github/workflows/ci.yml': CI.replace('retention-days: 14', 'retention-days: 90', 1)})
+
+    def test_no_artifact_may_name_key_material_or_the_whole_workspace(self):
+        for path in ('build/msix/dev.pfx', 'build/**/*.p12', 'secrets/signing.KEY', 'certs/a.pem'):
+            self.fails('names key material', **{'.github/workflows/ci.yml': CI.replace('build/selftest/\n', f'{path}\n', 1)})
+        for path in ('.', '**'):
+            self.fails('uploads the whole workspace', **{'.github/workflows/ci.yml': CI.replace('build/selftest/\n', f'{path}\n', 1)})
+
+    def test_key_files_must_not_be_committed(self):
+        for name in ('signing/dev.pfx', 'build/x.P12', 'a/b.key', 'c.pem', 'd.snk'):
+            self.fails('key material is committed', **{name: 'binary'})
+
+    def test_a_private_key_block_must_not_be_committed(self):
+        block = '-----BEGIN ' + 'RSA PRIVATE KEY' + '-----\nabc\n'
+        self.fails('contains a private key block', **{'docs/notes.md': block})
+        self.fails('contains a private key block', **{'scripts/x.ps1': '-----BEGIN ' + 'PRIVATE KEY' + '-----\n'})
+
+    def test_scripts_must_not_export_the_signing_key(self):
+        self.fails('exports or names a signing key file', **{'scripts/ci/x.ps1': 'Export-PfxCertificate -Cert $c -FilePath dev.pfx'})
+        self.fails('exports or names a signing key file', **{'.github/workflows/other.yml': 'name: X\non: [push]\njobs:\n  x:\n    runs-on: ubuntu-latest\n    steps:\n      - run: openssl pkcs12 -export -out a\n'})
+        self.assertEqual(run(**{'scripts/ci/x.ps1': 'Export-Certificate -Cert $c -FilePath dev.cer'}).returncode, 0)
+
+    def test_gitignore_must_ignore_key_files(self):
+        self.fails('*.pfx is not ignored', **{'.gitignore': '*.p12\n*.pvk\n*.key\n*.snk\n'})
+        self.fails('missing documented path: .gitignore', **{'.gitignore': None})
 
     def test_scenario_classes_and_the_list_must_agree(self):
         extra = 'internal static class NewScenario { public const string Name = "tug-new"; }\n'

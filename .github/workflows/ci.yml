@@ -30,6 +30,9 @@ jobs:
         shell: pwsh
         timeout-minutes: 15
         run: ./scripts/ci/build-msix.ps1 -Platform x64
+      - name: Stage the development MSIX artifact (x64)
+        shell: pwsh
+        run: ./scripts/ci/stage-msix-artifact.ps1 -Platform x64
       - name: Self-test scenarios (x64)
         shell: pwsh
         timeout-minutes: 15
@@ -38,6 +41,14 @@ jobs:
         shell: pwsh
         timeout-minutes: 8
         run: ./scripts/ci/run-a11y.ps1
+      - name: Upload the development MSIX (public certificate and install script only, never a private key)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: msix-x64
+          path: build/msix-artifact/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload self-test results and screenshots
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -72,6 +83,9 @@ jobs:
         shell: pwsh
         timeout-minutes: 15
         run: ./scripts/ci/build-msix.ps1 -Platform ARM64
+      - name: Stage the development MSIX artifact (ARM64)
+        shell: pwsh
+        run: ./scripts/ci/stage-msix-artifact.ps1 -Platform ARM64
       - name: Self-test scenarios (ARM64)
         shell: pwsh
         timeout-minutes: 15
@@ -80,6 +94,14 @@ jobs:
         shell: pwsh
         timeout-minutes: 8
         run: ./scripts/ci/run-a11y.ps1
+      - name: Upload the development MSIX (public certificate and install script only, never a private key)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: msix-arm64
+          path: build/msix-artifact/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload self-test results and screenshots
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
