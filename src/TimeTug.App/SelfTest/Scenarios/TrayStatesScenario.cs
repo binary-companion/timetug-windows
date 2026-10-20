@@ -126,6 +126,18 @@ internal static class TrayStatesScenario
         Expect("idle-again", TrayIconState.Idle, null, false, "Design review in 2 hr 21 min");
 
         // ---- the screenshots: the applied icons enlarged, and the contact sheet ---------------------------------------------------------------
+        var sheet = TrayContactSheet.Build(reference);
+        File.WriteAllBytes(Path.Combine(run.Folder, "contact-sheet.png"), sheet.ToPng());
+        var sheetWindow = new Window
+        {
+            Title = "TimeTug tray digits",
+            Content = new Grid { Background = new SolidColorBrush(Microsoft.UI.Colors.Gray), Children = { new Image { Stretch = Stretch.Uniform, Source = ToBitmap(sheet) } } },
+        };
+        sheetWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(1000, 900));
+        sheetWindow.Activate();
+        await SelfTestRunner.WaitForFrameAsync(sheetWindow, cancellation, 1500);
+        await run.ShotAsync(sheetWindow, "contact-sheet");
+        sheetWindow.Close();
         const int Zoom = 4; // small enough that the window fits on the screen (a window partly off screen is not captured)
         var strip = new StackPanel { Spacing = 8, Padding = new Thickness(12) };
         foreach (var (name, background) in new[] { ("dark taskbar", Microsoft.UI.Colors.Black), ("light taskbar", Microsoft.UI.Colors.WhiteSmoke) })
@@ -147,18 +159,6 @@ internal static class TrayStatesScenario
         await run.ShotAsync(stripWindow, "states-enlarged");
         stripWindow.Close();
 
-        var sheet = TrayContactSheet.Build(reference);
-        File.WriteAllBytes(Path.Combine(run.Folder, "contact-sheet.png"), sheet.ToPng());
-        var sheetWindow = new Window
-        {
-            Title = "TimeTug tray digits",
-            Content = new Grid { Background = new SolidColorBrush(Microsoft.UI.Colors.Gray), Children = { new Image { Stretch = Stretch.Uniform, Source = ToBitmap(sheet) } } },
-        };
-        sheetWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(1000, 900));
-        sheetWindow.Activate();
-        await SelfTestRunner.WaitForFrameAsync(sheetWindow, cancellation, 1500);
-        await run.ShotAsync(sheetWindow, "contact-sheet");
-        sheetWindow.Close();
         anchor.Close();
 
         Check(diagnostics.Entries.All(e => e.Category != "tray" || e.Level != "error" || e.Message.Contains("TryCreate", StringComparison.Ordinal) || e.Message.Contains("could not be created", StringComparison.Ordinal)),
