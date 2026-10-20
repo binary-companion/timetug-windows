@@ -38,7 +38,7 @@ public sealed class CredentialLockerStore : ICredentialStore, IDisposable
     public ValueTask SetAsync(string connectionID, IReadOnlyDictionary<string, string> secrets, CancellationToken cancellationToken) =>
         Locked("save", () =>
         {
-            Write(connectionID, secrets, Guid.NewGuid().ToString("N"));
+            Write(connectionID, secrets, NewRevision());
             return true;
         }, cancellationToken).AsValueTask();
 
@@ -68,10 +68,16 @@ public sealed class CredentialLockerStore : ICredentialStore, IDisposable
                 return false;
             }
 
+            // Rotating the refresh token keeps the revision: the engine binds its cached access token to the revision it refreshed
+            // with and treats any other revision as "signed in again" (the account would then need signing in after every refresh).
+            // Only SetAsync, a new sign-in, makes a new revision.
             var secrets = new Dictionary<string, string>(current.Secrets) { [RefreshTokenKey] = token };
-            Write(connectionID, secrets, Guid.NewGuid().ToString("N"));
+            Write(connectionID, secrets, current.Revision);
             return true;
         }, cancellationToken);
+
+    /// <summary>A revision is a UUID in the usual hyphenated spelling: the engine parses it as one and refuses a snapshot whose revision it cannot.</summary>
+    private static string NewRevision() => Guid.NewGuid().ToString("D");
 
     public void Dispose() => _gate.Dispose();
 
@@ -137,10 +143,12 @@ public sealed class CredentialLockerStore : ICredentialStore, IDisposable
         return null;
     }
 
-    private void Write(string connectionID, IReadOnlyDictionary<string, string> secrets, string generation)
+    /// <summary>Stores the secrets under <paramref name="revision"/> (a new sign-in gets a new one; a rotated refresh token keeps it). The chunks get a fresh generation either way.</summary>
+    private void Write(string connectionID, IReadOnlyDictionary<string, string> secrets, string revision)
     {
+        var generation = Guid.NewGuid().ToString("N");
         var previous = _vault.Retrieve(_resource, connectionID);
-        var json = JsonSerializer.Serialize(new Blob { Revision = Guid.NewGuid().ToString("N"), Secrets = new Dictionary<string, string>(secrets) });
+        var json = JsonSerializer.Serialize(new Blob { Revision = revision, Secrets = new Dictionary<string, string>(secrets) });
         var chunks = Split(json);
         for (var index = 1; index < chunks.Count; index++)
         {

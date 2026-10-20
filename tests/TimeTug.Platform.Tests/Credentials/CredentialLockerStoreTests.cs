@@ -43,11 +43,36 @@ public class CredentialLockerStoreTests
 
         (await store.UpdateRefreshTokenAsync("c1", "new", snapshot.Revision, default)).Should().BeTrue();
         (await store.GetAsync("c1", default))!["refresh_token"].Should().Be("new");
-        (await store.SnapshotAsync("c1", default))!.Revision.Should().NotBe(snapshot.Revision);
+        // Rotating the token is not a new sign-in: the revision stays, as in the Mac's Keychain store. The engine binds its cached
+        // access token to the revision it refreshed with and would call any other revision a new sign-in.
+        (await store.SnapshotAsync("c1", default))!.Revision.Should().Be(snapshot.Revision);
     }
 
     [Fact]
-    public async Task Twenty_parallel_updates_with_the_same_revision_let_exactly_one_win()
+    public async Task Revisions_are_hyphenated_uuids_because_the_engine_refuses_any_other_spelling()
+    {
+        var store = new CredentialLockerStore(new FakePasswordVault());
+        await store.SetAsync("c1", Secrets(), default);
+
+        var revision = (await store.SnapshotAsync("c1", default))!.Revision;
+        Guid.TryParseExact(revision, "D", out _).Should().BeTrue(revision);
+    }
+
+    [Fact]
+    public async Task A_new_sign_in_makes_an_older_refresh_token_update_fail()
+    {
+        var store = new CredentialLockerStore(new FakePasswordVault());
+        await store.SetAsync("c1", Secrets("first"), default);
+        var oldRevision = (await store.SnapshotAsync("c1", default))!.Revision;
+        await store.SetAsync("c1", Secrets("second"), default);
+
+        (await store.SnapshotAsync("c1", default))!.Revision.Should().NotBe(oldRevision);
+        (await store.UpdateRefreshTokenAsync("c1", "stale", oldRevision, default)).Should().BeFalse();
+        (await store.GetAsync("c1", default))!["refresh_token"].Should().Be("second");
+    }
+
+    [Fact]
+    public async Task Twenty_parallel_updates_with_the_current_revision_all_apply_one_at_a_time()
     {
         var store = new CredentialLockerStore(new FakePasswordVault());
         await store.SetAsync("c1", Secrets("start"), default);
@@ -56,9 +81,11 @@ public class CredentialLockerStoreTests
         var results = await Task.WhenAll(Enumerable.Range(0, 20).Select(i =>
             Task.Run(async () => await store.UpdateRefreshTokenAsync("c1", $"token-{i}", revision, default))));
 
-        results.Count(won => won).Should().Be(1);
-        var winner = Array.IndexOf(results, true);
-        (await store.GetAsync("c1", default))!["refresh_token"].Should().Be($"token-{winner}");
+        // The revision does not change, so every update that names it applies; the semaphore makes each a whole write.
+        results.Should().OnlyContain(applied => applied);
+        var stored = (await store.GetAsync("c1", default))!["refresh_token"];
+        Enumerable.Range(0, 20).Select(i => $"token-{i}").Should().Contain(stored);
+        (await store.SnapshotAsync("c1", default))!.Revision.Should().Be(revision);
     }
 
     [Fact]

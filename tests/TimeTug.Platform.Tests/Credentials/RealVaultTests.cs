@@ -36,6 +36,7 @@ public class RealVaultTests
             (await store.UpdateRefreshTokenAsync(connection, "stale", "wrong-revision", default)).Should().BeFalse();
             (await store.UpdateRefreshTokenAsync(connection, "fresh-fake-token", snapshot.Revision, default)).Should().BeTrue();
             (await store.GetAsync(connection, default))!["refresh_token"].Should().Be("fresh-fake-token");
+            (await store.SnapshotAsync(connection, default))!.Revision.Should().Be(snapshot.Revision);   // rotating the token is not a new sign-in
 
             // A second store over a second vault object sees the same data.
             using var other = new CredentialLockerStore(new WindowsPasswordVault(), resource: resource);
