@@ -47,6 +47,8 @@ internal static class A11yHoldScenario
         run.Check(await HoldForScannerAsync(rig, 1, "Connect step and the tug", cancellation), "the scanner finished round 1");
 
         // Round 2: the other step of the welcome window, and the tug with the meeting link to copy.
+        run.Check(ScenarioUi.Invoke(welcome, "Connect Google"), "Connect Google is clicked, so the next account moves the window on");
+        await rig.Settle(500);
         rig.Engine.Push(Scenes.Connected(rig.Time.GetUtcNow()));
         rig.Launcher.Succeeds = false;
         run.Check(ScenarioUi.Invoke(rig.Host.Primary!, "Join meeting"), "Join is clicked (and fails)");
