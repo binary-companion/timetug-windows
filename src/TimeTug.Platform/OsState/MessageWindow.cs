@@ -24,6 +24,10 @@ public sealed unsafe class MessageWindow : IWindowMessageSource, IDisposable
     [ThreadStatic]
     private static MessageWindow? t_owner;
 
+    // A private message that makes the window's thread run the queued calls (WM_APP + 1).
+    private const uint RunCallsMessage = 0x8001;
+
+    private readonly System.Collections.Concurrent.ConcurrentQueue<PendingCall> _calls = new();
     private HWND _window;
     private Exception? _startupError;
     private int _disposed;
@@ -43,6 +47,42 @@ public sealed unsafe class MessageWindow : IWindowMessageSource, IDisposable
 
     public event Action<WindowMessage>? MessageReceived;
 
+    /// <summary>
+    /// Runs <paramref name="work"/> on the window's own thread and returns its result. Some calls belong to the thread that owns the
+    /// window (<c>RegisterHotKey</c> with this window fails from any other thread). Faults with <see cref="ObjectDisposedException"/>
+    /// when the window is gone.
+    /// </summary>
+    public Task<T> InvokeAsync<T>(Func<T> work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (Volatile.Read(ref _disposed) == 1 || _window == default)
+        {
+            completion.SetException(new ObjectDisposedException(nameof(MessageWindow)));
+            return completion.Task;
+        }
+
+        _calls.Enqueue(new PendingCall(
+            () =>
+            {
+                try
+                {
+                    completion.TrySetResult(work());
+                }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    completion.TrySetException(e);
+                }
+            },
+            () => completion.TrySetException(new ObjectDisposedException(nameof(MessageWindow)))));
+        if (!PInvoke.PostMessage(_window, RunCallsMessage, 0, 0))
+        {
+            RunCalls(cancel: true);
+        }
+
+        return completion.Task;
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
@@ -56,6 +96,7 @@ public sealed unsafe class MessageWindow : IWindowMessageSource, IDisposable
         }
 
         _thread.Join(TimeSpan.FromSeconds(5));
+        RunCalls(cancel: true);
         _ready.Dispose();
     }
 
@@ -134,14 +175,34 @@ public sealed unsafe class MessageWindow : IWindowMessageSource, IDisposable
             case PInvoke.WM_DESTROY:
                 PInvoke.PostQuitMessage(0);
                 return new LRESULT(0);
+            case RunCallsMessage:
+                owner?.RunCalls(cancel: false);
+                return new LRESULT(0);
             case WindowMessage.DisplayChange or WindowMessage.TimeChange or WindowMessage.SettingChange
-                or WindowMessage.PowerBroadcast or WindowMessage.SessionChange:
+                or WindowMessage.PowerBroadcast or WindowMessage.SessionChange or WindowMessage.Hotkey:
                 owner?.Raise(message, wParam, lParam);
                 return new LRESULT(0);
             default:
                 return PInvoke.DefWindowProc(window, message, wParam, lParam);
         }
     }
+
+    private void RunCalls(bool cancel)
+    {
+        while (_calls.TryDequeue(out var call))
+        {
+            if (cancel)
+            {
+                call.Cancel();
+            }
+            else
+            {
+                call.Run();
+            }
+        }
+    }
+
+    private sealed record PendingCall(Action Run, Action Cancel);
 
     private void Raise(uint message, WPARAM wParam, LPARAM lParam)
     {

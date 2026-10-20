@@ -5,6 +5,7 @@ using TimeTug.App.Tug;
 using TimeTug.Engine;
 using TimeTug.Platform;
 using TimeTug.Platform.Auth;
+using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.OsState;
 using TimeTug.Platform.Tray;
 using TimeTug.Platform.Tug;
@@ -12,6 +13,7 @@ using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Accounts;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
+using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tug;
 using Pkg = TimeTug.Engine;
@@ -81,6 +83,14 @@ internal static class AppComposition
         services.AddSingleton<INotificationState>(sp => new NotificationState(
             sp.GetRequiredService<TimeProvider>(), toastsEnabled: () => sp.GetRequiredService<ToastService>().IsEnabled));
         services.AddSingleton<IUrlLauncher>(_ => new UrlLauncher());
+
+        // ---- the popup shortcut (nothing starts it yet: the shell calls HotkeyService.StartAsync once the engine's first state is in) ----
+        services.AddSingleton<IHotkeyStore>(sp => LocalSettingsHotkeyStore.ForCurrentPackage(sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton(sp => new HotkeyRegistrar(sp.GetRequiredService<MessageWindow>(), sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton<IHotkeyRegistrar>(sp => sp.GetRequiredService<HotkeyRegistrar>());
+        services.AddSingleton(sp => new HotkeyService(
+            sp.GetRequiredService<IHotkeyRegistrar>(), sp.GetRequiredService<IHotkeyStore>(), sp.GetRequiredService<ITugPresence>(),
+            sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<INetworkAvailability, NetworkAvailability>();
         services.AddSingleton(sp => new SystemEventsBridge(
             sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IWindowMessageSource>(), sp.GetRequiredService<INetworkAvailability>(),

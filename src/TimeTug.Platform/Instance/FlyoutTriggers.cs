@@ -1,3 +1,4 @@
+using TimeTug.Platform.Hotkey;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Flyout;
 
@@ -28,6 +29,16 @@ public static class FlyoutTriggers
 
         instance.Activated += OnActivated;
         return new Subscription(() => instance.Activated -= OnActivated);
+    }
+
+    /// <summary>The global shortcut toggles the flyout (<see cref="FlyoutHost.Toggle"/>), which stays closed while a tug shows. <see cref="HotkeyService.Pressed"/> is already on the UI thread and already skips a showing tug.</summary>
+    public static IDisposable ToggleOnHotkey(HotkeyService hotkey, FlyoutHost host)
+    {
+        ArgumentNullException.ThrowIfNull(hotkey);
+        ArgumentNullException.ThrowIfNull(host);
+        void OnPressed() => host.Toggle();
+        hotkey.Pressed += OnPressed;
+        return new Subscription(() => hotkey.Pressed -= OnPressed);
     }
 
     private sealed class Subscription(Action undo) : IDisposable
