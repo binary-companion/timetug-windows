@@ -22,6 +22,64 @@ public sealed record NextTakeoverInfo(string EventId, DateTimeOffset FireAt);
 
 public sealed record EngineDiagnosticInfo(string Level, string Category, string Message);
 
+/// <summary>Where an agenda item stands today. It is the engine's own answer (<c>agenda.items[].state</c>), never recomputed from the clock.</summary>
+public enum AgendaPhase
+{
+    Past,
+    Current,
+    Upcoming,
+}
+
+/// <summary>
+/// One row of today's agenda, with the calendar's title and colour already looked up. <see cref="Start"/> and <see cref="End"/> are the
+/// tug time and the end; an all-day event carries the local midnights of its dates there and the calendar dates themselves in
+/// <see cref="StartDate"/> and <see cref="EndDate"/> (exclusive), so a consumer never has to convert an instant back to a date.
+/// </summary>
+public sealed record AgendaItem(
+    string EventId,
+    string Title,
+    DateTimeOffset Start,
+    DateTimeOffset End,
+    bool IsAllDay,
+    AgendaPhase Phase,
+    string? CalendarTitle,
+    string? CalendarColorHex,
+    Uri? JoinUrl,
+    int OtherAttendeeCount,
+    bool IsMerged,
+    string? Location)
+{
+    /// <summary>The calendar dates of an all-day event (<see cref="EndDate"/> is exclusive); null for a timed event.</summary>
+    public DateOnly? StartDate { get; init; }
+
+    public DateOnly? EndDate { get; init; }
+
+    /// <summary>Where the shown time range starts: a merged meeting shows its longer copy. Equals <see cref="Start"/> otherwise.</summary>
+    public DateTimeOffset ShownStart { get; init; } = Start;
+
+    /// <summary>True for the event the engine names as the next meeting (<c>agenda.nextEventID</c>).</summary>
+    public bool IsNext { get; init; }
+
+    /// <summary>How many distinct events were merged into this one (0 or 1 when it is not a merge).</summary>
+    public int MergedEventCount { get; init; }
+
+    /// <summary>How the merge was decided: <c>rule</c>, <c>inference</c> or <c>userConfirmed</c>; null when not merged.</summary>
+    public string? MergeKind { get; init; }
+
+    /// <summary>The name of the model that proposed an <c>inference</c> merge.</summary>
+    public string? MergeEngineName { get; init; }
+}
+
+public enum ProblemKind
+{
+    NeedsPermission,
+    AuthExpired,
+    Failing,
+}
+
+/// <summary>A calendar source the engine cannot read right now. <see cref="ConnectionId"/> is null when no connected account owns the source.</summary>
+public sealed record SourceProblem(string SourceId, string DisplayName, ProblemKind Kind, string? Detail, string? ConnectionId);
+
 /// <summary>The Presentation-side projection of the engine state.</summary>
 public sealed record AppState(
     IReadOnlyList<AccountInfo> Accounts,
@@ -31,7 +89,17 @@ public sealed record AppState(
     NextTakeoverInfo? NextTakeover,
     bool TakeoverVisible,
     bool Enabled,
-    AccountActivity? Activity = null);
+    AccountActivity? Activity = null)
+{
+    /// <summary>Today's agenda in the engine's order.</summary>
+    public IReadOnlyList<AgendaItem> Agenda { get; init; } = [];
+
+    /// <summary>Sources that need the person (sorted by source id).</summary>
+    public IReadOnlyList<SourceProblem> Problems { get; init; } = [];
+
+    /// <summary>How long before a meeting the Tug fires (the engine's setting).</summary>
+    public TimeSpan LeadTime { get; init; }
+}
 
 /// <summary>A takeover the engine says is due.</summary>
 public sealed record TakeoverRequest(
@@ -65,7 +133,12 @@ public static class EngineMapping
             new AccountActivity(
                 state.AccountStatus.IsWorking,
                 string.IsNullOrWhiteSpace(state.AccountStatus.ErrorMessage) ? null : state.AccountStatus.ErrorMessage,
-                state.AccountStatus.WaitingStyle ?? "browser"));
+                state.AccountStatus.WaitingStyle ?? "browser"))
+        {
+            Agenda = ToAgenda(state),
+            Problems = ToProblems(state),
+            LeadTime = ToLeadTime(state.Settings.Takeover.LeadTime),
+        };
     }
 
     public static TakeoverRequest ToRequest(Pkg.TakeoverRequest request)
@@ -89,16 +162,146 @@ public static class EngineMapping
     {
         ArgumentNullException.ThrowIfNull(e);
         var hasLink = e.Conferences.Count > 0;
-        if (e.IsAllDay || e.Start is null || e.End is null)
+        if (IsDated(e))
         {
             var zone = ZoneOf(e.TimeZone);
-            var startDate = e.StartDate ?? DateOnly.FromDateTime((e.Start ?? default).UtcDateTime);
-            var endDate = e.EndDate ?? startDate.AddDays(1);
+            var (startDate, endDate) = DatesOf(e);
             return new EventSummary(e.Id, e.Title, Midnight(startDate, zone), Midnight(endDate, zone), true, hasLink);
         }
 
-        return new EventSummary(e.Id, e.Title, e.Start.Value, e.End.Value, false, hasLink);
+        return new EventSummary(e.Id, e.Title, e.Start!.Value, e.End!.Value, false, hasLink);
     }
+
+    /// <summary>An all-day event, or one the engine sent without instants: it is read by its dates.</summary>
+    private static bool IsDated(Pkg.CalendarEvent e) => e.IsAllDay || e.Start is null || e.End is null;
+
+    /// <summary>The calendar dates of a dated event; <c>End</c> is exclusive.</summary>
+    private static (DateOnly Start, DateOnly End) DatesOf(Pkg.CalendarEvent e)
+    {
+        var startDate = e.StartDate ?? DateOnly.FromDateTime((e.Start ?? default).UtcDateTime);
+        return (startDate, e.EndDate ?? startDate.AddDays(1));
+    }
+
+    // ---- today's agenda, the sources that need the person, the lead time ------------------------------------------
+
+    /// <summary>
+    /// One <see cref="AgendaItem"/> per engine agenda item, in the engine's order. The phase is the engine's word
+    /// (<c>agenda.items[].state</c>); this method never compares a time with a clock.
+    /// </summary>
+    private static List<AgendaItem> ToAgenda(Pkg.EngineState state)
+    {
+        var events = new Dictionary<string, Pkg.CalendarEvent>(StringComparer.Ordinal);
+        foreach (var e in state.Events)
+        {
+            events.TryAdd(e.Id, e);
+        }
+
+        var calendars = new Dictionary<string, Pkg.CalendarInfo>(StringComparer.Ordinal);
+        foreach (var c in state.Calendars)
+        {
+            calendars.TryAdd(c.Key, c);
+        }
+
+        var items = new List<AgendaItem>(state.Agenda.Items.Count);
+        foreach (var entry in state.Agenda.Items)
+        {
+            if (events.TryGetValue(entry.EventID, out var e))
+            {
+                calendars.TryGetValue(e.CalendarKey, out var calendar);
+                items.Add(ToAgendaItem(e, ToPhase(entry.State), calendar, entry.EventID == state.Agenda.NextEventID));
+            }
+        }
+
+        return items;
+    }
+
+    private static AgendaItem ToAgendaItem(Pkg.CalendarEvent e, AgendaPhase phase, Pkg.CalendarInfo? calendar, bool isNext)
+    {
+        var summary = ToSummary(e);
+        var distinct = e.Members.Select(m => m.MemberID).Distinct(StringComparer.Ordinal).Count();
+        var merged = distinct > 1;
+        (DateOnly Start, DateOnly End)? dates = IsDated(e) ? DatesOf(e) : null;
+        return new AgendaItem(
+            e.Id,
+            e.Title,
+            summary.Start,
+            summary.End,
+            summary.IsAllDay,
+            phase,
+            calendar?.Title,
+            string.IsNullOrWhiteSpace(calendar?.ColorHex) ? null : calendar.ColorHex,
+            JoinUrlOf(e),
+            e.OtherAttendeeCount,
+            merged,
+            string.IsNullOrWhiteSpace(e.Location) ? null : e.Location)
+        {
+            StartDate = dates?.Start,
+            EndDate = dates?.End,
+            ShownStart = e.DisplayStart ?? summary.Start,
+            IsNext = isNext,
+            MergedEventCount = distinct,
+            MergeKind = merged ? e.MergeProvenance?.Kind : null,
+            MergeEngineName = merged ? e.MergeProvenance?.EngineName : null,
+        };
+    }
+
+    /// <summary>The engine's words for a phase; a word a later engine adds is shown as upcoming rather than hiding the row.</summary>
+    private static AgendaPhase ToPhase(string state) => state switch
+    {
+        "past" => AgendaPhase.Past,
+        "current" => AgendaPhase.Current,
+        _ => AgendaPhase.Upcoming,
+    };
+
+    /// <summary>The first conference link that is a web address; any other scheme (script, file, an app link) is not offered as Join.</summary>
+    private static Uri? JoinUrlOf(Pkg.CalendarEvent e)
+    {
+        foreach (var conference in e.Conferences)
+        {
+            if (Uri.TryCreate(conference.Url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
+            {
+                return uri;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A problem per source whose status is not <c>ok</c>, sorted by source id. The engine names a connection's source
+    /// <c>"&lt;kind&gt;-&lt;connection&gt;"</c> (calendar-connectors <c>Connection.sourceID</c>); that rule is how a source finds the account that
+    /// owns it, so Reconnect has a connection id. A source no account owns (for example the system calendar) has none.
+    /// </summary>
+    private static List<SourceProblem> ToProblems(Pkg.EngineState state)
+    {
+        var problems = new List<SourceProblem>();
+        foreach (var (sourceId, status) in state.Statuses)
+        {
+            if (status.Kind == "ok")
+            {
+                continue;
+            }
+
+            var connectionId = state.Accounts.FirstOrDefault(a => $"{a.KindID}-{a.ConnectionID}" == sourceId)?.ConnectionID;
+            problems.Add(new SourceProblem(
+                sourceId,
+                state.SourceNames.TryGetValue(sourceId, out var name) ? name : sourceId,
+                status.Kind switch
+                {
+                    "needsPermission" => ProblemKind.NeedsPermission,
+                    "authExpired" => ProblemKind.AuthExpired,
+                    _ => ProblemKind.Failing,
+                },
+                string.IsNullOrWhiteSpace(status.Message) ? null : status.Message,
+                connectionId));
+        }
+
+        problems.Sort((a, b) => string.CompareOrdinal(a.SourceId, b.SourceId));
+        return problems;
+    }
+
+    private static TimeSpan ToLeadTime(double seconds) =>
+        double.IsFinite(seconds) && seconds >= 0 && seconds <= TimeSpan.MaxValue.TotalSeconds ? TimeSpan.FromSeconds(seconds) : TimeSpan.Zero;
 
     private static AccountInfo ToAccount(Pkg.Account account, Pkg.EngineState state)
     {
