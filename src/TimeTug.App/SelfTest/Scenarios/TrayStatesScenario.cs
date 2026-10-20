@@ -8,7 +8,7 @@ using TimeTug.Platform.Tray;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Tray;
-using Windows.Storage.Streams;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace TimeTug.App.SelfTest.Scenarios;
 
@@ -123,33 +123,37 @@ internal static class TrayStatesScenario
         Expect("idle-again", TrayIconState.Idle, null, false, "Design review in 2 hr 21 min");
 
         // ---- the screenshots: the applied icons enlarged, and the contact sheet ---------------------------------------------------------------
-        const int Zoom = 8;
-        var strip = new StackPanel { Spacing = 12, Padding = new Thickness(16) };
+        const int Zoom = 6;
+        var strip = new StackPanel { Spacing = 8, Padding = new Thickness(12) };
         foreach (var (name, background) in new[] { ("dark taskbar", Microsoft.UI.Colors.Black), ("light taskbar", Microsoft.UI.Colors.WhiteSmoke) })
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Padding = new Thickness(8), Background = new SolidColorBrush(background) };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Padding = new Thickness(8), Background = new SolidColorBrush(background) };
             foreach (var (_, image) in applied)
             {
-                row.Children.Add(new Image { Width = size * Zoom, Height = size * Zoom, Source = await ToBitmapAsync(Enlarge(image, Zoom)) });
+                row.Children.Add(new Image { Width = size * Zoom, Height = size * Zoom, Source = ToBitmap(Enlarge(image, Zoom)) });
             }
 
-            strip.Children.Add(new TextBlock { Text = name, Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray) });
+            strip.Children.Add(new TextBlock { Text = name });
             strip.Children.Add(row);
         }
 
-        var stripWindow = new Window { Title = "TimeTug tray states", Content = new ScrollViewer { Content = strip, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto } };
-        stripWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Min(2400, 80 + (applied.Count * ((size * Zoom) + 12))), 2 * ((size * Zoom) + 90)));
+        var stripWindow = new Window { Title = "TimeTug tray states", Content = new Grid { Background = new SolidColorBrush(Microsoft.UI.Colors.Gray), Children = { strip } } };
+        stripWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(Math.Min(2200, 60 + (applied.Count * ((size * Zoom) + 8))), (2 * ((size * Zoom) + 60)) + 80));
         stripWindow.Activate();
-        await SelfTestRunner.WaitForFrameAsync(stripWindow, cancellation, 800);
+        await SelfTestRunner.WaitForFrameAsync(stripWindow, cancellation, 1500);
         await run.ShotAsync(stripWindow, "states-enlarged");
         stripWindow.Close();
 
         var sheet = TrayContactSheet.Build(reference);
         File.WriteAllBytes(Path.Combine(run.Folder, "contact-sheet.png"), sheet.ToPng());
-        var sheetWindow = new Window { Title = "TimeTug tray digits", Content = new Image { Width = sheet.Width, Height = sheet.Height, Source = await ToBitmapAsync(sheet) } };
-        sheetWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(sheet.Width + 40, sheet.Height + 80));
+        var sheetWindow = new Window
+        {
+            Title = "TimeTug tray digits",
+            Content = new Grid { Background = new SolidColorBrush(Microsoft.UI.Colors.Gray), Children = { new Image { Stretch = Stretch.Uniform, Source = ToBitmap(sheet) } } },
+        };
+        sheetWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32(1000, 900));
         sheetWindow.Activate();
-        await SelfTestRunner.WaitForFrameAsync(sheetWindow, cancellation, 800);
+        await SelfTestRunner.WaitForFrameAsync(sheetWindow, cancellation, 1500);
         await run.ShotAsync(sheetWindow, "contact-sheet");
         sheetWindow.Close();
 
@@ -210,19 +214,24 @@ internal static class TrayStatesScenario
         return new TrayIconImage(width, image.Height * factor, rgba);
     }
 
-    private static async Task<BitmapImage> ToBitmapAsync(TrayIconImage image)
+    private static WriteableBitmap ToBitmap(TrayIconImage image)
     {
-        using var stream = new InMemoryRandomAccessStream();
-        using (var writer = new DataWriter(stream))
+        var bitmap = new WriteableBitmap(image.Width, image.Height);
+        var bgra = new byte[image.Width * image.Height * 4];
+        var rgba = image.Rgba;
+        for (var i = 0; i < bgra.Length; i += 4)
         {
-            writer.WriteBytes(image.ToPng());
-            await writer.StoreAsync();
-            writer.DetachStream();
+            // Premultiplied BGRA, which is what the bitmap holds.
+            var alpha = rgba[i + 3];
+            bgra[i] = (byte)((rgba[i + 2] * alpha) / 255);
+            bgra[i + 1] = (byte)((rgba[i + 1] * alpha) / 255);
+            bgra[i + 2] = (byte)((rgba[i] * alpha) / 255);
+            bgra[i + 3] = alpha;
         }
 
-        stream.Seek(0);
-        var bitmap = new BitmapImage();
-        await bitmap.SetSourceAsync(stream);
+        using var stream = bitmap.PixelBuffer.AsStream();
+        stream.Write(bgra, 0, bgra.Length);
+        bitmap.Invalidate();
         return bitmap;
     }
 
