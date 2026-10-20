@@ -17,6 +17,7 @@ internal static class TugJoinScenario
         var run = rig.Run;
 
         run.Check(await rig.PresentAsync(rig.Request("e-click", "Design review", TimeSpan.FromSeconds(50))), "a takeover with a link opens");
+        await rig.Settle();
         await run.ShotAsync(rig.Host.Primary!, "before-join");
         run.Check(ScenarioUi.Invoke(rig.Host.Primary!, "Join meeting"), "the Join button can be invoked");
         run.Check(await rig.WaitHiddenAsync(), "the windows close after Join");

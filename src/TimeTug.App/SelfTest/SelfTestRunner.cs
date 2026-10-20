@@ -78,9 +78,12 @@ internal static class SelfTestRunner
         SelfTestResult result;
         try
         {
-            using var timeout = new CancellationTokenSource(Overall + TimeSpan.FromSeconds(options.HoldSeconds));
+            var limit = Overall + TimeSpan.FromSeconds(options.HoldSeconds);
+            using var timeout = new CancellationTokenSource(limit);
+            // Something that never completes and ignores the token (a capture of a window that never rendered) must still end in a
+            // result, so the wait itself has a limit.
             result = Scenarios.TryGetValue(options.Scenario, out var scenario)
-                ? await scenario(options, timeout.Token)
+                ? await scenario(options, timeout.Token).WaitAsync(limit + TimeSpan.FromSeconds(5))
                 : Failure(options, "unknown scenario " + options.Scenario);
         }
         catch (Exception ex)
@@ -165,7 +168,7 @@ internal static class SelfTestRunner
         try
         {
             var bitmap = new RenderTargetBitmap();
-            await bitmap.RenderAsync(root);
+            await bitmap.RenderAsync(root).AsTask().WaitAsync(TimeSpan.FromSeconds(15));
             var buffer = await bitmap.GetPixelsAsync();
             var pixels = new byte[buffer.Length];
             using (var reader = DataReader.FromBuffer(buffer))
@@ -176,7 +179,7 @@ internal static class SelfTestRunner
             await PngWriter.WriteAsync(pixels, bitmap.PixelWidth, bitmap.PixelHeight, path);
             return (new SelfTestAttempt(name, method, PixelAnalysis.CountDistinctColours(pixels, 1000), null), path);
         }
-        catch (Exception ex) when (ex is COMException or IOException or ArgumentException or InvalidOperationException)
+        catch (Exception ex) when (ex is COMException or IOException or ArgumentException or InvalidOperationException or TimeoutException)
         {
             return (new SelfTestAttempt(name, method, 0, ex.GetType().Name + ": " + ex.Message), null);
         }
