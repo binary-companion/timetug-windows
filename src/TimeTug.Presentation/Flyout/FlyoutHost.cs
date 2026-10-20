@@ -156,6 +156,29 @@ public sealed class FlyoutHost : IDisposable
         return IsOpen;
     }
 
+    /// <summary>Opens the flyout when it is closed and leaves it alone when it is open (a second launch must not close it). Returns true when it is open afterwards.</summary>
+    public bool Show()
+    {
+        if (_disposed)
+        {
+            return false;
+        }
+
+        if (_surface is not null)
+        {
+            return true;
+        }
+
+        if (_tug.IsTugShowing)
+        {
+            Note("info", "the flyout stays closed while the tug is showing");
+            return false;
+        }
+
+        Open();
+        return IsOpen;
+    }
+
     /// <summary>Closes the flyout if it is open.</summary>
     public void Close() => Close(byDeactivation: false);
 

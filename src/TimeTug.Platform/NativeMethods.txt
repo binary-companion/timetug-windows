@@ -60,3 +60,7 @@ IUIAutomationElementArray
 IUIAutomationCondition
 TreeScope
 COINIT
+RegisterHotKey
+UnregisterHotKey
+HOT_KEY_MODIFIERS
+WM_HOTKEY

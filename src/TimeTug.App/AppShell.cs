@@ -6,8 +6,10 @@ using TimeTug.App.Composition;
 using TimeTug.App.Tray;
 using TimeTug.App.Tug;
 using TimeTug.App.Views;
+using TimeTug.Platform.Instance;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Flyout;
 using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tray;
 using TimeTug.Presentation.Tug;
@@ -27,6 +29,7 @@ internal sealed class AppShell
     private readonly IDiagnostics _diagnostics;
     private readonly Action<IServiceCollection>? _replace;
     private readonly bool _withTray;
+    private readonly IAppInstance? _instance;
     private IHost? _host;
     private Window? _anchor;
     private Window? _failure;
@@ -37,13 +40,19 @@ internal sealed class AppShell
 
     /// <param name="replace">Replaces registrations after the real ones (the self-test scripts the engine host and the OS state this way).</param>
     /// <param name="withTray">False only in a self-test scenario that has nothing to do with the notification area.</param>
-    public AppShell(DispatcherQueue queue, IDiagnostics diagnostics, Action<IServiceCollection>? replace = null, bool withTray = true)
+    /// <param name="instance">This copy's place among the copies of the app (null in a self-test). The shell tells it when startup has finished; the
+    /// composition that opens the flyout subscribes to its <see cref="IAppInstance.Activated"/> before that.</param>
+    public AppShell(DispatcherQueue queue, IDiagnostics diagnostics, Action<IServiceCollection>? replace = null, bool withTray = true, IAppInstance? instance = null)
     {
+        _instance = instance;
         _queue = queue;
         _diagnostics = diagnostics;
         _replace = replace;
         _withTray = withTray;
     }
+
+    /// <summary>This copy's single-instance registration (null in a self-test). It lives until the process ends, so a launch during shutdown still finds this copy and never starts a second one on its data.</summary>
+    public IAppInstance? Instance => _instance;
 
     public IServiceProvider Services => _host?.Services ?? throw new InvalidOperationException("The app has not started.");
 
@@ -78,7 +87,11 @@ internal sealed class AppShell
                 StartTray();
             }
 
-            if (await Services.GetRequiredService<AppRuntime>().ShouldShowWelcome)
+            var showWelcome = await Services.GetRequiredService<AppRuntime>().ShouldShowWelcome;
+
+            // The engine is up and has sent its first state: a second launch that came in while this was starting is delivered now.
+            _instance?.MarkReady(Services.GetRequiredService<ITugPresence>());
+            if (showWelcome)
             {
                 ShowWelcome();
             }

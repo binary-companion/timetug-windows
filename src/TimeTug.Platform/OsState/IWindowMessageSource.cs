@@ -9,6 +9,9 @@ public readonly record struct WindowMessage(uint Id, nuint WParam, nint LParam, 
     public const uint PowerBroadcast = 0x0218;
     public const uint SessionChange = 0x02B1;
 
+    /// <summary><c>WM_HOTKEY</c>: a shortcut registered on the window was pressed; <see cref="WParam"/> is the registration id.</summary>
+    public const uint Hotkey = 0x0312;
+
     /// <summary><c>PBT_APMRESUMEAUTOMATIC</c>, the always-sent "the system resumed" notification.</summary>
     public const uint PowerResumeAutomatic = 0x0012;
 
