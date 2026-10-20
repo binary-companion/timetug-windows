@@ -28,4 +28,8 @@
   <ItemGroup>
     <Manifest Include="app.manifest" />
   </ItemGroup>
+  <!-- Recorded calendar responses and engine files for the self-test: development and CI builds only, never Release. -->
+  <ItemGroup Condition="'$(Configuration)' != 'Release'">
+    <EmbeddedResource Include="..\..\tests\data\*.json" LogicalName="TimeTug.SelfTest.Data.%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

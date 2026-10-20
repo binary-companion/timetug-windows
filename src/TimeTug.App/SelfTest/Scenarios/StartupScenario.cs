@@ -13,7 +13,7 @@ using TimeTug.Presentation.Tray;
 using TimeTug.Presentation.Tug;
 using Pkg = TimeTug.Engine;
 
-namespace TimeTug.App.SelfTest;
+namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
 /// Scenario <c>startup</c>: the real composition root, the real native engine and the real OS-state services, with only the
@@ -24,22 +24,14 @@ namespace TimeTug.App.SelfTest;
 /// </summary>
 internal static class StartupScenario
 {
+    public const string Name = "startup";
+
     private static readonly string[] ExpectedKinds = ["google", "microsoft", "icloud", "caldav"];
 
     public static async Task<SelfTestResult> RunAsync(SelfTestOptions options, CancellationToken cancellation)
     {
-        Directory.CreateDirectory(options.OutputFolder);
-        var checks = new List<string>();
-        var failures = new List<string>();
-        var attempts = new List<SelfTestShot>();
-        void Check(bool condition, string description)
-        {
-            checks.Add((condition ? "ok: " : "FAIL: ") + description);
-            if (!condition)
-            {
-                failures.Add(description);
-            }
-        }
+        var run = new ScenarioRun(options);
+        void Check(bool condition, string description) => run.Check(condition, description);
 
         async Task<bool> WaitFor(Func<bool> condition, int milliseconds = 10000)
         {
@@ -65,7 +57,7 @@ internal static class StartupScenario
         Directory.CreateDirectory(dataDirectory);
 
         var diagnostics = new RecordingDiagnostics();
-        var host = new ScriptedEngineHost();
+        var host = new ScriptedCalendarHost();
         var notifications = new FakeNotifications();
         var toasts = new FakeToasts();
         var launcher = new FakeLauncher();
@@ -83,12 +75,12 @@ internal static class StartupScenario
         Check(!shell.Failed, "the app started with the real engine" + (shell.FailureReason is null ? string.Empty : ": " + shell.FailureReason));
         if (shell.Failed)
         {
-            return SelfTestRunner.Result(options, null, string.Join("; ", failures), attempts, checks);
+            return run.Finish();
         }
 
         var engineLibrary = Process.GetCurrentProcess().Modules.Cast<ProcessModule>().FirstOrDefault(m => string.Equals(m.ModuleName, "TimeTugEngineC.dll", StringComparison.OrdinalIgnoreCase));
         Check(engineLibrary is not null, "TimeTugEngineC.dll is loaded in the app process");
-        checks.Add("info: engine library: " + engineLibrary?.FileName);
+        run.Info("engine library: " + engineLibrary?.FileName);
 
         var services = shell.Services;
         var client = services.GetRequiredService<IEngineClient>();
@@ -117,9 +109,7 @@ internal static class StartupScenario
         {
             await SelfTestRunner.WaitForFrameAsync(welcome, cancellation);
             Check(ExpectedKinds.All(id => welcome.ViewModel.Providers.Any(p => p.Id == id)), "the welcome window lists the engine's kinds: " + string.Join(", ", welcome.ViewModel.Providers.Select(p => p.Id)));
-            var (best, taken) = await SelfTestRunner.CaptureAsync(welcome, options.OutputFolder, "startup-welcome");
-            attempts.AddRange(taken);
-            Check(best is not null, "startup-welcome.png is not blank");
+            await run.ShotAsync(welcome, "welcome");
         }
 
         // ---- the Test tug path through the real engine ----------------------------------------------------------------------
@@ -136,9 +126,7 @@ internal static class StartupScenario
             var text = services.GetRequiredService<ILocalizer>();
             await SelfTestRunner.WaitForFrameAsync(primary, cancellation, 800);
             Check(ScenarioUi.FindNamed<TextBlock>(primary, "TitleText")?.Text == text.GetString("TestTugTitle"), "the tug shows the app's own sample title");
-            var (best, taken) = await SelfTestRunner.CaptureAsync(primary, options.OutputFolder, "startup-tug");
-            attempts.AddRange(taken);
-            Check(best is not null, "startup-tug.png is not blank");
+            await run.ShotAsync(primary, "tug");
             Check(ScenarioUi.Invoke(primary, "Dismiss this reminder"), "Dismiss can be pressed");
             Check(await WaitFor(() => windows.WindowCount == 0), "Dismiss closes the tug windows");
             Check(controller.State == TugState.Hidden && controller.Current is null, "the controller owes the engine nothing after Dismiss");
@@ -150,7 +138,7 @@ internal static class StartupScenario
         var trayCreated = shell.TrayIcon is { IsCreated: true };
         Check(trayCreated || diagnostics.Entries.Any(e => e.Category == "tray" && e.Level == "error"), "the tray icon was created in the notification area, or its failure was recorded: created=" + trayCreated);
         Check(shell.TrayModel is { } tray && tray.Current.Rows.Single(r => r.Command == TrayCommand.Quit).IsEnabled, "the tray menu offers Quit");
-        checks.Add("info: tray icon file " + shell.TrayIcon?.AppliedIconFile + ", tooltip \"" + shell.TrayIcon?.AppliedTooltip + "\"");
+        run.Info("tray icon file " + shell.TrayIcon?.AppliedIconFile + ", tooltip \"" + shell.TrayIcon?.AppliedTooltip + "\"");
 
         // ---- a second test tug (from the tray menu) is left outstanding so that quitting must close it -----------------------
         await shell.TrayModel!.InvokeAsync(TrayCommand.TestTug);
@@ -163,7 +151,7 @@ internal static class StartupScenario
         Check(shell.TrayIcon is null, "quitting removed the tray icon");
         Check(await WaitFor(() => windows.WindowCount == 0, 3000), "quitting closed the tug windows");
         var files = Directory.GetFiles(dataDirectory, "*", SearchOption.AllDirectories);
-        checks.Add("info: the engine wrote " + files.Length + " file(s) under its data folder: " + string.Join(", ", files.Select(f => Path.GetRelativePath(dataDirectory, f))));
+        run.Info("the engine wrote " + files.Length + " file(s) under its data folder: " + string.Join(", ", files.Select(f => Path.GetRelativePath(dataDirectory, f))));
         Check(files.Length > 0, "the engine used its data folder");
         Check(diagnostics.Entries.All(e => e.Level != "error" || e.Category == "tray"), "nothing was recorded as an error (a tray that could not be created aside): " + string.Join("; ", diagnostics.Entries.Where(e => e.Level == "error").Select(e => e.Category + ": " + e.Message)));
         lock (host.Diagnostics)
@@ -182,15 +170,12 @@ internal static class StartupScenario
         {
             await SelfTestRunner.WaitForFrameAsync(failureWindow, cancellation, 800);
             Check(ScenarioUi.HasButton(failureWindow, "Close TimeTug") && ScenarioUi.Unnamed(failureWindow).Count == 0, "the failure window has a named Close button");
-            var (best, taken) = await SelfTestRunner.CaptureAsync(failureWindow, options.OutputFolder, "startup-failure");
-            attempts.AddRange(taken);
-            Check(best is not null, "startup-failure.png is not blank");
+            await run.ShotAsync(failureWindow, "failure");
         }
 
         await failing.QuitAsync(exitProcess: false).WaitAsync(TimeSpan.FromSeconds(30), cancellation);
 
-        var firstShot = File.Exists(Path.Combine(options.OutputFolder, "startup-welcome.png")) ? "startup-welcome.png" : null;
-        return SelfTestRunner.Result(options, firstShot, failures.Count == 0 ? null : string.Join("; ", failures), attempts, checks);
+        return run.Finish();
     }
 
     private static async Task<AppState?> FirstStateAsync(IEngineClient client, CancellationToken cancellation)

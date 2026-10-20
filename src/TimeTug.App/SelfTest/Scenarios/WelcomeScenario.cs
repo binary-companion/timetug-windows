@@ -9,7 +9,7 @@ using Microsoft.UI.Xaml.Media;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Welcome;
 
-namespace TimeTug.App.SelfTest;
+namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
 /// Scenario <c>welcome</c>: opens the welcome window against a scripted engine and walks it through the Connect step, a
@@ -18,22 +18,14 @@ namespace TimeTug.App.SelfTest;
 /// </summary>
 internal static class WelcomeScenario
 {
+    public const string Name = "welcome";
+
     private static readonly DateTimeOffset Noon = new(2026, 10, 16, 12, 0, 0, TimeSpan.Zero);
 
     public static async Task<SelfTestResult> RunAsync(SelfTestOptions options, CancellationToken cancellation)
     {
-        Directory.CreateDirectory(options.OutputFolder);
-        var checks = new List<string>();
-        var failures = new List<string>();
-        var attempts = new List<SelfTestShot>();
-        void Check(bool condition, string description)
-        {
-            checks.Add((condition ? "ok: " : "FAIL: ") + description);
-            if (!condition)
-            {
-                failures.Add(description);
-            }
-        }
+        var run = new ScenarioRun(options);
+        void Check(bool condition, string description) => run.Check(condition, description);
 
         var queue = DispatcherQueue.GetForCurrentThread();
         var text = new ResourceLoaderLocalizer();
@@ -45,12 +37,7 @@ internal static class WelcomeScenario
         window.Activate();
         await SelfTestRunner.WaitForFrameAsync(window, cancellation);
 
-        async Task Shot(string name)
-        {
-            var (best, taken) = await SelfTestRunner.CaptureAsync(window, options.OutputFolder, name);
-            attempts.AddRange(taken);
-            Check(best is not null, name + ".png is not blank");
-        }
+        Task Shot(string label) => run.ShotAsync(window, label);
 
         async Task Settle(int milliseconds = 800) => await Task.Delay(milliseconds, cancellation);
 
@@ -59,14 +46,14 @@ internal static class WelcomeScenario
         Check(model.Providers.Select(p => p.Id).SequenceEqual(["google", "microsoft", "icloud", "caldav"]), "providers are listed in the engine's order");
         Check(!model.Providers[1].IsEnabled && model.Providers[1].Hint.Contains("isn’t set up", StringComparison.Ordinal), "an unconfigured kind is disabled with the reason");
         Check(Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", Unnamed(window)));
-        await Shot("welcome-1-connect");
+        await Shot("connect");
 
         // A browser sign-in shows its progress and can be cancelled.
         Check(Invoke(window, "Connect Google"), "the Google button can be invoked by name");
         await Settle();
         Check(engine.Sent.Contains("add:google"), "Google sends account.add");
         Check(model.Accounts.IsBusy && model.Providers.All(p => !p.IsEnabled), "while signing in every provider is disabled");
-        await Shot("welcome-waiting");
+        await Shot("waiting");
         Check(Invoke(window, "Cancel sign-in"), "the Cancel button can be invoked by name");
         await Settle(400);
         Check(engine.Sent.Contains("cancel") && !model.Accounts.IsBusy, "Cancel sends account.cancel and ends the wait");
@@ -81,7 +68,7 @@ internal static class WelcomeScenario
         await Settle(600);
         Check(VisualTreeHelper.GetOpenPopupsForXamlRoot(((FrameworkElement)window.Content).XamlRoot).Count > 0, "the credential form is open");
         Check(Unnamed(window).Count == 0, "every control, dialog included, has an automation name: " + string.Join(", ", Unnamed(window)));
-        await Shot("welcome-form");
+        await Shot("form");
         await engine.CancelAuthorizationAsync();
         await Settle(600);
         Check(VisualTreeHelper.GetOpenPopupsForXamlRoot(((FrameworkElement)window.Content).XamlRoot).Count == 0, "cancelling closes the form");
@@ -91,7 +78,7 @@ internal static class WelcomeScenario
         engine.Push(Scenes.Empty(new AccountActivity(false, "Sign-in failed: the server rejected that user name or password.", "inApp")));
         await Settle();
         Check(model.Step == WelcomeStep.Connect && model.Providers[3].HasError && !model.Providers[2].HasError, "a failure shows beside that provider and keeps the step");
-        await Shot("welcome-error");
+        await Shot("error");
 
         // Step 2: connected.
         Check(Invoke(window, "Connect Google"), "Google can be tried again");
@@ -100,12 +87,11 @@ internal static class WelcomeScenario
         Check(model.Step == WelcomeStep.Connected, "a new account moves to the Connected step");
         Check(model.Accounts.Accounts.Count == 1 && model.Accounts.Accounts[0].Summary.StartsWith("Google · you@example.com · 3 calendars", StringComparison.Ordinal), "the account is summarised");
         Check(Unnamed(window).Count == 0, "every control on the Connected step has an automation name: " + string.Join(", ", Unnamed(window)));
-        await Shot("welcome-2-connected");
+        await Shot("connected");
         Check(Invoke(window, "Show a test tug screen") && engine.Sent.Contains("testTug"), "Test tug sends the test takeover");
 
         // The window is left open: closing the only window would end the app before the result is written.
-        var firstShot = File.Exists(Path.Combine(options.OutputFolder, "welcome-1-connect.png")) ? "welcome-1-connect.png" : null;
-        return SelfTestRunner.Result(options, firstShot, failures.Count == 0 ? null : string.Join("; ", failures), attempts, checks);
+        return run.Finish();
     }
 
     // Every visible button, text box and progress ring (and those in open dialogs) must have a name Narrator can read.

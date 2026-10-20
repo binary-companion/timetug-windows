@@ -1,0 +1,22 @@
+# Every self-test scenario, one per line: name, the fewest screenshots it must produce, its timeout in seconds, and who runs it.
+#   selftest = scripts/ci/run-selftest.ps1 (every pull request, both architectures)
+#   a11y     = scripts/ci/run-a11y.ps1 (holds windows open while axe-windows scans them)
+# scripts/ci/check-repository-contracts.py fails when this list and the scenario classes in
+# src/TimeTug.App/SelfTest/Scenarios (their Name constants) differ.
+hello                    1  90   selftest
+welcome                  5  120  selftest
+toast                    0  90   selftest
+startup                  3  150  selftest
+tray                     1  120  selftest
+tug-basic                2  150  selftest
+tug-join                 1  120  selftest
+tug-snooze               1  120  selftest
+tug-dismiss              1  120  selftest
+tug-no-focus             2  150  selftest
+tug-toast                1  120  selftest
+tug-late-return          1  150  selftest
+tug-meeting-gone         0  150  selftest
+tug-join-fails           1  120  selftest
+tug-monitors             1  120  selftest
+tug-contrast-and-motion  4  120  selftest
+a11y-hold                0  300  a11y

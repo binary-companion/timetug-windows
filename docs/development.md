@@ -58,7 +58,28 @@ prlctl exec "Windows 11" --current-user powershell -NoProfile -ExecutionPolicy B
 
 (`%3B` is an encoded `;`; the logger option cannot carry a literal one through `prlctl`.) `TIMETUG_OS_TIMECHANGE=1` additionally enables a test that waits up to 90 seconds for a real clock change and a real time-zone change (`Set-Date`, `Set-TimeZone` from an elevated `prlctl exec` while it runs) and checks that the bridge reports `clockChanged` and `timeZoneChanged`. Restore the VM's time zone afterwards (`Set-TimeZone -Id "Central America Standard Time"`).
 
-Toasts need package identity, so they are checked by the packaged app: `run-selftest.ps1 -Scenario toast` registers the toast service, shows a toast and requires Windows to accept it (not part of CI yet; the buttons themselves are a manual check).
+Toasts need package identity, so they are checked by the packaged app: the `toast` self-test scenario registers the toast service, shows a toast and requires Windows to accept it (the buttons themselves are a manual check).
+
+## The self-test and the accessibility scan
+
+A development or CI build (the `SELFTEST` define) accepts `timetug-dev.exe --selftest <scenario> --out <folder> [--hold <seconds>]`. Each scenario is one class in `src/TimeTug.App/SelfTest/Scenarios` (a `Name` constant and a short script over the fakes in `SelfTest/FakeOsState.cs`, `TugRig` and `EngineRig`). It writes `result.json` into its folder: named checks (`{name, ok}`), notes, and numbered screenshots (`01-primary.png`, `02-mirror.png`, ...). `scripts/ci/selftest-scenarios.txt` lists every scenario with the fewest screenshots it must produce and its timeout; `check-repository-contracts.py` fails when that list and the scenario classes differ.
+
+```
+scripts\ci\build-msix.ps1 -Platform ARM64            # build, trust and install the development package
+scripts\ci\run-selftest.ps1                          # every scenario; or -Scenario tug-basic [-HoldSeconds 30]
+scripts\ci\run-a11y.ps1                              # the axe-windows scan (needs the solution built in the same configuration)
+```
+
+`run-selftest.ps1` runs every scenario even after one fails and then fails when a scenario left no `result.json`, when `ok` is not true, when any check is false, or when a screenshot is missing, too few, or blank. Output goes to `build\selftest\<scenario>\`; CI uploads it as the `selftest-x64` and `selftest-arm64` artifacts. Two kinds of scenario:
+
+- Fake-based tug scenarios (`tug-basic`, `tug-join`, `tug-snooze`, `tug-dismiss`, `tug-no-focus`, `tug-toast`, `tug-join-fails`, `tug-monitors`, `tug-contrast-and-motion`) use `TugRig`: a scripted engine client and fake session, notification state, monitors, toasts, link launcher and appearance settings behind the real `TugController` and real tug windows. Each ends by checking the exact list of commands the engine received.
+- Scenarios that need time to pass (`tug-late-return`, `tug-meeting-gone`) use `EngineRig`: the real composition root and the real native engine on its manual clock (`testing: true`, a fixed start), one Google account whose calendar answers come from the recorded responses in `tests/data` (embedded in development and CI builds; copied from `timetug-shared`'s conformance data, so they are the shapes the real API sends), and a `ManualClock` that is advanced together with the engine's (`test.advanceClock`). The recorded credential store behaves like the engine's own: a refresh-token update keeps the revision, and revisions are hyphenated UUIDs.
+
+`tug-no-focus` clicks the real mouse (`MouseInput` in `TimeTug.Platform`, built only with `SELFTEST`) at a spot with no control on it after another window of the app took the keyboard from the tug.
+
+The accessibility scan (`tests/TimeTug.App.A11y`, axe-windows `Axe.Windows.Automation`) runs while the `a11y-hold` scenario holds windows open: round 0 is a canary (a window with a button that has no name, which must be found, or the scan is not seeing the app), round 1 the welcome window's Connect step and the tug as it first appears, round 2 the Connected step and the tug with the link to copy. It fails on any error-level rule violation. The report is `build\a11y\a11y-report.txt` (and `.json`, plus the `.a11ytest` files Accessibility Insights for Windows opens). Accepted exceptions go in `tests/TimeTug.App.A11y/suppressions.json` with a reason; there are none.
+
+On the VM (resume it first), after `build-msix.ps1 -Stage Build` as SYSTEM and `-Stage Install` as the user (see above): `prlctl exec "Windows 11" --current-user powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\src\timetug-windows\scripts\ci\run-selftest.ps1'`. Build the scanner first with `dotnet build tests\TimeTug.App.A11y -c CI` (as SYSTEM) before `run-a11y.ps1`. Redirect the output to a file inside the VM when the run is long, then read the file: `prlctl exec` sometimes drops its connection while a long command runs.
 
 ## OAuth client ids for local builds
 

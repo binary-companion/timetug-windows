@@ -58,8 +58,10 @@ internal sealed class TugTheme
             }
 
             var (wr, wg, wb) = TugWindowChrome.SystemColor(SystemColorRole.Window);
+            // Everything the tug says is information the person needs, so it is all WindowText: GrayText means "unavailable" in a
+            // contrast theme and some themes give it too little contrast to read.
             var text = Role(SystemColorRole.WindowText);
-            return new TugTheme(new TugColor(wr, wg, wb), Role(SystemColorRole.Window), text, text, Role(SystemColorRole.GrayText), Role(SystemColorRole.Highlight), Role(SystemColorRole.HighlightText), _ => null, isContrast: true);
+            return new TugTheme(new TugColor(wr, wg, wb), Role(SystemColorRole.Window), text, text, text, Role(SystemColorRole.Highlight), Role(SystemColorRole.HighlightText), _ => null, isContrast: true);
         }
 
         return new TugTheme(TugBrand.Navy, Solid(TugBrand.Navy), Solid(new TugColor(255, 255, 255)), Solid(TugBrand.Muted), Solid(TugBrand.Hint), Solid(TugBrand.Blue), Solid(TugBrand.OnBlue), tone => TugBrand.Headline(tone), isContrast: false);

@@ -8,9 +8,6 @@ namespace TimeTug.App;
 /// <summary>Application entry point: guards against a second copy, then hands over to <see cref="AppShell"/>.</summary>
 public partial class App : Application
 {
-#if SELFTEST
-    private Window? _window;
-#endif
     private SingleInstanceGuard? _instance;
     private AppShell? _shell;
 
@@ -33,18 +30,8 @@ public partial class App : Application
         var selfTest = SelfTest.SelfTestOptions.Parse(Environment.GetCommandLineArgs());
         if (selfTest is not null)
         {
-            // A self-test run uses its own data folder and never takes the single-instance guard.
-            if (selfTest.Scenario != "hello")
-            {
-                // Scenarios other than hello open their own windows against a scripted engine.
-                _ = SelfTest.SelfTestRunner.RunAndExitAsync(null, selfTest);
-                return;
-            }
-
-            var hello = new Views.PlaceholderWindow();
-            _window = hello;
-            hello.Activate();
-            _ = SelfTest.SelfTestRunner.RunAndExitAsync(hello, selfTest);
+            // A self-test run opens its own windows, uses its own data folder and never takes the single-instance guard.
+            _ = SelfTest.SelfTestRunner.RunAndExitAsync(selfTest);
             return;
         }
 #endif

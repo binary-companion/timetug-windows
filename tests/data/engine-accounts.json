@@ -1,0 +1,10 @@
+[
+  {
+    "kindID": "google",
+    "connectionID": "conn-1",
+    "displayName": "me@example.com",
+    "config": {
+      "email": "me@example.com"
+    }
+  }
+]

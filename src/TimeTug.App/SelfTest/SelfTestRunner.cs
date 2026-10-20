@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media.Imaging;
+using TimeTug.App.SelfTest.Scenarios;
 using TimeTug.Platform.Capture;
 using Windows.Storage.Streams;
 using WinRT.Interop;
@@ -40,59 +41,62 @@ internal sealed record SelfTestOptions(string Scenario, string OutputFolder, int
     }
 }
 
-internal sealed record SelfTestShot(string Name, string Method, string? File, int DistinctColours, string? Error);
-
-internal sealed record SelfTestResult(
-    bool Ok,
-    string Scenario,
-    string? Error,
-    string Architecture,
-    string? PackageFullName,
-    string? ScreenshotFile,
-    IReadOnlyList<SelfTestShot> Attempts,
-    IReadOnlyList<string>? Checks = null);
-
-/// <summary>Runs a named self-test scenario inside the real app and writes <c>selftest-result.json</c>. Exists only in SELFTEST builds.</summary>
+/// <summary>
+/// Runs a named self-test scenario inside the real app and writes <c>result.json</c> next to its screenshots. Exists only in
+/// SELFTEST builds. Every scenario is one class in <c>Scenarios/</c> with a <c>Name</c> and a <c>RunAsync</c>; the table below
+/// is the list <c>scripts/ci/selftest-scenarios.txt</c> must match (a repository check compares them).
+/// </summary>
 internal static class SelfTestRunner
 {
     private static readonly TimeSpan Overall = TimeSpan.FromSeconds(120);
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    /// <summary>Runs the scenario, writes the result and exits. <paramref name="window"/> is the hello window; other scenarios open their own.</summary>
-    public static async Task RunAndExitAsync(Window? window, SelfTestOptions options)
+    private static readonly Dictionary<string, Func<SelfTestOptions, CancellationToken, Task<SelfTestResult>>> Scenarios = new()
+    {
+        [HelloScenario.Name] = HelloScenario.RunAsync,
+        [WelcomeScenario.Name] = WelcomeScenario.RunAsync,
+        [ToastScenario.Name] = ToastScenario.RunAsync,
+        [StartupScenario.Name] = StartupScenario.RunAsync,
+        [TrayScenario.Name] = TrayScenario.RunAsync,
+        [TugBasicScenario.Name] = TugBasicScenario.RunAsync,
+        [TugJoinScenario.Name] = TugJoinScenario.RunAsync,
+        [TugSnoozeScenario.Name] = TugSnoozeScenario.RunAsync,
+        [TugDismissScenario.Name] = TugDismissScenario.RunAsync,
+        [TugNoFocusScenario.Name] = TugNoFocusScenario.RunAsync,
+        [TugToastScenario.Name] = TugToastScenario.RunAsync,
+        [TugLateReturnScenario.Name] = TugLateReturnScenario.RunAsync,
+        [TugMeetingGoneScenario.Name] = TugMeetingGoneScenario.RunAsync,
+        [TugJoinFailsScenario.Name] = TugJoinFailsScenario.RunAsync,
+        [TugMonitorsScenario.Name] = TugMonitorsScenario.RunAsync,
+        [TugContrastAndMotionScenario.Name] = TugContrastAndMotionScenario.RunAsync,
+        [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
+    };
+
+    /// <summary>Runs the scenario, writes the result and exits.</summary>
+    public static async Task RunAndExitAsync(SelfTestOptions options)
     {
         SelfTestResult result;
         try
         {
             using var timeout = new CancellationTokenSource(Overall + TimeSpan.FromSeconds(options.HoldSeconds));
-            result = await RunAsync(window, options, timeout.Token);
+            result = Scenarios.TryGetValue(options.Scenario, out var scenario)
+                ? await scenario(options, timeout.Token)
+                : Failure(options, "unknown scenario " + options.Scenario);
         }
         catch (Exception ex)
         {
             // Whatever went wrong, the run must still write a result file for the script to read.
-            result = Result(options, null, ex.GetType().Name + ": " + ex.Message, []);
+            result = Failure(options, ex.GetType().Name + ": " + ex.Message);
             Directory.CreateDirectory(options.OutputFolder);
             await File.WriteAllTextAsync(Path.Combine(options.OutputFolder, "selftest-exception.txt"), ex.ToString());
         }
 
         Directory.CreateDirectory(options.OutputFolder);
-        await File.WriteAllTextAsync(Path.Combine(options.OutputFolder, "selftest-result.json"), JsonSerializer.Serialize(result, JsonOptions));
+        await File.WriteAllTextAsync(Path.Combine(options.OutputFolder, "result.json"), JsonSerializer.Serialize(result, JsonOptions));
         Application.Current.Exit();
     }
 
-    public static async Task<SelfTestResult> RunAsync(Window? window, SelfTestOptions options, CancellationToken cancellation)
-    {
-        return options.Scenario switch
-        {
-            "hello" when window is not null => await HelloAsync(window, options, cancellation),
-            "welcome" => await WelcomeScenario.RunAsync(options, cancellation),
-            "toast" => await ToastScenario.RunAsync(options, cancellation),
-            "tug-basic" => await TugBasicScenario.RunAsync(options, cancellation),
-            "startup" => await StartupScenario.RunAsync(options, cancellation),
-            "tray" => await TrayScenario.RunAsync(options, cancellation),
-            _ => Result(options, null, "unknown scenario " + options.Scenario, []),
-        };
-    }
+    private static SelfTestResult Failure(SelfTestOptions options, string error) => new ScenarioRun(options).Finish(error);
 
     /// <summary>Waits until the window's content has loaded and had a moment to present its first frame.</summary>
     internal static async Task WaitForFrameAsync(Window window, CancellationToken cancellation, int settleMilliseconds = 1500)
@@ -110,37 +114,52 @@ internal static class SelfTestRunner
 
     /// <summary>
     /// Saves <c>&lt;name&gt;.png</c>: the window as Windows draws it (so dialogs and Mica are included), or the XAML root
-    /// when that comes out blank. The attempts are returned for the result file.
+    /// when that comes out blank. Returns the kept picture (null when every attempt was blank) and the attempts, for the result file.
     /// </summary>
-    internal static async Task<(SelfTestShot? Best, List<SelfTestShot> Attempts)> CaptureAsync(Window window, string folder, string name)
+    internal static async Task<(SelfTestShot? Best, List<SelfTestAttempt> Attempts)> CaptureAsync(Window window, string folder, string name)
     {
-        var attempts = new List<SelfTestShot>();
-        var printWindow = await ScreenCapture.WindowAsync(WindowNative.GetWindowHandle(window), Path.Combine(folder, name + "-printwindow.png"));
-        attempts.Add(new SelfTestShot(name + "-printwindow", printWindow.Method, printWindow.Path, printWindow.DistinctColours, printWindow.Error));
+        var attempts = new List<SelfTestAttempt>();
+        var scratch = Path.Combine(folder, ".attempts");
+        Directory.CreateDirectory(scratch);
+        var printWindow = await ScreenCapture.WindowAsync(WindowNative.GetWindowHandle(window), Path.Combine(scratch, name + "-printwindow.png"));
+        attempts.Add(new SelfTestAttempt(name + "-printwindow", printWindow.Method, printWindow.DistinctColours, printWindow.Error));
 
-        var xaml = await CaptureXamlAsync((FrameworkElement)window.Content, Path.Combine(folder, name + "-xaml.png"), name + "-xaml");
-        attempts.Add(xaml);
+        var xaml = await CaptureXamlAsync((FrameworkElement)window.Content, Path.Combine(scratch, name + "-xaml.png"), name + "-xaml");
+        attempts.Add(xaml.Attempt);
 
         // <name>.png is the first attempt that is not blank.
-        var best = printWindow.Succeeded
-            ? new SelfTestShot(name, printWindow.Method, printWindow.Path, printWindow.DistinctColours, null)
-            : xaml.DistinctColours > 1 ? xaml with { Name = name } : null;
-        if (best?.File is { } source)
+        string? source = null;
+        SelfTestShot? best = null;
+        if (printWindow.Succeeded)
+        {
+            source = printWindow.Path;
+            best = new SelfTestShot(name + ".png", printWindow.Method, printWindow.DistinctColours);
+        }
+        else if (xaml.Attempt.DistinctColours > 1)
+        {
+            source = xaml.Path;
+            best = new SelfTestShot(name + ".png", xaml.Attempt.Method, xaml.Attempt.DistinctColours);
+        }
+
+        if (source is not null)
         {
             File.Copy(source, Path.Combine(folder, name + ".png"), overwrite: true);
+        }
+
+        foreach (var file in Directory.GetFiles(scratch, name + "-*.png"))
+        {
+            File.Delete(file);
+        }
+
+        if (!Directory.EnumerateFileSystemEntries(scratch).Any())
+        {
+            Directory.Delete(scratch);
         }
 
         return (best, attempts);
     }
 
-    private static async Task<SelfTestResult> HelloAsync(Window window, SelfTestOptions options, CancellationToken cancellation)
-    {
-        await WaitForFrameAsync(window, cancellation);
-        var (best, attempts) = await CaptureAsync(window, options.OutputFolder, "hello");
-        return Result(options, best?.File is null ? null : "hello.png", best is null ? "no capture method produced a non-blank image" : null, attempts);
-    }
-
-    private static async Task<SelfTestShot> CaptureXamlAsync(FrameworkElement root, string path, string name)
+    private static async Task<(SelfTestAttempt Attempt, string? Path)> CaptureXamlAsync(FrameworkElement root, string path, string name)
     {
         const string method = "RenderTargetBitmap";
         try
@@ -155,35 +174,12 @@ internal static class SelfTestRunner
             }
 
             await PngWriter.WriteAsync(pixels, bitmap.PixelWidth, bitmap.PixelHeight, path);
-            return new SelfTestShot(name, method, path, PixelAnalysis.CountDistinctColours(pixels, 1000), null);
+            return (new SelfTestAttempt(name, method, PixelAnalysis.CountDistinctColours(pixels, 1000), null), path);
         }
         catch (Exception ex) when (ex is COMException or IOException or ArgumentException or InvalidOperationException)
         {
-            return new SelfTestShot(name, method, null, 0, ex.GetType().Name + ": " + ex.Message);
+            return (new SelfTestAttempt(name, method, 0, ex.GetType().Name + ": " + ex.Message), null);
         }
-    }
-
-    internal static SelfTestResult Result(SelfTestOptions options, string? screenshot, string? error, IReadOnlyList<SelfTestShot> attempts, IReadOnlyList<string>? checks = null)
-    {
-        string? package = null;
-        try
-        {
-            package = Windows.ApplicationModel.Package.Current.Id.FullName;
-        }
-        catch (Exception ex) when (ex is COMException or InvalidOperationException)
-        {
-            // No package identity: reported as null so the run script can fail on it.
-        }
-
-        return new SelfTestResult(
-            Ok: error is null && screenshot is not null,
-            Scenario: options.Scenario,
-            Error: error,
-            Architecture: RuntimeInformation.ProcessArchitecture.ToString().ToUpper(CultureInfo.InvariantCulture),
-            PackageFullName: package,
-            ScreenshotFile: screenshot,
-            Attempts: attempts,
-            Checks: checks);
     }
 }
 #endif

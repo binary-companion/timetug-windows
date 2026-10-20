@@ -26,6 +26,7 @@ internal sealed class AppShell
     private readonly DispatcherQueue _queue;
     private readonly IDiagnostics _diagnostics;
     private readonly Action<IServiceCollection>? _replace;
+    private readonly bool _withTray;
     private IHost? _host;
     private Window? _anchor;
     private Window? _failure;
@@ -35,11 +36,13 @@ internal sealed class AppShell
     private int _quitting;
 
     /// <param name="replace">Replaces registrations after the real ones (the self-test scripts the engine host and the OS state this way).</param>
-    public AppShell(DispatcherQueue queue, IDiagnostics diagnostics, Action<IServiceCollection>? replace = null)
+    /// <param name="withTray">False only in a self-test scenario that has nothing to do with the notification area.</param>
+    public AppShell(DispatcherQueue queue, IDiagnostics diagnostics, Action<IServiceCollection>? replace = null, bool withTray = true)
     {
         _queue = queue;
         _diagnostics = diagnostics;
         _replace = replace;
+        _withTray = withTray;
     }
 
     public IServiceProvider Services => _host?.Services ?? throw new InvalidOperationException("The app has not started.");
@@ -70,7 +73,11 @@ internal sealed class AppShell
             _anchor = new Window { Title = "TimeTug" };
             _host = AppComposition.CreateHost(_queue, _diagnostics, _replace);
             await _host.StartAsync();
-            StartTray();
+            if (_withTray)
+            {
+                StartTray();
+            }
+
             if (await Services.GetRequiredService<AppRuntime>().ShouldShowWelcome)
             {
                 ShowWelcome();

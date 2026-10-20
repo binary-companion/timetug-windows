@@ -59,6 +59,7 @@ internal static class AppComposition
                 OAuthClients = startup.OAuthClients,
                 TimeZone = SystemEventsBridge.ReadWindowsTimeZoneAsIana(),
                 Testing = startup.Testing,
+                TestClockStart = startup.TestClockStart,
                 Host = sp.GetRequiredService<IEngineHost>(),
             });
         });
