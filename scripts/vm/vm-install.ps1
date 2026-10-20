@@ -94,6 +94,13 @@ function Find-PackageFiles([string]$Folder, [string]$Package, [string]$Certifica
     return [pscustomobject]@{ Package = $msix.FullName; Platform = $arch; Dependencies = $dependencies; Certificate = $cer }
 }
 
+# True for the shell hosts that hold the Windows App Runtime while the package installs (0x80073D02): the Widgets pack and
+# its WebExperience host, the Start menu host and the Start experiences app.
+function Test-InstallBlocker($Process) {
+    $names = 'Widgets', 'WidgetService', 'WidgetBoard', 'StartMenuExperienceHost', 'Microsoft.StartExperiencesApp'
+    return ($Process.Path -like '*WebExperience*') -or ($names -contains $Process.Name)
+}
+
 function Test-Elevated {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     return ([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -126,11 +133,12 @@ function Invoke-Install($Files) {
         }
         catch {
             $message = $_.Exception.Message
-            # 0x80073D02: another package using the Windows App Runtime is running (on the windows-11-arm runner the Widgets pack).
+            # 0x80073D02: another package using the Windows App Runtime is running (the Widgets pack and the Start menu or search
+            # host on the windows-11-arm runner and on the Parallels VM); stop them, they restart by themselves.
             if ($attempt -eq 1 -and $message -match '0x80073D02') {
                 Write-Host "Install blocked by running apps; stopping them and retrying: $message"
                 Get-Process -ErrorAction SilentlyContinue |
-                    Where-Object { $_.Path -like '*WebExperience*' -or $_.Name -in 'Widgets', 'WidgetService', 'WidgetBoard' } |
+                    Where-Object { Test-InstallBlocker $_ } |
                     Stop-Process -Force -ErrorAction SilentlyContinue
                 Start-Sleep -Seconds 3
                 continue

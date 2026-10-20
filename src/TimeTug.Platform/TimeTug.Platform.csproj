@@ -8,6 +8,10 @@
   <ItemGroup>
     <InternalsVisibleTo Include="TimeTug.Platform.Tests" />
   </ItemGroup>
+  <!-- The tray digits are drawn from this file, not from a system font (see the README beside it). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\TimeTug.App\Assets\Tray\Glyphs\digits.txt" LogicalName="TimeTug.Platform.Tray.digits.txt" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="TimeTug.Engine" />
     <!-- Win32 for the OS-state services (message window, session, notification state, monitors). -->
