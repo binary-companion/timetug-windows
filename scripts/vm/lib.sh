@@ -37,21 +37,19 @@ run_with_timeout() {
   shift
   "$@" &
   local pid=$!
-  (
-    sleep "$seconds"
-    kill "$pid" 2>/dev/null
-  ) >/dev/null 2>&1 &
-  local watchdog=$!
+  local ticks=0 limit=$((seconds * 10)) timed_out=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$ticks" -ge "$limit" ]; then
+      kill "$pid" 2>/dev/null || true
+      timed_out=1
+      break
+    fi
+    sleep 0.1
+    ticks=$((ticks + 1))
+  done
   local status=0
   wait "$pid" 2>/dev/null || status=$?
-  if kill -0 "$watchdog" 2>/dev/null; then
-    pkill -P "$watchdog" 2>/dev/null || true
-    kill "$watchdog" 2>/dev/null || true
-    wait "$watchdog" 2>/dev/null || true
-  else
-    # The watchdog fired (or finished) first.
-    [ "$status" -ge 128 ] && status=124
-  fi
+  [ "$timed_out" -eq 0 ] || return 124
   return "$status"
 }
 
@@ -136,18 +134,27 @@ try { & { $code } *>&1 | ForEach-Object { Add-Content -Path \$log -Value \"\$_\"
 Set-Content -Path \"\$log.exit\" -Value \$exitCode"
   local encoded
   encoded="$(printf '%s' "$inner" | base64 | tr -d '\n')"
-  vm_ps ${flag[@]+"${flag[@]}"} "\$d = '$VM_WORK'; New-Item -ItemType Directory -Force \$d | Out-Null
+  local launch="\$d = '$VM_WORK'; New-Item -ItemType Directory -Force \$d | Out-Null
 Remove-Item \"\$d\\$name.*\" -Force -ErrorAction SilentlyContinue
 Set-Content -Path \"\$d\\$name.ps1\" -Value ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$encoded'))) -Encoding UTF8
-Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', \"\$d\\$name.ps1\"" >/dev/null || die "could not start the VM job $name"
+Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', \"\$d\\$name.ps1\""
+  # prlctl exec now and then fails to start a command ("PrlJob_GetResult: Invalid argument"); a second try works.
+  local attempt
+  for attempt in 1 2 3; do
+    if vm_ps ${flag[@]+"${flag[@]}"} "$launch" >/dev/null; then break; fi
+    [ "$attempt" -lt 3 ] || die "could not start the VM job $name"
+    say "could not start the VM job $name (attempt $attempt); trying again"
+    sleep 3
+  done
 
   local seen=0 waited=0 reply status
   while [ "$waited" -le "$limit" ]; do
     sleep "${VM_JOB_POLL_SECONDS:-4}"
     waited=$((waited + ${VM_JOB_POLL_SECONDS:-4}))
+    # (carriage returns from Windows are dropped)
     reply="$(vm_ps ${flag[@]+"${flag[@]}"} "\$log = '$VM_WORK\\$name.log'
 if (Test-Path \$log) { Get-Content \$log | Select-Object -Skip $seen }
-if (Test-Path \"\$log.exit\") { '@@EXIT:' + ((Get-Content \"\$log.exit\") -join '') } else { '@@RUN' }" 2>/dev/null)" || continue
+if (Test-Path \"\$log.exit\") { '@@EXIT:' + ((Get-Content \"\$log.exit\") -join '') } else { '@@RUN' }" 2>/dev/null | tr -d '\r')" || continue
     # The reply is the new log lines followed by one line saying whether the job is over.
     local count
     count=$(($(printf '%s\n' "$reply" | wc -l) - 1))
