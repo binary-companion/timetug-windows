@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using TimeTug.Platform.Tray;
 
 namespace TimeTug.Platform.Tests.Tray;
@@ -13,10 +12,25 @@ internal static class TrayTestAssets
 
     public static TrayIconRenderer Renderer() => new(Icons());
 
+    /// <summary>The repository root, found from the test binaries (a CI build rewrites source paths, so they cannot be used).</summary>
+    public static string RepositoryRoot { get; } = FindRoot();
+
     /// <summary>The golden folder in the source tree (so an explicit update writes where the files are committed).</summary>
-    public static string GoldenFolder([CallerFilePath] string here = "") => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(here)!, "..", "data"));
+    public static string GoldenFolder() => Path.Combine(RepositoryRoot, "tests", "TimeTug.Platform.Tests", "data");
 
     /// <summary>The enlarged picture of every digit at every size, kept small in docs/screenshots.</summary>
-    public static string ContactSheetPath([CallerFilePath] string here = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(here)!, "..", "..", "..", "docs", "screenshots", "tray-digits-contact-sheet.png"));
+    public static string ContactSheetPath() => Path.Combine(RepositoryRoot, "docs", "screenshots", "tray-digits-contact-sheet.png");
+
+    private static string FindRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "TimeTug.sln")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        throw new InvalidOperationException("TimeTug.sln not found above " + AppContext.BaseDirectory);
+    }
 }
