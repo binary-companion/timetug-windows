@@ -23,26 +23,55 @@ dotnet test  TimeTug.sln -c Debug -p:Platform=ARM64 --no-build --nologo
 
 ## The Windows 11 ARM VM (Parallels)
 
-The VM is named `Windows 11` (Windows 11 build 26200, ARM64). `prlctl exec` runs commands as `NT AUTHORITY\SYSTEM`, with no interactive desktop. The VM already has .NET SDK 10.0.401 (and 7.0.400), Git and PowerShell 5.1; it has no winget and no `pwsh`. If the SDK is missing or too old: `powershell -c "iwr https://dot.net/v1/dotnet-install.ps1 -OutFile $env:TEMP\di.ps1; & $env:TEMP\di.ps1 -Channel 10.0"` (or the dotnet-install script with `-Version`).
+The VM is named `Windows 11` (Windows 11 build 26200, ARM64) and is normally suspended. It has .NET SDK 10.0.401, Git and Windows PowerShell 5.1, no winget and no `pwsh`, and the repository cloned at `C:\src\timetug-windows`. Everything below is driven from the Mac with the scripts in `scripts/vm` (they need Parallels Desktop's `prlctl`; set `VM_NAME` for a VM with another name). Each prints what it does, fails with a message that says why, and returns the command's exit code.
 
-Verified recipe (2026-10-16), run from the Mac:
+| Script | What it does |
+|---|---|
+| `scripts/vm/vm-up.sh [--user]` | Resumes (or starts) the VM and waits until Parallels Tools answers; `--user` also waits for the signed-in user's desktop session. Safe to run again. |
+| `scripts/vm/vm-run.sh [--user] [--ps] <command...>` | Runs a command in the VM, starting it first if needed. Default: as `NT AUTHORITY\SYSTEM` (session 0, no desktop): builds, git, installing certificates. `--user`: as the logged-in user on the real desktop (`prlctl exec --current-user`): installing the package, launching the app. `--ps`: the arguments are PowerShell code (sent with `-EncodedCommand`, so quoting is no problem). |
+| `scripts/vm/vm-sync.sh [--patch] [<ref>]` | Puts a repository state into `C:\src\timetug-windows`: the current branch (pushed) by default, or a branch, tag or commit. `--patch` also sends uncommitted and untracked local work as a patch on top of the pushed `HEAD` (no secrets: ignored files are left out, a private key is refused). The VM checkout is reset to the target each time. |
+| `scripts/vm/vm-selftest.sh [scenario\|all]` | Builds the development package in the VM (or `--artifact <dir>` installs a CI artifact), runs the self-test, copies `build\selftest` (result.json and screenshots) to `build/vm-selftest/<time>` on the Mac and prints the pass/fail summary. `--hold <s>` keeps the first screen up for `vm-screenshot.sh`. |
+| `scripts/vm/vm-screenshot.sh <file.png>` | Captures the VM's whole screen (`prlctl capture`). |
+| `scripts/vm/vm-suspend.sh` | Suspends the VM again (nothing happens if it is already suspended). Do this when you are done. |
+| `scripts/vm/vm-install.ps1` | Runs in Windows, not on the Mac: installs a development MSIX and trusts its throwaway certificate. It is also what the CI artifact ships; see "Installing a CI build". |
+
+Typical session:
 
 ```
-prlctl resume "Windows 11"                       # the VM is normally suspended
-prlctl exec "Windows 11" cmd /c "cd /d C:\ && mkdir C:\src && cd C:\src && git clone https://github.com/binary-companion/timetug-windows.git"   # first time only; public repository, no credentials
-prlctl exec "Windows 11" cmd /c "cd /d C:\src\timetug-windows && git pull -q"
-prlctl exec "Windows 11" powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\src\timetug-windows\scripts\verify.ps1' -Platform ARM64
-prlctl exec "Windows 11" powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\src\timetug-windows\scripts\verify.ps1' -Platform x64
-prlctl suspend "Windows 11"                      # when finished, if it was suspended before
+scripts/vm/vm-sync.sh                    # the VM checks out your pushed branch (or: vm-sync.sh --patch for uncommitted work)
+scripts/vm/vm-selftest.sh                # build, install, run all 16 scenarios, results in build/vm-selftest/<time>/
+scripts/vm/vm-selftest.sh tug-basic --no-build --hold 40 &   # reuse the installed package, keep the tug up 40 s ...
+sleep 15; scripts/vm/vm-screenshot.sh build/tug.png           # ... and look at it
+scripts/vm/vm-run.sh --user --ps 'Get-Content "$env:LOCALAPPDATA\Packages\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew\LocalState\logs\timetug.log" -Tail 30'
+scripts/vm/vm-suspend.sh
 ```
 
-Notes learned:
+What the scripts do under the hood (the verified recipe; useful when something needs doing by hand):
 
-- Quote Windows paths in single quotes when passing them as arguments (the Mac shell eats unquoted backslashes). Inside a `cmd /c "..."` string they are fine.
-- A cold restore plus build takes about 1.5 minutes; the first run downloads the Windows App SDK packages (several hundred MB).
-- The x64 app builds on the ARM64 VM (cross-build). x64 binaries are not launched on the VM by these commands; the tests are AnyCPU and run natively as ARM64. Running the packaged x64 app needs x64 emulation, which Windows 11 ARM provides.
-- Uncommitted work reaches the VM only through git: push a branch and `git fetch`/`git checkout` it in `C:\src\timetug-windows`. No secrets or OAuth ids are copied this way (`local.settings.json` is git-ignored and is copied file to file separately when needed).
-- `prlctl exec` returns the command's output; there is no desktop. To install, launch and screenshot the packaged app use `prlctl exec "Windows 11" --current-user ...` (runs in the logged-in user's session). The full recipe is in `docs/spikes/2026-10-spike-winui-ci.md`; the scripts are `scripts/ci/build-msix.ps1` (`-Stage Build` as SYSTEM, `-Stage Install` as the user) and `scripts/ci/run-selftest.ps1`.
+- `prlctl exec "Windows 11" <program> ...` runs as SYSTEM, `prlctl exec "Windows 11" --current-user ...` as the logged-in user in the interactive session (the user must be signed in at the VM console). `Add-AppxPackage` run as SYSTEM would register the package for SYSTEM only, so the build and the certificate trust run as SYSTEM and the install and the self-test as the user.
+- Quote Windows paths in single quotes on the Mac side (the Mac shell eats backslashes); inside `cmd /c "..."` they are fine. PowerShell code goes through `-EncodedCommand` (`vm-run.sh --ps`).
+- Long commands: `prlctl exec` sometimes drops its connection, and now and then fails to start a command ("PrlJob_GetResult: Invalid argument", a second try works). `vm-selftest.sh` therefore starts each long step detached in the VM (`C:\Users\Public\timetug-vm\<name>.ps1`), follows its log file and reads an exit-code file when it finishes. Do the same by hand: redirect to a file in the VM and read it.
+- Files travel as a tar stream through `prlctl exec` (stdin and stdout are binary-safe): `COPYFILE_DISABLE=1 tar -cf - -C <dir> . | prlctl exec "Windows 11" tar -xf - -C 'C:\path'`, and the reverse. No shared folder is needed. Patches travel on stdin the same way.
+- Uncommitted work reaches the VM only through `vm-sync.sh` (git, or a patch). No secrets or OAuth ids are copied this way: `dev-oauth.json` is copied file to file by hand and never printed.
+- A cold restore plus build takes about 1.5 minutes the first time (the Windows App SDK packages are several hundred MB); after that `vm-selftest.sh all` takes about 2m40s end to end (build 50 s, self-test 95 s, the rest is polling and copying results).
+- The x64 app builds on the ARM64 VM (cross-build), but the x64 package cannot be run there: the VM has only the ARM64 .NET 10 desktop runtime.
+- First-time setup of a VM (once): `prlctl exec "Windows 11" cmd /c "mkdir C:\src && cd /d C:\src && git clone https://github.com/binary-companion/timetug-windows.git"`; the repository is public, no credentials. If the SDK is missing or too old: `powershell -c "iwr https://dot.net/v1/dotnet-install.ps1 -OutFile $env:TEMP\di.ps1; & $env:TEMP\di.ps1 -Channel 10.0"`.
+
+### Installing a CI build (the development MSIX artifact)
+
+CI builds the development package for both architectures on every pull request and every merge, signs it with a throwaway certificate created in the job (the key is deleted there and never leaves the job) and uploads, for 14 days, one artifact per architecture: `msix-x64` and `msix-arm64`. Each holds the `.msix`, `Dependencies\<arch>\`, `dev.cer` (the public certificate), `vm-install.ps1`, `commit.txt` and a `README.txt`. A repository check (`scripts/ci/check-repository-contracts.py`) fails the build if a key file is committed, uploaded or exported.
+
+```
+gh run list --repo binary-companion/timetug-windows --branch main --limit 3
+gh run download <run-id> --repo binary-companion/timetug-windows --name msix-arm64 --dir build/msix-arm64
+scripts/vm/vm-selftest.sh --artifact build/msix-arm64      # install it in the VM and run every scenario (use the commit it was built from: commit.txt)
+```
+
+On a real PC, from an elevated PowerShell in the unpacked folder: `powershell -ExecutionPolicy Bypass -File .\vm-install.ps1` (trusts the certificate, installs for you; `-Stage Trust` and `-Stage Install` do the halves separately, `-Stage Uninstall` removes the package and the trusted certificate). The manual checklist (`docs/manual-tests/windows-checklist.md`) starts from this.
+
+### Tests for the helper scripts
+
+`scripts/vm/tests/test-vm-scripts.sh` checks the shell scripts against a stub `prlctl` (argument parsing, VM state handling, what is sent to the VM, patch contents); `scripts/vm/tests/vm-install.tests.ps1` checks how `vm-install.ps1` finds the package, dependencies and certificate (plain PowerShell: Windows PowerShell 5.1 and `pwsh`). Both, and `shellcheck`, run in the `architecture` CI job through `scripts/ci/architecture.sh`.
 
 ## Pinned versions
 
@@ -79,7 +108,7 @@ scripts\ci\run-a11y.ps1                              # the axe-windows scan (nee
 
 The accessibility scan (`tests/TimeTug.App.A11y`, axe-windows `Axe.Windows.Automation`) runs while the `a11y-hold` scenario holds windows open: round 0 is a canary (a window with a button that has no name, which must be found, or the scan is not seeing the app), round 1 the welcome window's Connect step and the tug as it first appears, round 2 the Connected step and the tug with the link to copy. It fails on any error-level rule violation. The report is `build\a11y\a11y-report.txt` (and `.json`, plus the `.a11ytest` files Accessibility Insights for Windows opens). Accepted exceptions go in `tests/TimeTug.App.A11y/suppressions.json` with a reason; there are none.
 
-On the VM (resume it first), after `build-msix.ps1 -Stage Build` as SYSTEM and `-Stage Install` as the user (see above): `prlctl exec "Windows 11" --current-user powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\src\timetug-windows\scripts\ci\run-selftest.ps1'`. Build the scanner first with `dotnet build tests\TimeTug.App.A11y -c CI` (as SYSTEM) before `run-a11y.ps1`. Redirect the output to a file inside the VM when the run is long, then read the file: `prlctl exec` sometimes drops its connection while a long command runs.
+On the VM use `scripts/vm/vm-selftest.sh` (above); it builds, installs and runs `run-selftest.ps1` for you. The accessibility scan needs the scanner built first (`dotnet build tests\TimeTug.App.A11y -c CI` as SYSTEM, for example `vm-run.sh cmd /c "cd /d C:\src\timetug-windows && dotnet build tests\TimeTug.App.A11y -c CI --nologo"`), then `vm-run.sh --user powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\src\timetug-windows\scripts\ci\run-a11y.ps1'`. Redirect long output to a file inside the VM and read it afterwards: `prlctl exec` sometimes drops its connection while a long command runs.
 
 ## OAuth client ids for local builds
 

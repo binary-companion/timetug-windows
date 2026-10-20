@@ -20,8 +20,9 @@ src/TimeTug.App/            WinUI 3 packaged app: views, tray, window management
 tests/                      TimeTug.Presentation.Tests, TimeTug.Platform.Tests, TimeTug.Architecture.Tests
 docs/parity.md             every Mac capability and its Windows status (the release gate for phase 9)
 docs/development.md        how to build and test, including on the Windows 11 ARM VM
-docs/manual-tests/         the owner's manual checklist
+docs/manual-tests/         the owner's manual checklist (windows-checklist.md; every human check, with the CI artifact to use)
 scripts/                    verify.ps1 and friends; logic lives in scripts, not workflow YAML
+scripts/vm/                 drive the Windows 11 ARM VM from the Mac (vm-up, vm-run, vm-sync, vm-selftest, vm-screenshot, vm-suspend) and vm-install.ps1, which ships in the dev MSIX artifact
 artwork/                    brand artwork, all rights reserved (artwork/LICENSE.md)
 ```
 

@@ -3,7 +3,7 @@
   Builds the development MSIX for one architecture, signs it with a throwaway certificate, trusts that
   certificate on this machine and installs the package.
 .DESCRIPTION
-  The certificate is created here, lives two days and is never exported with its private key, so no
+  The certificate is created here, lives 15 days (as long as a CI artifact is kept, so the artifact stays installable) and is never exported with its private key, so no
   signing material exists outside this run. Trusting it needs an elevated session (CI runners are; the
   VM's `prlctl exec` runs as SYSTEM). Installing registers the package for the current user, so on the
   VM run -Stage Build as SYSTEM and -Stage Install as the interactive user (see docs/development.md).
@@ -31,11 +31,9 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not $OutputFolder) { $OutputFolder = Join-Path $repo 'build\msix' }
 $OutputFolder = [System.IO.Path]::GetFullPath($OutputFolder)
-$packageName = 'BinaryCompanion.TimeTug.Dev'
 $publisher = 'CN=TimeTug Development'
-$arch = $Platform.ToLowerInvariant()
 $layout = Join-Path $OutputFolder 'layout'
-$aliasPath = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\timetug-dev.exe'
+$installScript = Join-Path $repo 'scripts\vm\vm-install.ps1'   # the same script the CI artifact ships
 
 function Invoke-Step([string]$Name, [scriptblock]$Body) {
     $clock = [System.Diagnostics.Stopwatch]::StartNew()
@@ -50,7 +48,7 @@ if ($Stage -in 'Build', 'All') {
     Invoke-Step 'certificate' {
         $script:cert = New-SelfSignedCertificate -Type Custom -Subject $publisher -KeyUsage DigitalSignature `
             -FriendlyName 'TimeTug development (throwaway)' -CertStoreLocation Cert:\CurrentUser\My `
-            -NotAfter (Get-Date).AddDays(2) `
+            -NotAfter (Get-Date).AddDays(15) `
             -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')
         Export-Certificate -Cert $script:cert -FilePath (Join-Path $OutputFolder 'dev.cer') | Out-Null
     }
@@ -69,40 +67,13 @@ if ($Stage -in 'Build', 'All') {
 
     Invoke-Step 'trust' {
         # Machine-wide trust is what lets a standard-user install accept the self-signed package.
-        Import-Certificate -FilePath (Join-Path $OutputFolder 'dev.cer') -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+        & $installScript -Folder $layout -Certificate (Join-Path $OutputFolder 'dev.cer') -Platform $Platform -Stage Trust
     }
     Remove-Item -ErrorAction SilentlyContinue "Cert:\CurrentUser\My\$($script:cert.Thumbprint)"
 }
 
 if ($Stage -in 'Install', 'All') {
     Invoke-Step 'install' {
-        $msix = Get-ChildItem -Path $layout -Recurse -Filter '*.msix' |
-            Where-Object { $_.FullName -notmatch '\\Dependencies\\' } | Select-Object -First 1
-        if (-not $msix) { throw "no package under $layout; run -Stage Build first" }
-        $dependencies = @(Get-ChildItem -Path (Join-Path $msix.DirectoryName "Dependencies\$arch") -Filter '*.msix' -ErrorAction SilentlyContinue | ForEach-Object FullName)
-
-        Get-AppxPackage -Name $packageName | Remove-AppxPackage
-        for ($attempt = 1; $attempt -le 2; $attempt++) {
-            try {
-                if ($dependencies.Count -gt 0) { Add-AppxPackage -Path $msix.FullName -DependencyPath $dependencies }
-                else { Add-AppxPackage -Path $msix.FullName }
-                break
-            }
-            catch {
-                # Installing the Windows App Runtime framework fails with 0x80073D02 while another package that
-                # uses it is running (on the windows-11-arm runner the Widgets / Web Experience pack is).
-                if ($attempt -eq 2 -or $_.Exception.Message -notmatch '0x80073D02') { throw }
-                Write-Host "Install blocked by running apps; stopping them and retrying: $($_.Exception.Message)"
-                Get-Process -ErrorAction SilentlyContinue |
-                    Where-Object { $_.Path -like '*WebExperience*' -or $_.Name -in 'Widgets', 'WidgetService', 'WidgetBoard' } |
-                    Stop-Process -Force -ErrorAction SilentlyContinue
-                Start-Sleep -Seconds 3
-            }
-        }
+        & $installScript -Folder $layout -Certificate (Join-Path $OutputFolder 'dev.cer') -Platform $Platform -Stage Install
     }
-
-    $installed = Get-AppxPackage -Name $packageName
-    if (-not $installed) { throw 'the package did not install' }
-    Write-Host "Installed $($installed.PackageFullName)"
-    Write-Host "Launch command: $aliasPath --selftest hello --out <folder>"
 }
