@@ -189,7 +189,7 @@ internal static class TrayStatesScenario
     }
 
     /// <summary>Every applied icon, enlarged by whole pixels, in a row on a dark and in a row on a light taskbar colour.</summary>
-    private static TrayIconImage BuildStrip(IReadOnlyList<TrayIconImage> icons, int zoom)
+    private static TrayIconImage BuildStrip(List<TrayIconImage> icons, int zoom)
     {
         const int Gap = 8;
         var cell = (icons[0].Width * zoom) + Gap;
