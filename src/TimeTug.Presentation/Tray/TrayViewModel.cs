@@ -119,18 +119,30 @@ public sealed class TrayViewModel : IDisposable
         }
     }
 
-    /// <summary>A left click on the icon. Until the flyout exists (slice 2) it opens the welcome window when no account is connected.</summary>
+    /// <summary>
+    /// A left click on the icon: the flyout opens (or closes) when an account is connected, and the welcome window opens when none is.
+    /// Before the engine's first state there is nothing to show and the click does nothing.
+    /// </summary>
     public void PrimaryClick()
     {
-        bool noAccounts;
+        AppState? state;
         lock (_gate)
         {
-            noAccounts = _state is { Accounts.Count: 0 };
+            state = _state;
         }
 
-        if (noAccounts)
+        if (state is null)
+        {
+            return;
+        }
+
+        if (state.Accounts.Count == 0)
         {
             _host.ShowWelcome();
+        }
+        else
+        {
+            _host.ToggleFlyout();
         }
     }
 

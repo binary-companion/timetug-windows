@@ -60,7 +60,7 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 
 - **Build:** `msix-x64` (or `msix-arm64`), after one of the sign-ins in section 2 succeeded.
 - **Do:** quit TimeTug from the tray menu (check 5.4), then start it again from the Start menu.
-- **Expect:** no welcome window. The tray icon appears and its tooltip names the next meeting. Left-click on the icon does nothing yet (the flyout window exists; the click is wired in slice 2).
+- **Expect:** no welcome window. The tray icon appears and its tooltip names the next meeting. Left-click on the icon opens the flyout (see 5.6); with no account it opens the welcome window instead.
 - **Automated:** partly. `AppRuntimeTests` cover "welcome only when the first state has no accounts"; the `startup` scenario covers the no-account case. Not automated: a restart with a real stored account.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
@@ -250,7 +250,7 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 
 - **Build:** `msix-x64` (or `msix-arm64`), one account connected.
 - **Do:** right-click the icon. Click each row once, reopening the menu between clicks: the first row (Next or "No upcoming meetings"), Enable Tug (twice), Test tug, Settings…, and click elsewhere to close the menu.
-- **Expect:** rows in this order: Next (greyed, information), Enable Tug (checked), Test tug, Settings… (greyed, slice 3), Quit TimeTug, with separators between groups. Clicking Next or Settings… does nothing. Enable Tug toggles its check, and with it off no tug appears for a meeting (turn it back on). Test tug shows the tug. A left click with no account opens the welcome window, with an account does nothing.
+- **Expect:** rows in this order: Next (greyed, information), Enable Tug (checked), Test tug, Settings… (greyed, slice 3), Quit TimeTug, with separators between groups. Clicking Next or Settings… does nothing. Enable Tug toggles its check, and with it off no tug appears for a meeting (turn it back on). Test tug shows the tug. A left click with no account opens the welcome window, with an account it opens the flyout (and closes it when it is open).
 - **Automated:** partly. `tray` and the tray view-model tests invoke every row’s command and check the engine commands and the check mark. The menu rows could not be clicked by a script: the VM session’s injected input does not reach a native popup menu. Not automated: the real clicks.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
@@ -270,7 +270,7 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Automated:** no (H.NotifyIcon recreates the icon on TaskbarCreated; not exercised on CI, which has no taskbar).
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
-### 5.6 The flyout next to the icon (once the left click opens it, slice 2 task 8)
+### 5.6 The flyout next to the icon
 
 - **Build:** `msix-x64` (or `msix-arm64`), one account connected and a calendar with a few meetings today.
 - **Do:** left-click the tray icon with the icon in the overflow, then pinned to the taskbar; again with the taskbar at 100, 150 and 200 percent scaling, with the taskbar set to hide itself, and (if you have two monitors) with the icon's monitor not the main one. Press Esc, click elsewhere, and click the icon twice in a row. Press Tab and Enter on a Join button. Open a maximized window first.

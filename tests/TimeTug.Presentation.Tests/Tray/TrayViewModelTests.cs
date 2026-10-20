@@ -12,11 +12,15 @@ internal sealed class FakeTrayHost : ITrayHost
 {
     public int Welcomes { get; private set; }
 
+    public int FlyoutToggles { get; private set; }
+
     public int TestTugs { get; private set; }
 
     public int Quits { get; private set; }
 
     public void ShowWelcome() => Welcomes++;
+
+    public void ToggleFlyout() => FlyoutToggles++;
 
     public ValueTask TestTugAsync()
     {
@@ -330,7 +334,7 @@ public sealed class TrayViewModelTests : IDisposable
         await _model.InvokeAsync(TrayCommand.Next);
 
         _engine.Sent.Should().BeEmpty();
-        (_host.Quits + _host.TestTugs + _host.Welcomes).Should().Be(0);
+        (_host.Quits + _host.TestTugs + _host.Welcomes + _host.FlyoutToggles).Should().Be(0);
     }
 
     [Fact]
@@ -793,13 +797,36 @@ public sealed class TrayViewModelTests : IDisposable
     }
 
     [Fact]
-    public void A_left_click_does_nothing_yet_when_there_are_accounts()
+    public void A_left_click_toggles_the_flyout_when_there_are_accounts()
     {
         _engine.Push(State());
 
         _model.PrimaryClick();
 
+        _host.FlyoutToggles.Should().Be(1);
         _host.Welcomes.Should().Be(0);
+    }
+
+    [Fact]
+    public void Each_left_click_toggles_the_flyout_once()
+    {
+        _engine.Push(State());
+
+        _model.PrimaryClick();
+        _model.PrimaryClick();
+        _model.PrimaryClick();
+
+        _host.FlyoutToggles.Should().Be(3);
+    }
+
+    [Fact]
+    public void A_left_click_with_no_accounts_never_touches_the_flyout()
+    {
+        _engine.Push(State(accounts: []));
+
+        _model.PrimaryClick();
+
+        _host.FlyoutToggles.Should().Be(0);
     }
 
     [Fact]
@@ -808,6 +835,7 @@ public sealed class TrayViewModelTests : IDisposable
         _model.PrimaryClick();
 
         _host.Welcomes.Should().Be(0);
+        _host.FlyoutToggles.Should().Be(0);
     }
 
     // ---- life cycle ---------------------------------------------------------------------------------------------

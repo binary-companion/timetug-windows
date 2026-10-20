@@ -27,4 +27,5 @@ flyout-tug-wins           1  150  selftest
 flyout-anchor            1  150  selftest
 second-launch            1  150  selftest
 hotkey                   0  120  selftest
+compose                  1  180  selftest
 a11y-hold                0  300  a11y

@@ -60,7 +60,7 @@ internal static class TrayScenario
         Check(model.Current.Icon.State == TrayIconState.Idle, "a meeting two and a half hours away leaves the icon idle");
         Check(model.Current.Tooltip == "Design review in 2 hr 30 min", "tooltip: " + model.Current.Tooltip);
         model.PrimaryClick();
-        Check(host.Welcomes == 1, "a left click with accounts does nothing yet");
+        Check(host.Welcomes == 1 && host.FlyoutToggles == 1, "a left click with accounts toggles the flyout and does not open the welcome window");
         Check(model.Current.Rows.Single(r => r.Command == TrayCommand.Settings) is { IsEnabled: false }, "Settings is a disabled placeholder");
 
         // ---- the engine says a takeover is near; the clock moves on ---------------------------------------------------------
@@ -217,11 +217,15 @@ internal static class TrayScenario
     {
         public int Welcomes { get; private set; }
 
+        public int FlyoutToggles { get; private set; }
+
         public int TestTugs { get; private set; }
 
         public int Quits { get; private set; }
 
         public void ShowWelcome() => Welcomes++;
+
+        public void ToggleFlyout() => FlyoutToggles++;
 
         public ValueTask TestTugAsync()
         {
