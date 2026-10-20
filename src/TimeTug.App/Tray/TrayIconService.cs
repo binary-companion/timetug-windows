@@ -39,6 +39,9 @@ internal sealed class TrayIconService : IDisposable, ITrayIconSink
         _controller = new TrayIconController(new TrayIconRenderer(new TrayIconFiles(folder)), this, TrayIconMetrics.SmallIconSize, diagnostics);
     }
 
+    /// <summary>The identifier Windows knows the icon by (what <c>Shell_NotifyIconGetRect</c> needs); null before the icon exists.</summary>
+    public Guid? IconId => _icon?.TrayIcon.Id;
+
     /// <summary>True once Windows accepted the icon into the notification area.</summary>
     public bool IsCreated => _icon is { IsCreated: true };
 
