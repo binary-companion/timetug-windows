@@ -9,7 +9,7 @@ using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Tray;
 
-namespace TimeTug.App.SelfTest;
+namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
 /// Scenario <c>tray</c>: a <see cref="TrayViewModel"/> over fakes and the app's real strings, driven through several engine
@@ -18,22 +18,14 @@ namespace TimeTug.App.SelfTest;
 /// </summary>
 internal static class TrayScenario
 {
+    public const string Name = "tray";
+
     private static readonly DateTimeOffset Noon = new(2026, 10, 16, 12, 0, 0, TimeSpan.Zero);
 
     public static async Task<SelfTestResult> RunAsync(SelfTestOptions options, CancellationToken cancellation)
     {
-        Directory.CreateDirectory(options.OutputFolder);
-        var checks = new List<string>();
-        var failures = new List<string>();
-        var attempts = new List<SelfTestShot>();
-        void Check(bool condition, string description)
-        {
-            checks.Add((condition ? "ok: " : "FAIL: ") + description);
-            if (!condition)
-            {
-                failures.Add(description);
-            }
-        }
+        var run = new ScenarioRun(options);
+        void Check(bool condition, string description) => run.Check(condition, description);
 
         var queue = DispatcherQueue.GetForCurrentThread();
         var text = new ResourceLoaderLocalizer();
@@ -88,9 +80,7 @@ internal static class TrayScenario
         Check(model.Current.Icon.State == TrayIconState.Soon && model.Current.Icon.FileName == "tray-color.ico", "8 minutes ahead: soon, " + model.Current.Icon.FileName);
         Check(Rows()[0] == "Join Design review", "a link that is near turns the row into Join: " + Rows()[0]);
         Check(model.Current.Tooltip == "Design review in 8 min", "tooltip counts down: " + model.Current.Tooltip);
-        var (menuShot, menuAttempts) = await ShowMenuAsync(model.Current, options, "tray-menu", cancellation);
-        attempts.AddRange(menuAttempts);
-        Check(menuShot is not null, "tray-menu.png (the menu with Join, soon icon state) is not blank");
+        await ShowMenuAsync(model.Current, run, "menu-with-join", cancellation);
 
         // ---- Enable Tug round trip and the taskbar theme -----------------------------------------------------------------
         await model.InvokeAsync(TrayCommand.EnableTug);
@@ -141,7 +131,7 @@ internal static class TrayScenario
         }
 
         anchor.Close();
-        return SelfTestRunner.Result(options, menuShot is null ? null : "tray-menu.png", failures.Count == 0 ? null : string.Join("; ", failures), attempts, checks);
+        return run.Finish();
     }
 
     /// <summary>
@@ -149,7 +139,7 @@ internal static class TrayScenario
     /// its own popup window, which a window capture does not include, so this is a picture of the rows (text, check mark,
     /// unavailable rows greyed, separators); the real menu is checked on a screen capture.
     /// </summary>
-    private static async Task<(SelfTestShot? Best, List<SelfTestShot> Attempts)> ShowMenuAsync(TrayView view, SelfTestOptions options, string name, CancellationToken cancellation)
+    private static async Task ShowMenuAsync(TrayView view, ScenarioRun run, string shotLabel, CancellationToken cancellation)
     {
         var panel = new StackPanel { Width = 300, Padding = new Thickness(4), Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White) };
         foreach (var row in view.Rows)
@@ -173,9 +163,8 @@ internal static class TrayScenario
         window.AppWindow.Resize(new Windows.Graphics.SizeInt32(420, 420));
         window.Activate();
         await SelfTestRunner.WaitForFrameAsync(window, cancellation, 800);
-        var result = await SelfTestRunner.CaptureAsync(window, options.OutputFolder, name);
+        await run.ShotAsync(window, shotLabel);
         window.Close();
-        return result;
     }
 
     private sealed class FixedTime(DateTimeOffset start) : TimeProvider

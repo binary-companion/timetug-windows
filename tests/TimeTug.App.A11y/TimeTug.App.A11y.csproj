@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Reads the windows of a running development build with axe-windows (the rules engine of Accessibility Insights for Windows).
+       Run by scripts/ci/run-a11y.ps1 while the a11y-hold self-test scenario holds the welcome window and the tug open. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <RootNamespace>TimeTug.App.A11y</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Axe.Windows" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="suppressions.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

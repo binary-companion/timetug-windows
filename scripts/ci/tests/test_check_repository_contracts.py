@@ -11,15 +11,28 @@ jobs:
     steps:
       - uses: actions/checkout@{SHA} # v7
       - run: echo "${{{{ secrets.GITHUB_TOKEN }}}}"
+      - run: ./scripts/ci/run-selftest.ps1
+      - run: ./scripts/ci/run-a11y.ps1
   windows-arm64:
     runs-on: windows-11-arm
     steps:
       - uses: ./local-action
+      - run: ./scripts/ci/run-selftest.ps1
+      - run: ./scripts/ci/run-a11y.ps1
   architecture:
     runs-on: ubuntu-latest
     steps:
       - run: echo ok
 '''
+
+SCENARIOS = '''# comment
+hello  1  90  selftest
+a11y-hold  0  300  a11y
+'''
+SCENARIO_CLASSES = {
+    'src/TimeTug.App/SelfTest/Scenarios/HelloScenario.cs': 'internal static class HelloScenario { public const string Name = "hello"; }\n',
+    'src/TimeTug.App/SelfTest/Scenarios/A11yHoldScenario.cs': 'internal static class A11yHoldScenario { public const string Name = "a11y-hold"; }\n',
+}
 
 def make(root: Path, **overrides):
     files = {
@@ -28,6 +41,8 @@ def make(root: Path, **overrides):
         '.gitattributes': '* text=auto eol=lf\n',
         '.github/dependabot.yml': 'version: 2\n',
         '.github/workflows/ci.yml': CI,
+        'scripts/ci/selftest-scenarios.txt': SCENARIOS,
+        **SCENARIO_CLASSES,
     }
     files.update(overrides)
     for name, text in files.items():
@@ -75,6 +90,20 @@ class RepositoryContracts(unittest.TestCase):
     def test_required_jobs_must_exist(self):
         for job in ('windows-x64', 'windows-arm64', 'architecture'):
             self.fails(f'missing documented job {job}', **{'.github/workflows/ci.yml': CI.replace(job, job + '-x')})
+
+    def test_both_windows_jobs_must_run_the_selftest_and_the_accessibility_scan(self):
+        for script in ('run-selftest.ps1', 'run-a11y.ps1'):
+            self.fails(f'job windows-x64 does not run {script}', **{'.github/workflows/ci.yml': CI.replace(script, 'other.ps1', 1)})
+
+    def test_scenario_classes_and_the_list_must_agree(self):
+        extra = 'internal static class NewScenario { public const string Name = "tug-new"; }\n'
+        self.fails("only in the classes ['tug-new']", **{'src/TimeTug.App/SelfTest/Scenarios/NewScenario.cs': extra})
+        self.fails("only in selftest-scenarios.txt ['tug-gone']", **{'scripts/ci/selftest-scenarios.txt': SCENARIOS + 'tug-gone  1  60  selftest\n'})
+
+    def test_scenario_list_lines_are_checked(self):
+        self.fails('expected "name min-screenshots', **{'scripts/ci/selftest-scenarios.txt': SCENARIOS + 'broken line\n'})
+        self.fails('hello is listed twice', **{'scripts/ci/selftest-scenarios.txt': SCENARIOS + 'hello  1  90  selftest\n'})
+        self.fails('missing documented path: scripts/ci/selftest-scenarios.txt', **{'scripts/ci/selftest-scenarios.txt': None})
 
     def test_pull_request_target_is_banned(self):
         self.fails('pull_request_target', **{'.github/workflows/ci.yml': CI.replace('[pull_request]', '[pull_request_target]')})

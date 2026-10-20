@@ -90,6 +90,38 @@ if ci.is_file():
     for documented in ('windows-x64', 'windows-arm64', 'architecture'):
         require(isinstance(jobs, dict) and documented in jobs, f'.github/workflows/ci.yml: missing documented job {documented}')
 
+# Both Windows jobs run every self-test scenario and the accessibility scan, so neither can be dropped by editing the workflow.
+if ci.is_file():
+    jobs = load(ci).get('jobs')
+    for job in ('windows-x64', 'windows-arm64'):
+        steps = jobs.get(job, {}).get('steps', []) if isinstance(jobs, dict) and isinstance(jobs.get(job), dict) else []
+        commands = ' '.join(str(step.get('run', '')) for step in steps if isinstance(step, dict))
+        for script in ('run-selftest.ps1', 'run-a11y.ps1'):
+            require(script in commands, f'.github/workflows/ci.yml: job {job} does not run {script}')
+
+# The self-test scenarios: the classes (their Name constants), the list the run scripts read and the minimum screenshots per scenario
+# agree, so a scenario cannot go missing from the run, and a run script cannot pass over one.
+scenario_list = root / 'scripts' / 'ci' / 'selftest-scenarios.txt'
+scenario_folder = root / 'src' / 'TimeTug.App' / 'SelfTest' / 'Scenarios'
+require(scenario_list.is_file(), 'missing documented path: scripts/ci/selftest-scenarios.txt')
+require(scenario_folder.is_dir(), 'missing documented path: src/TimeTug.App/SelfTest/Scenarios')
+if scenario_list.is_file() and scenario_folder.is_dir():
+    listed = {}
+    for number, line in enumerate(scenario_list.read_text().splitlines(), 1):
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        fields = line.split()
+        if len(fields) != 4 or not fields[1].isdigit() or not fields[2].isdigit() or fields[3] not in ('selftest', 'a11y'):
+            require(False, f'scripts/ci/selftest-scenarios.txt:{number}: expected "name min-screenshots timeout-seconds selftest|a11y": {line.strip()}')
+            continue
+        require(fields[0] not in listed, f'scripts/ci/selftest-scenarios.txt: {fields[0]} is listed twice')
+        listed[fields[0]] = fields[3]
+    declared = set()
+    for source in scenario_folder.glob('*.cs'):
+        declared |= set(re.findall(r'const string Name = "([a-z0-9-]+)"', source.read_text()))
+    require(declared == set(listed),
+            f'self-test scenarios differ: only in the classes {sorted(declared - set(listed))}, only in selftest-scenarios.txt {sorted(set(listed) - declared)}')
+
 # Pull-request code never meets secrets: no pull_request_target, and only the automatic token anywhere.
 for workflow in workflows:
     data = load(workflow)

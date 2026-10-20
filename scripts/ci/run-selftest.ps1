@@ -1,19 +1,25 @@
 <#
 .SYNOPSIS
-  Launches the installed development package with --selftest and checks the result.
+  Runs the self-test scenarios against the installed development package and checks every result.
 .DESCRIPTION
-  Starts the app through its execution alias (so it keeps package identity), waits a bounded time,
-  then fails unless selftest-result.json says ok, the process had package identity, and the
-  screenshot is not blank (more than one distinct colour). Must run in an interactive session.
+  For each scenario in scripts/ci/selftest-scenarios.txt (or the one named), starts the app through its execution alias
+  (so it keeps package identity) with --selftest, waits a bounded time for result.json, and fails unless:
+    - the result file exists (a scenario that crashed or hung leaves none),
+    - "ok" is true, no check is false and the app had package identity,
+    - the scenario produced at least its minimum number of screenshots and none is blank.
+  Every scenario is run even after one fails, so the artifacts are complete; the script throws at the end. Must run in an
+  interactive session. Scenarios run by the accessibility script (a11y) are skipped unless named.
+.PARAMETER Scenario
+  One scenario name, or 'all' (default): every scenario run by this script.
+.PARAMETER OutputFolder
+  Where each scenario's folder (result.json and its numbered PNGs) goes. Default: build\selftest under the repository.
+.PARAMETER HoldSeconds
+  Keeps the first thing a scenario shows on screen this long (a screen capture or a person looks at it). Single scenario only.
 #>
 [CmdletBinding()]
 param(
-    [string]$Scenario = 'hello',
-    # Screenshots the scenario must produce (non-blank). Defaults to the scenario's own list.
-    [string[]]$Screenshots,
+    [string]$Scenario = 'all',
     [string]$OutputFolder,
-    [int]$TimeoutSeconds = 90,
-    # Keeps the first thing the scenario shows on screen this long (a screen capture or a person looks at it).
     [int]$HoldSeconds = 0
 )
 
@@ -22,16 +28,14 @@ $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not $OutputFolder) { $OutputFolder = Join-Path $repo 'build\selftest' }
 $OutputFolder = [System.IO.Path]::GetFullPath($OutputFolder)
 $alias = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\timetug-dev.exe'
-$resultFile = Join-Path $OutputFolder 'selftest-result.json'
-if (-not $Screenshots) {
-    $Screenshots = switch ($Scenario) {
-        'welcome' { @('welcome-1-connect.png', 'welcome-waiting.png', 'welcome-form.png', 'welcome-error.png', 'welcome-2-connected.png') }
-        'toast' { @() }
-        'tray' { @('tray-menu.png') }
-        'startup' { @('startup-welcome.png', 'startup-tug.png', 'startup-failure.png') }
-        'tug-basic' { @('tug-basic-primary.png', 'tug-basic-mirror.png', 'tug-basic-joinfailed.png', 'tug-basic-nofocus.png', 'tug-basic-solid.png', 'tug-basic-contrast.png') }
-        default { @("$Scenario.png") }
-    }
+
+function Read-ScenarioList {
+    Get-Content (Join-Path $PSScriptRoot 'selftest-scenarios.txt') |
+        Where-Object { $_ -and -not $_.TrimStart().StartsWith('#') } |
+        ForEach-Object {
+            $fields = $_ -split '\s+' | Where-Object { $_ }
+            [pscustomobject]@{ Name = $fields[0]; MinShots = [int]$fields[1]; TimeoutSeconds = [int]$fields[2]; Runner = $fields[3] }
+        }
 }
 
 function Get-DistinctColours([string]$Path, [int]$Limit = 50) {
@@ -51,38 +55,63 @@ function Get-DistinctColours([string]$Path, [int]$Limit = 50) {
     finally { $bitmap.Dispose() }
 }
 
+# Returns the problems found in a finished scenario folder (empty when it passed).
+function Test-ScenarioResult($Entry, [string]$Folder) {
+    $problems = @()
+    $resultFile = Join-Path $Folder 'result.json'
+    if (-not (Test-Path $resultFile)) { return @("no result.json after $($Entry.TimeoutSeconds) seconds (the app crashed, hung or never started)") }
+    $result = Get-Content -Raw $resultFile | ConvertFrom-Json
+    if ($result.scenario -ne $Entry.Name) { $problems += "result.json is for scenario '$($result.scenario)'" }
+    if ($result.ok -ne $true) { $problems += "ok is not true: $($result.error)" }
+    if (-not $result.packageFullName) { $problems += 'the app ran without package identity' }
+    foreach ($check in @($result.checks | Where-Object { $_ })) { if ($check.ok -ne $true) { $problems += "check failed: $($check.name)" } }
+    $shots = @($result.screenshots | Where-Object { $_ })
+    if ($shots.Count -lt $Entry.MinShots) { $problems += "expected at least $($Entry.MinShots) screenshot(s), found $($shots.Count)" }
+    foreach ($shot in $shots) {
+        $path = Join-Path $Folder $shot.file
+        if (-not (Test-Path $path)) { $problems += "$($shot.file) is missing"; continue }
+        $colours = Get-DistinctColours $path
+        if ($colours -le 1) { $problems += "$($shot.file) is blank" }
+    }
+    return $problems
+}
+
 if (-not (Test-Path $alias)) { throw "execution alias not found: $alias (is the package installed for this user?)" }
+$all = Read-ScenarioList
+$selected = @(if ($Scenario -eq 'all') { $all | Where-Object Runner -eq 'selftest' } else { $all | Where-Object Name -eq $Scenario })
+if ($selected.Count -eq 0) { throw "unknown scenario '$Scenario'; see scripts/ci/selftest-scenarios.txt" }
 if (Test-Path $OutputFolder) { Remove-Item -Recurse -Force $OutputFolder }
 New-Item -ItemType Directory -Force -Path $OutputFolder | Out-Null
 
-$clock = [System.Diagnostics.Stopwatch]::StartNew()
-$arguments = @('--selftest', $Scenario, '--out', "`"$OutputFolder`"")
-if ($HoldSeconds -gt 0) { $arguments += @('--hold', "$HoldSeconds") }
-$process = Start-Process -FilePath $alias -ArgumentList $arguments -PassThru
-$deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds + $HoldSeconds)
-while (-not (Test-Path $resultFile) -and [DateTime]::UtcNow -lt $deadline) {
-    Start-Sleep -Milliseconds 500
+$failed = @()
+$total = [System.Diagnostics.Stopwatch]::StartNew()
+foreach ($entry in $selected) {
+    $folder = Join-Path $OutputFolder $entry.Name
+    New-Item -ItemType Directory -Force -Path $folder | Out-Null
+    $resultFile = Join-Path $folder 'result.json'
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    $arguments = @('--selftest', $entry.Name, '--out', "`"$folder`"")
+    if ($HoldSeconds -gt 0) { $arguments += @('--hold', "$HoldSeconds") }
+    $process = Start-Process -FilePath $alias -ArgumentList $arguments -PassThru
+    $deadline = [DateTime]::UtcNow.AddSeconds($entry.TimeoutSeconds + $HoldSeconds)
+    while (-not (Test-Path $resultFile) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 500 }
+    $seconds = $clock.Elapsed.TotalSeconds
+
+    # The app exits itself after writing the result; make sure nothing is left behind either way.
+    if (-not $process.WaitForExit(15000)) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+    Get-Process -Name 'TimeTug' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+    $problems = @(Test-ScenarioResult $entry $folder)
+    if ($problems.Count -eq 0) {
+        $result = Get-Content -Raw $resultFile | ConvertFrom-Json
+        Write-Host ("PASS {0,-24} {1,3} checks, {2} screenshot(s), {3:n1}s" -f $entry.Name, @($result.checks | Where-Object { $_ }).Count, @($result.screenshots | Where-Object { $_ }).Count, $seconds)
+    }
+    else {
+        Write-Host ("FAIL {0,-24} {1:n1}s" -f $entry.Name, $seconds)
+        $problems | ForEach-Object { Write-Host "       - $_" }
+        $failed += $entry.Name
+    }
 }
-Write-Host ("self-test finished waiting after {0:n1}s" -f $clock.Elapsed.TotalSeconds)
-
-# The app exits itself after writing the result; make sure nothing is left behind either way.
-if (-not $process.WaitForExit(15000)) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
-Get-Process -Name 'TimeTug' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-
-if (-not (Test-Path $resultFile)) { throw "no selftest-result.json after $TimeoutSeconds seconds" }
-$result = Get-Content -Raw $resultFile | ConvertFrom-Json
-Write-Host (Get-Content -Raw $resultFile)
-
-$failures = @()
-if ($result.ok -ne $true) { $failures += "ok is not true: $($result.error)" }
-if (-not $result.packageFullName) { $failures += 'the app ran without package identity' }
-foreach ($name in $Screenshots) {
-    $shot = Join-Path $OutputFolder $name
-    if (-not (Test-Path $shot)) { $failures += "$name is missing"; continue }
-    $colours = Get-DistinctColours $shot
-    Write-Host "$name distinct colours (sampled): $colours"
-    if ($colours -le 1) { $failures += "$name is blank" }
-}
-foreach ($check in @($result.checks)) { if ($check -like 'FAIL:*') { $failures += $check } }
-if ($failures.Count -gt 0) { throw ('self-test failed: ' + ($failures -join '; ')) }
+Write-Host ("{0} scenario(s) in {1:n0}s" -f $selected.Count, $total.Elapsed.TotalSeconds)
+if ($failed.Count -gt 0) { throw ('self-test failed: ' + ($failed -join ', ')) }
 Write-Host 'self-test passed'

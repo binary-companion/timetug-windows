@@ -46,7 +46,7 @@ prlctl exec "Windows 11" --current-user powershell -NoProfile -ExecutionPolicy B
 prlctl suspend "Windows 11"
 ```
 
-The results are under `C:\src\timetug-windows\build\selftest` (`hello.png`, `selftest-result.json`). To look at the picture from the Mac, base64 it through `prlctl exec` (`[Convert]::ToBase64String([IO.File]::ReadAllBytes(...))`) and decode it. `prlctl capture "Windows 11" --file x.png` (whole screen) was not needed.
+The results are under `C:\src\timetug-windows\build\selftest\<scenario>` (`result.json`, `01-hello.png`; the spike wrote `hello.png` and `selftest-result.json`). To look at the picture from the Mac, base64 it through `prlctl exec` (`[Convert]::ToBase64String([IO.File]::ReadAllBytes(...))`) and decode it. `prlctl capture "Windows 11" --file x.png` (whole screen) was not needed.
 
 On the VM the `-Stage Install` run was done as the user; `-Stage Build` signs with a certificate in SYSTEM's store, which is fine because only the public certificate is shared.
 

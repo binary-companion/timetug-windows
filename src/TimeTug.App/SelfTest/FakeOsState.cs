@@ -1,4 +1,5 @@
 #if SELFTEST
+using Microsoft.UI.Windowing;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 
@@ -59,6 +60,42 @@ internal sealed class FakeMonitors : IMonitorService
     {
         Monitors = monitors;
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Two monitors for a scenario: the real ones when the machine has two, otherwise the real main display and a smaller
+    /// invented one inside it (a hosted runner has one display). Windows on an inner "monitor" overlap the main one, but each is
+    /// still captured on its own.
+    /// </summary>
+    public static (MonitorInfo Main, MonitorInfo Second) Layout()
+    {
+        DisplayArea? main = null;
+        DisplayArea? other = null;
+        var areas = DisplayArea.FindAll();
+        for (var i = 0; i < areas.Count; i++)
+        {
+            var area = areas[i];
+            if (area.IsPrimary)
+            {
+                main ??= area;
+            }
+            else
+            {
+                other ??= area;
+            }
+        }
+
+        var mainBounds = (main ?? DisplayArea.Primary).OuterBounds;
+        var first = new MonitorInfo("selftest-1", mainBounds.X, mainBounds.Y, mainBounds.Width, mainBounds.Height, true);
+        if (other is not null)
+        {
+            var b = other.OuterBounds;
+            return (first, new MonitorInfo("selftest-2", b.X, b.Y, b.Width, b.Height, false));
+        }
+
+        var width = mainBounds.Width * 3 / 4;
+        var height = mainBounds.Height * 3 / 4;
+        return (first, new MonitorInfo("selftest-2", mainBounds.X + (mainBounds.Width / 8), mainBounds.Y + (mainBounds.Height / 8), width, height, false));
     }
 }
 

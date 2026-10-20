@@ -5,7 +5,7 @@ using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Tug;
 
-namespace TimeTug.App.SelfTest;
+namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
 /// Scenario <c>toast</c>: with real package identity, registers the toast service, shows a takeover toast through
@@ -14,42 +14,45 @@ namespace TimeTug.App.SelfTest;
 /// </summary>
 internal static class ToastScenario
 {
+    public const string Name = "toast";
+
     public static async Task<SelfTestResult> RunAsync(SelfTestOptions options, CancellationToken cancellation)
     {
-        var checks = new List<string>();
-        var failures = new List<string>();
-        void Check(bool condition, string description)
-        {
-            checks.Add((condition ? "ok: " : "FAIL: ") + description);
-            if (!condition)
-            {
-                failures.Add(description);
-            }
-        }
+        var run = new ScenarioRun(options);
+        void Check(bool condition, string description) => run.Check(condition, description);
 
         var diagnostics = new ListDiagnostics();
         using var toasts = new ToastService(() => new NoActions(), new ResourceLoaderLocalizer(), diagnostics);
         toasts.Start();
         Check(!diagnostics.Entries.Any(e => e.Message.Contains("could not be registered", StringComparison.Ordinal)), "the toast service registered for button presses");
-        Check(toasts.IsEnabled, "notifications are enabled for TimeTug");
+        // A hosted runner's session has notifications switched off for every app. There the service has to say so and refuse the toast
+        // (the controller then holds the tug), which is checked instead of acceptance; the acceptance check runs where the person's own
+        // settings apply (the VM, a developer's PC).
+        var enabled = toasts.IsEnabled;
+        run.Info("notifications are enabled for TimeTug on this machine: " + enabled);
 
         var now = DateTimeOffset.UtcNow;
         var request = new TakeoverRequest(
             "selftest-toast", "Self-test meeting", now.AddMinutes(1), now.AddMinutes(31), false, false,
             "https://meet.example.test/selftest", [TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(10)], "Self-test calendar", 2);
         var accepted = await toasts.ShowAsync(request);
-        Check(accepted, "Windows accepted the toast");
+        Check(accepted == enabled, enabled ? "Windows accepted the toast" : "notifications are off, so the toast was refused and not pretended: accepted=" + accepted);
+        if (options.HoldSeconds > 0)
+        {
+            // For a real screen capture: the toast stays up this long.
+            await Task.Delay(TimeSpan.FromSeconds(options.HoldSeconds), cancellation);
+        }
 
         using var notifications = new NotificationState(TimeProvider.System, toastsEnabled: () => toasts.IsEnabled);
-        checks.Add($"info: CanShowFullScreen={notifications.CanShowFullScreen}, ToastsAllowed={notifications.ToastsAllowed}");
+        run.Info($"CanShowFullScreen={notifications.CanShowFullScreen}, ToastsAllowed={notifications.ToastsAllowed}");
         foreach (var entry in diagnostics.Entries)
         {
-            checks.Add($"info: {entry.Level} {entry.Category}: {entry.Message}");
+            run.Info($"{entry.Level} {entry.Category}: {entry.Message}");
         }
 
         await Task.Delay(1500, cancellation);
         await AppNotificationManager.Default.RemoveAllAsync();
-        return SelfTestRunner.Result(options, "(none)", failures.Count == 0 ? null : string.Join("; ", failures), [], checks);
+        return run.Finish();
     }
 
     private sealed class ListDiagnostics : IDiagnostics
