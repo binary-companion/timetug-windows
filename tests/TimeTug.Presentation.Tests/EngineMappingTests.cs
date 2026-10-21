@@ -58,15 +58,47 @@ public class EngineMappingTests
         var accounts = EngineMapping.ToAppState(Full()).Accounts;
         accounts.Should().Equal(
             new AccountInfo("1", "google", "me@example.com", "ok", 3),
-            new AccountInfo("2", "caldav", "Work CalDAV", "failing", 1),
+            new AccountInfo("2", "caldav", "Work CalDAV", "failing", 1) { BuildFailure = true },
             new AccountInfo("3", "microsoft", "me@work.example", "authExpired", 0));
+    }
+
+    [Fact]
+    public void Only_a_build_failure_marks_the_account_as_one_that_cannot_start()
+    {
+        var accounts = EngineMapping.ToAppState(Full()).Accounts;
+        accounts.Where(a => a.BuildFailure).Select(a => a.ConnectionId).Should().Equal("2");
+    }
+
+    [Fact]
+    public void An_account_whose_source_has_no_status_yet_is_still_connecting()
+    {
+        var state = Full() with { Statuses = new Dictionary<string, Pkg.SourceStatus> { ["microsoft-3"] = new Pkg.SourceStatus { Kind = "authExpired" } } };
+        var accounts = EngineMapping.ToAppState(state).Accounts;
+        accounts.Single(a => a.ConnectionId == "1").StatusKnown.Should().BeFalse();
+        accounts.Single(a => a.ConnectionId == "3").StatusKnown.Should().BeTrue();
+        accounts.Single(a => a.ConnectionId == "2").StatusKnown.Should().BeTrue("a build failure is a status of its own");
+    }
+
+    [Fact]
+    public void Unreadable_repeating_events_are_counted_per_account_and_other_notices_are_ignored()
+    {
+        var state = Full() with
+        {
+            Notices = new Dictionary<string, IReadOnlyList<Pkg.SourceNotice>>
+            {
+                ["google-1"] = [new Pkg.SourceNotice { Kind = "unreadableRecurrence", Count = 2 }, new Pkg.SourceNotice { Kind = "somethingElse", Count = 9 }],
+                ["caldav-2"] = [new Pkg.SourceNotice { Kind = "unreadableRecurrence", Count = 1 }, new Pkg.SourceNotice { Kind = "unreadableRecurrence", Count = 3 }],
+            },
+        };
+        var accounts = EngineMapping.ToAppState(state).Accounts;
+        accounts.Select(a => a.UnreadableRecurrences).Should().Equal(2, 4, 0);
     }
 
     [Fact]
     public void An_account_without_a_known_source_is_ok_with_no_calendars()
     {
         var state = new Pkg.EngineState { Accounts = [new Pkg.Account { KindID = "icloud", ConnectionID = "9", DisplayName = "Home" }] };
-        EngineMapping.ToAppState(state).Accounts.Should().Equal(new AccountInfo("9", "icloud", "Home", "ok", 0));
+        EngineMapping.ToAppState(state).Accounts.Should().Equal(new AccountInfo("9", "icloud", "Home", "ok", 0) { StatusKnown = false });
     }
 
     [Fact]
