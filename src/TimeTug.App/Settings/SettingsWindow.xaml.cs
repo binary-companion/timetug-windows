@@ -70,6 +70,8 @@ public sealed partial class SettingsWindow : Window
     /// <summary>The window closed, whoever closed it.</summary>
     public event Action? WindowClosed;
 
+    public nint Handle => WinRT.Interop.WindowNative.GetWindowHandle(this);
+
     public SettingsShellViewModel Shell => _shell;
 
     /// <summary>The navigation view (for the self-test).</summary>

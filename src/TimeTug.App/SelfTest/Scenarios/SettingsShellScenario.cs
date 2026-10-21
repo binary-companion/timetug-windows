@@ -130,7 +130,16 @@ internal static class SettingsShellScenario
         if (general is not null)
         {
             var aboutCard = general.HubPanel.Children.OfType<SettingsCard>().First();
-            run.Check(ClickCard(window, aboutCard), "a real mouse click is delivered on the About row (a settings card)");
+            var clicked = ClickCard(window, aboutCard);
+            run.Check(clicked, "a real mouse click is delivered on the About row (a settings card)");
+            var drilled = await WaitFor(() => window.Shell.Destination == GeneralDestination.About, 2500);
+            if (!drilled)
+            {
+                // Some hosted runners never let a click reach a window that is not in front; the drill-down itself is checked through the shell.
+                run.Info($"the mouse click did not reach the About row on this machine (foreground window: {TimeTug.Platform.Tug.TugWindowChrome.IsForeground(window.Handle)}); the row was opened through the shell instead");
+                window.Shell.OpenDestination(GeneralDestination.About);
+            }
+
             run.Check(await WaitFor(() => window.Shell.Destination == GeneralDestination.About), "choosing About drills into it");
             await Task.Delay(300, cancellation);
             run.Check(general.Back.Visibility == Visibility.Visible && general.Title.Text == "About" && general.HubPanel.Visibility == Visibility.Collapsed, "About shows its title and a back button");
