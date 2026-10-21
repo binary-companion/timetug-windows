@@ -221,7 +221,7 @@ public sealed class FlyoutViewModel : IDisposable
             _words.Summary(now, left, totalTimed, zone),
             rows,
             _state?.Problems.Select(BuildProblem).ToArray() ?? [],
-            _words.TugFooter(_state?.LeadTime ?? TimeSpan.Zero),
+            _words.TugFooter(_state?.Settings.LeadTime ?? TimeSpan.Zero),
             hasState && rows.Length == 0,
             hasState && rows.Length > 0 && left == 0);
     }

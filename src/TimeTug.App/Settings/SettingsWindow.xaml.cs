@@ -25,6 +25,8 @@ public sealed partial class SettingsWindow : Window
     private readonly IPresentationSettingsStore _store;
     private readonly IMonitorService _monitors;
     private readonly IUiSettings _ui;
+    private readonly SettingsPaneModels _models;
+    private readonly List<IDisposable> _ownedModels = [];
     private readonly Dictionary<SettingsPane, FrameworkElement> _pages = [];
     private readonly Dictionary<SettingsPane, NavigationViewItem> _items = [];
     private CancellationTokenSource? _saveWait;
@@ -32,8 +34,10 @@ public sealed partial class SettingsWindow : Window
     private bool _closed;
 
     public SettingsWindow(
-        SettingsShellViewModel shell, SettingsText text, ILocalizer localizer, IPresentationSettingsStore store, IMonitorService monitors, IUiSettings ui)
+        SettingsShellViewModel shell, SettingsText text, ILocalizer localizer, IPresentationSettingsStore store, IMonitorService monitors, IUiSettings ui,
+        SettingsPaneModels models)
     {
+        _models = models;
         _shell = shell;
         _text = text;
         _localizer = localizer;
@@ -188,6 +192,12 @@ public sealed partial class SettingsWindow : Window
     private void OnClosed(object sender, WindowEventArgs args)
     {
         _closed = true;
+        foreach (var model in _ownedModels)
+        {
+            model.Dispose();
+        }
+
+        _ownedModels.Clear();
         _saveWait?.Cancel();
         _saveWait?.Dispose();
         _saveWait = null;
@@ -248,9 +258,23 @@ public sealed partial class SettingsWindow : Window
         SettingsPane.General => new GeneralPage(_shell, _text, _localizer, () => ApplyHighlight()),
         SettingsPane.Appearance => new AppearancePage(_text.PaneTitle(pane)),
         SettingsPane.Accounts => new AccountsPage(_text.PaneTitle(pane)),
-        SettingsPane.Calendars => new CalendarsPage(_text.PaneTitle(pane)),
-        _ => new TugRulesPage(_text.PaneTitle(pane)),
+        SettingsPane.Calendars => NewCalendarsPage(),
+        _ => NewTugRulesPage(),
     };
+
+    private CalendarsPage NewCalendarsPage()
+    {
+        var model = _models.CreateCalendars();
+        _ownedModels.Add(model);
+        return new CalendarsPage(model, _shell, _text, _localizer, _text.PaneTitle(SettingsPane.Calendars));
+    }
+
+    private TugRulesPage NewTugRulesPage()
+    {
+        var model = _models.CreateTugRules();
+        _ownedModels.Add(model);
+        return new TugRulesPage(model, _text, _localizer, _text.PaneTitle(SettingsPane.TugRules));
+    }
 
     private void ApplyHighlight()
     {

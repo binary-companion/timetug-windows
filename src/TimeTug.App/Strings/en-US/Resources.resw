@@ -260,4 +260,47 @@
   <data name="Settings_BackAutomation" xml:space="preserve"><value>Back to General</value></data>
   <data name="Settings_Destination_About" xml:space="preserve"><value>About</value></data>
   <data name="Settings_Destination_SoftwareUpdate" xml:space="preserve"><value>Software Update</value></data>
+  <data name="Settings_ChangeNotSaved" xml:space="preserve"><value>That change wasn’t saved. The setting is back to what TimeTug is using.</value><comment>Shown beside a setting when the engine refused or never answered the change.</comment></data>
+  <data name="TugRules_HeroTitle" xml:space="preserve"><value>Tug</value></data>
+  <data name="TugRules_HeroOn" xml:space="preserve"><value>Pulls your attention to meetings before they start.</value></data>
+  <data name="TugRules_HeroOff" xml:space="preserve"><value>Off — your agenda and tray icon keep working.</value></data>
+  <data name="TugRules_SectionTiming" xml:space="preserve"><value>Timing</value></data>
+  <data name="TugRules_SectionRequirements" xml:space="preserve"><value>Requirements</value></data>
+  <data name="TugRules_SectionTest" xml:space="preserve"><value>Test</value></data>
+  <data name="TugRules_LeadTimeCaption" xml:space="preserve"><value>How long before a meeting starts TimeTug tugs you.</value></data>
+  <data name="TugRules_WarningNoLink" xml:space="preserve"><value>Meetings without a link won’t tug you.</value></data>
+  <data name="TugRules_WarningNoAttendees" xml:space="preserve"><value>Meetings without other attendees won’t tug you.</value></data>
+  <data name="TugRules_TestDescription" xml:space="preserve"><value>Shows a sample tug screen now. It works even when Enable Tug is off.</value></data>
+  <data name="TugRules_TestButton" xml:space="preserve"><value>Show</value></data>
+  <data name="TugRules_EnableAutomation" xml:space="preserve"><value>Enable Tug</value></data>
+  <data name="LeadTime_AtStart" xml:space="preserve"><value>At start</value></data>
+  <data name="LeadTime_OneMinute" xml:space="preserve"><value>1 minute</value></data>
+  <data name="LeadTime_Minutes" xml:space="preserve"><value>{0} minutes</value><comment>{0} is a whole number of minutes, 2 or more.</comment></data>
+  <data name="Calendars_Intro" xml:space="preserve"><value>Choose which calendars are allowed to tug you away from your work.</value></data>
+  <data name="Calendars_ColumnTugCalendars" xml:space="preserve"><value>Tug calendars</value></data>
+  <data name="Calendars_ColumnTug" xml:space="preserve"><value>Tug</value></data>
+  <data name="Calendars_AllCalendars" xml:space="preserve"><value>All calendars</value></data>
+  <data name="Calendars_All" xml:space="preserve"><value>All</value></data>
+  <data name="Calendars_AllTugAutomation" xml:space="preserve"><value>Tug for every calendar in {0}</value></data>
+  <data name="Calendars_ShowAutomation" xml:space="preserve"><value>Show {0} in list</value></data>
+  <data name="Calendars_TugAutomation" xml:space="preserve"><value>Tug for {0}</value></data>
+  <data name="Calendars_HideToolTip" xml:space="preserve"><value>Hide from the list</value></data>
+  <data name="Calendars_ShowToolTip" xml:space="preserve"><value>Show in the list</value></data>
+  <data name="Calendars_TugNeedsShownToolTip" xml:space="preserve"><value>Show this calendar to turn on Tug for it</value></data>
+  <data name="Calendars_SystemTitle" xml:space="preserve"><value>Subscribed and system calendars</value></data>
+  <data name="Calendars_Empty" xml:space="preserve"><value>No calendars to show yet. Add an account in Accounts.</value></data>
+  <data name="Calendars_EmptyLink" xml:space="preserve"><value>Go to Accounts</value></data>
+  <data name="Calendars_Options" xml:space="preserve"><value>Options</value></data>
+  <data name="Calendars_Beta" xml:space="preserve"><value>Beta</value></data>
+  <data name="Calendars_BetaAutomation" xml:space="preserve"><value>Beta feature</value></data>
+  <data name="Calendars_InferenceExplanation" xml:space="preserve"><value>When this is on, on-device intelligence will attempt to merge events that may have different start times and descriptions if they seem similar. It runs on your PC and nothing leaves it.</value></data>
+  <data name="Calendars_InferenceNoEngine" xml:space="preserve"><value>No on-device model is available on this PC. Using rules only.</value></data>
+  <data name="Calendars_InferenceUnavailable" xml:space="preserve"><value>The on-device model isn’t available ({0}). Using rules only.</value></data>
+  <data name="Calendars_InferenceNotOnDevice" xml:space="preserve"><value>That engine doesn’t run on your device, so it isn’t used. Using rules only.</value></data>
+  <data name="Calendars_InferenceActive" xml:space="preserve"><value>Using {0}.</value></data>
+  <data name="Calendars_Forget" xml:space="preserve"><value>Forget learned corrections</value></data>
+  <data name="Calendars_ForgetTitle" xml:space="preserve"><value>Forget learned corrections?</value></data>
+  <data name="Calendars_ForgetBody" xml:space="preserve"><value>TimeTug will forget what it learned from the meetings you merged and separated. This cannot be undone.</value></data>
+  <data name="Calendars_ForgetConfirm" xml:space="preserve"><value>Forget</value></data>
+  <data name="Calendars_ForgetCancel" xml:space="preserve"><value>Cancel</value></data>
 </root>

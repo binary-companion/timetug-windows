@@ -3,8 +3,8 @@
   Scans the welcome window and the tug window of the installed development package with axe-windows.
 .DESCRIPTION
   Starts the scanner (tests/TimeTug.App.A11y), then the app with --selftest a11y-hold. The scenario opens the welcome window and the
-  tug, holds them while the scanner reads them (four rounds: each step of the welcome window, the tug as it appears and with the link
-  to copy, the flyout, then the Settings window), and finishes when the scanner has. Fails when the scanner reports an error-level rule violation (after the accepted ones in
+  tug, holds them while the scanner reads them (six rounds: each step of the welcome window, the tug as it appears and with the link
+  to copy, the flyout, the Settings window with its search results, the Tug Rules pane, the Calendars pane), and finishes when the scanner has. Fails when the scanner reports an error-level rule violation (after the accepted ones in
   tests/TimeTug.App.A11y/suppressions.json), when a round could not be scanned, or when the scenario's own checks fail. The
   report (a11y-report.txt and .json, plus the .a11ytest files Accessibility Insights opens) goes to the output folder.
   Needs the package installed for this user and an interactive session, like run-selftest.ps1.
@@ -25,7 +25,7 @@ $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not $OutputFolder) { $OutputFolder = Join-Path $repo 'build\a11y' }
 $OutputFolder = [System.IO.Path]::GetFullPath($OutputFolder)
 $alias = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\timetug-dev.exe'
-$rounds = 4   # the same number as A11yHoldScenario.Rounds
+$rounds = 6   # the same number as A11yHoldScenario.Rounds
 $scanner = Get-ChildItem -Path (Join-Path $repo "tests\TimeTug.App.A11y\bin\$Configuration") -Recurse -Filter 'TimeTug.App.A11y.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $scanner) {
     Write-Host 'building the scanner'
