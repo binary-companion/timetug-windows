@@ -140,7 +140,7 @@ public sealed class FlyoutViewModel : IDisposable
         bool shown;
         lock (_gate)
         {
-            shown = _view.Problems.Any(p => p.HasAction && string.Equals(p.ConnectionId, connectionId, StringComparison.Ordinal));
+            shown = _view.Problems.Any(p => p.HasAction && !p.OpensAccounts && string.Equals(p.ConnectionId, connectionId, StringComparison.Ordinal));
         }
 
         if (shown)
@@ -340,15 +340,20 @@ public sealed class FlyoutViewModel : IDisposable
                 : Format("Flyout_Problem_FailingNoReason", problem.DisplayName),
         };
 
-        // Only an expired sign-in can be fixed from here, and only when the engine says which account it is.
+        // Only an expired sign-in can be fixed from here, and only when the engine says which account it is. Any other problem of a known
+        // account can be looked at in the Accounts pane (its status, Sign in again, Remove).
         var canSignIn = problem is { Kind: ProblemKind.AuthExpired, ConnectionId: not null };
+        var opensAccounts = !canSignIn && problem.ConnectionId is not null;
         return new ProblemRow(
             problem.SourceId,
             problem.Kind,
             message,
-            canSignIn ? _text.GetString("Flyout_SignInAgain") : null,
-            canSignIn ? Format("Flyout_SignInAgainAutomation", problem.DisplayName) : null,
-            problem.ConnectionId);
+            canSignIn ? _text.GetString("Flyout_SignInAgain") : opensAccounts ? _text.GetString("Flyout_OpenAccounts") : null,
+            canSignIn ? Format("Flyout_SignInAgainAutomation", problem.DisplayName) : opensAccounts ? Format("Flyout_OpenAccountsAutomation", problem.DisplayName) : null,
+            problem.ConnectionId)
+        {
+            OpensAccounts = opensAccounts,
+        };
     }
 
     private string Format(string key, params object[] arguments) => string.Format(_culture, _text.GetString(key), arguments);

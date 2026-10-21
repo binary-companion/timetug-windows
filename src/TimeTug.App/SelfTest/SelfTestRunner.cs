@@ -81,6 +81,7 @@ internal static class SelfTestRunner
         [SettingsShellScenario.Name] = SettingsShellScenario.RunAsync,
         [SettingsTugRulesScenario.Name] = SettingsTugRulesScenario.RunAsync,
         [SettingsCalendarsScenario.Name] = SettingsCalendarsScenario.RunAsync,
+        [SettingsAccountsScenario.Name] = SettingsAccountsScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
     };
 

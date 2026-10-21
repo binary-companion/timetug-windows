@@ -57,8 +57,12 @@ internal sealed class ScriptedCalendarHost : IEngineHost
             return ValueTask.CompletedTask;
         }
 
+        /// <summary>True while the store still holds secrets for the connection.</summary>
+        public bool Has(string connectionID) => _items.ContainsKey(connectionID);
+
         public ValueTask RemoveAsync(string connectionID, CancellationToken cancellationToken)
         {
+            Calls.Add("remove " + connectionID);
             _items.Remove(connectionID);
             return ValueTask.CompletedTask;
         }

@@ -402,10 +402,10 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     private void RebuildConnected(AppState state)
     {
-        ConnectedAccounts.Clear();
+        var rows = new List<ConnectedAccount>();
         foreach (var account in state.Accounts)
         {
-            var kindName = KindName(account.KindId, account.KindId);
+            var kindName = KindName(account.KindId, state.AvailableKinds.FirstOrDefault(k => k.Id == account.KindId)?.DisplayName ?? account.KindId);
             var needsAttention = account.BuildFailure || account.Status == "authExpired";
             var statusText = account.BuildFailure ? _text.GetString("Status_buildFailure")
                 : !account.StatusKnown ? _text.GetString("Status_connecting")
@@ -417,7 +417,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
                 1 => _text.GetString("Accounts_NoticeOne"),
                 var n => _text.Format("Accounts_NoticeMany", n),
             };
-            ConnectedAccounts.Add(new ConnectedAccount(
+            rows.Add(new ConnectedAccount(
                 account.ConnectionId, account.KindId, kindName, account.DisplayName, statusText, needsAttention, needsAttention, notice,
                 _text.Format("Accounts_RowAutomation", kindName, account.DisplayName, statusText),
                 _text.Format("Accounts_SignInAgainAutomation", account.DisplayName),
@@ -425,8 +425,20 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
                 _text.Format("Accounts_RemoveAutomation", account.DisplayName)));
         }
 
+        // The engine publishes often; the list (and whoever shows it) only changes when an account's row does.
+        if (!rows.SequenceEqual(ConnectedAccounts))
+        {
+            ConnectedAccounts.Clear();
+            foreach (var row in rows)
+            {
+                ConnectedAccounts.Add(row);
+            }
+
+            OnPropertyChanged(nameof(ConnectedAccounts));
+        }
+
         OnPropertyChanged(nameof(IsEmpty));
-        if (PendingRemoval is { } pending && !ConnectedAccounts.Any(a => a.ConnectionId == pending.ConnectionId))
+        if (PendingRemoval is { } pending && rows.All(a => a.ConnectionId != pending.ConnectionId))
         {
             PendingRemoval = null;
         }

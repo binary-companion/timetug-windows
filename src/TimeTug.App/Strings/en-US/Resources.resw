@@ -72,6 +72,7 @@
   <data name="Provider_microsoft" xml:space="preserve"><value>Microsoft</value></data>
   <data name="Provider_icloud" xml:space="preserve"><value>iCloud</value></data>
   <data name="Provider_caldav" xml:space="preserve"><value>Other (CalDAV)</value></data>
+  <data name="Provider_icalsub" xml:space="preserve"><value>iCal link</value></data>
   <data name="Toast_Join" xml:space="preserve"><value>Join</value></data>
   <data name="Toast_Snooze" xml:space="preserve"><value>Snooze</value></data>
   <data name="Toast_Dismiss" xml:space="preserve"><value>Dismiss</value></data>
@@ -196,6 +197,8 @@
   <data name="Flyout_Problem_Failing" xml:space="preserve"><value>{0} failed: {1}</value></data>
   <data name="Flyout_Problem_FailingNoReason" xml:space="preserve"><value>{0} failed</value></data>
   <data name="Flyout_SignInAgain" xml:space="preserve"><value>Sign in again</value></data>
+  <data name="Flyout_OpenAccounts" xml:space="preserve"><value>Open Accounts</value></data>
+  <data name="Flyout_OpenAccountsAutomation" xml:space="preserve"><value>Open Accounts to look at {0}</value><comment>'{0}' is the account name.</comment></data>
   <data name="Flyout_SignInAgainAutomation" xml:space="preserve"><value>Sign in to {0} again</value><comment>'{0}' is the account name.</comment></data>
   <data name="Flyout_Empty_Title" xml:space="preserve"><value>No meetings today</value></data>
   <data name="Flyout_Empty_Subtitle" xml:space="preserve"><value>Enjoy the quiet.</value></data>
@@ -335,4 +338,5 @@
   <data name="Diagnostics_CopyFailed" xml:space="preserve"><value>Couldn’t copy to the clipboard.</value></data>
   <data name="Diagnostics_Cleared" xml:space="preserve"><value>The log was cleared.</value></data>
   <data name="Diagnostics_ClearFailed" xml:space="preserve"><value>Couldn’t clear the log.</value></data>
+  <data name="Diagnostics_LogTitle" xml:space="preserve"><value>Recent activity log</value></data>
 </root>

@@ -106,6 +106,20 @@ public class AccountsPaneTests
     }
 
     [Fact]
+    public void A_state_that_changes_no_row_does_not_tell_the_page_to_rebuild_it()
+    {
+        var (engine, model) = Create(Accounts(Account("a", "google", "one@example.com")));
+        var changes = new List<string?>();
+        model.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        engine.Push(Accounts(Account("a", "google", "one@example.com")));
+        changes.Should().NotContain(nameof(AccountsViewModel.ConnectedAccounts));
+
+        engine.Push(Accounts(Account("a", "google", "one@example.com", "authExpired")));
+        changes.Should().Contain(nameof(AccountsViewModel.ConnectedAccounts));
+    }
+
+    [Fact]
     public void Every_row_has_words_for_a_screen_reader()
     {
         var (_, model) = Create(Accounts(Account("b", "microsoft", "expired@example.com", "authExpired")));

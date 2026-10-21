@@ -265,6 +265,25 @@ public class WelcomeViewModelTests
     }
 
     [Fact]
+    public async Task Add_another_opens_the_Accounts_pane_when_the_app_provides_one_and_the_welcome_window_gets_out_of_the_way()
+    {
+        var opened = 0;
+        var engine = new FakeEngineClient();
+        var model = new WelcomeViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), new FixedClock(States.Noon), openAccountsPane: () => opened++);
+        engine.Push(States.Empty());
+        await model.ConnectAsync("google");
+        engine.Push(States.With([States.Google()]));
+        var closed = 0;
+        model.CloseRequested += (_, _) => closed++;
+
+        await model.AddAnotherAsync();
+
+        opened.Should().Be(1, "the pane is opened once");
+        closed.Should().Be(1, "and the welcome window closes, since the person carries on in Settings");
+        model.Step.Should().Be(WelcomeStep.Connected, "the window is not changed, it is closed");
+    }
+
+    [Fact]
     public async Task Skip_while_signing_in_cancels_first_then_closes()
     {
         var (engine, model) = Create();

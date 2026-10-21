@@ -1,10 +1,54 @@
 <UserControl
     x:Class="TimeTug.App.Settings.AccountsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <ScrollViewer VerticalScrollBarVisibility="Auto" IsTabStop="False">
-    <StackPanel Padding="36,24" Spacing="12">
-      <TextBlock x:Name="Heading" Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.HeadingLevel="Level1" />
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
+  <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" IsTabStop="False">
+    <StackPanel Padding="24,24" Spacing="0" MaxWidth="760" HorizontalAlignment="Stretch">
+      <TextBlock x:Name="Heading" Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.HeadingLevel="Level1" Margin="0,0,0,6" />
+
+      <!-- Everything about accounts: the search id "accounts" tints this whole block, as the Mac tints its pane. -->
+      <Grid x:Name="AccountsHost">
+        <StackPanel Spacing="6">
+          <TextBlock x:Name="Intro" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,0,0,6" />
+
+          <TextBlock x:Name="ConnectedHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,8,0,0" AutomationProperties.HeadingLevel="Level2" />
+          <!-- The account cards are built in code. -->
+          <StackPanel x:Name="AccountList" Spacing="4" />
+          <Border x:Name="EmptyRow" Padding="16,14" CornerRadius="8" BorderThickness="1"
+                  Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+            <TextBlock x:Name="EmptyText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          </Border>
+          <StackPanel x:Name="WaitingRow" Orientation="Horizontal" Spacing="12" Margin="2,4,0,0" Visibility="Collapsed">
+            <ProgressRing x:Name="WaitingRing" Width="20" Height="20" IsActive="False" />
+            <TextBlock x:Name="WaitingText" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+            <Button x:Name="CancelButton" Click="OnCancel" />
+          </StackPanel>
+          <InfoBar x:Name="ErrorBar" Severity="Warning" IsOpen="False" IsClosable="False" />
+
+          <TextBlock x:Name="AddHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,14,0,0" AutomationProperties.HeadingLevel="Level2" />
+          <!-- The provider cards are built in code. -->
+          <StackPanel x:Name="ProviderList" Spacing="4" />
+          <InfoBar x:Name="UnavailableBar" Severity="Warning" IsOpen="False" IsClosable="False" />
+        </StackPanel>
+      </Grid>
+
+      <Grid x:Name="DiagnosticsHost" Margin="0,22,0,0">
+        <StackPanel Spacing="6">
+          <TextBlock x:Name="DiagnosticsHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,0,0,0" AutomationProperties.HeadingLevel="Level2" />
+          <toolkit:SettingsCard x:Name="DiagnosticsCard">
+            <toolkit:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE9D9;" />
+            </toolkit:SettingsCard.HeaderIcon>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button x:Name="CopyButton" Click="OnCopy" />
+              <Button x:Name="ClearButton" Click="OnClear" />
+            </StackPanel>
+          </toolkit:SettingsCard>
+          <TextBlock x:Name="DiagnosticsStatus" Style="{StaticResource CaptionTextBlockStyle}" Margin="2,0,0,0" TextWrapping="Wrap"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+        </StackPanel>
+      </Grid>
     </StackPanel>
   </ScrollViewer>
 </UserControl>

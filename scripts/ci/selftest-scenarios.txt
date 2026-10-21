@@ -31,4 +31,5 @@ compose                  1  180  selftest
 settings-shell           8  180  selftest
 settings-tugrules        4  180  selftest
 settings-calendars       5  210  selftest
+settings-accounts        6  240  selftest
 a11y-hold                0  300  a11y

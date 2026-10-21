@@ -10,9 +10,9 @@ namespace TimeTug.App;
 public static class WelcomeWindowFactory
 {
     /// <summary>Must be called on the UI thread.</summary>
-    public static WelcomeWindow Create(IEngineClient engine, AccountFormService forms, ILocalizer text, TimeProvider? clock = null)
+    public static WelcomeWindow Create(IEngineClient engine, AccountFormService forms, ILocalizer text, TimeProvider? clock = null, Action? openAccountsPane = null)
     {
         var dispatcher = new DispatcherQueueDispatcher(DispatcherQueue.GetForCurrentThread());
-        return new WelcomeWindow(new WelcomeViewModel(engine, dispatcher, text, clock), forms, text);
+        return new WelcomeWindow(new WelcomeViewModel(engine, dispatcher, text, clock, openAccountsPane), forms, text);
     }
 }
