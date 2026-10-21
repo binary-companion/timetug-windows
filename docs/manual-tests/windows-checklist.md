@@ -1,6 +1,6 @@
-# Windows manual test checklist (slice 1)
+# Windows manual test checklist (slices 1 and 2)
 
-Every check a person has to do for slice 1: real accounts, real monitors, how it feels. The self-test scenarios (`docs/development.md`) already cover everything that can be scripted; each check below says what automation covers and what is left for you. The list grows with each slice.
+Every check a person has to do for slices 1 and 2: real accounts, real monitors, how it feels. The self-test scenarios (`docs/development.md`) already cover everything that can be scripted; each check below says what automation covers and what is left for you. The list grows with each slice.
 
 ## Before you start
 
@@ -276,6 +276,76 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Do:** left-click the tray icon with the icon in the overflow, then pinned to the taskbar; again with the taskbar at 100, 150 and 200 percent scaling, with the taskbar set to hide itself, and (if you have two monitors) with the icon's monitor not the main one. Press Esc, click elsewhere, and click the icon twice in a row. Press Tab and Enter on a Join button. Open a maximized window first.
 - **Expect:** the flyout opens above the icon (or the overflow button) on that monitor with an even gap, 360 DIP wide and never taller than 520 DIP (a long day scrolls under a fixed header), over the maximized window and not behind it. Esc, clicking elsewhere and a second click on the icon close it (the second click does not close it and open it again). It has no taskbar button and is not in Alt+Tab. With transparency effects off or a contrast theme it is a solid fill; with animations off it appears without sliding. When a tug appears it closes and cannot be opened over the tug.
 - **Automated:** partly. `flyout-empty`, `flyout-day`, `flyout-problems`, `flyout-tug-wins` and `flyout-anchor` open the real window and check text, placement, keyboard focus, Join and the screenshots; `FlyoutPlacementTests` cover every taskbar edge, several monitors and scales; the axe-windows scan reads the flyout. Not automated: clicking the real icon, pinned versus overflow on other machines, a second monitor.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### Slice 2 at a glance
+
+| Human check | Where |
+|---|---|
+| Flyout from a tray icon in the overflow and when pinned | 5.6 |
+| Flyout beside a side taskbar and on a second monitor | 5.7 |
+| Join from a card | 5.8 |
+| Auth-expired row and Reconnect | 5.9 |
+| The minute digit in the real tray icon in the last ten minutes | 3.6 |
+| Hotkey set through the dev store, and a conflict with another program's key | 5.10 |
+| Second launch while a tug shows | 5.11 |
+| Flyout with Narrator | 5.12 |
+| Clock changed backwards while the app runs, then second launch and tray click | 5.13 |
+
+### 5.7 The flyout beside a side or top taskbar, and on a second monitor
+
+- **Build:** `msix-x64` (or `msix-arm64`), one account connected and a calendar with a few meetings today.
+- **Do:** (a) Windows 10, or Windows 11 with a tool that moves the taskbar (stock Windows 11 keeps it at the bottom, so skip this part there): put the taskbar on the left, then the right, then the top (right-click the taskbar > Taskbar settings > Taskbar location on screen). Left-click the TimeTug icon each time, with the icon in the overflow and pinned. (b) With two monitors, pin the icon on the secondary monitor's taskbar (Settings > Personalization > Taskbar > Taskbar behaviors > Show my taskbar on all displays), set that monitor to a different scaling than the main one, and left-click the icon there. Put the taskbar back at the bottom afterwards.
+- **Expect:** (a) the flyout sits beside the icon on the side the taskbar is on (to the right of a left taskbar, to the left of a right taskbar, below a top taskbar), 8 DIP from it, fully inside the work area, never under the taskbar. (b) it opens on the monitor holding the icon, at that monitor's scaling (360 DIP wide in that monitor's pixels), not on the main monitor.
+- **Automated:** partly. `FlyoutPlacementTests` cover every edge, several monitors, mixed scales and negative coordinates; `flyout-day` checks the real window's position against the real work area on the VM. Not automated: a real moved taskbar and a real second monitor.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 5.8 Join from a card
+
+- **Build:** `msix-x64` (or `msix-arm64`), a Google, Microsoft or iCloud calendar.
+- **Do:** create two events starting within the next hour, one with a Google Meet or Zoom link in its description or location, one without. Left-click the tray icon. Click Join on the first card. Open the flyout again; for a failure case, set a default app for `https` links that cannot open (or block the browser) and click Join again.
+- **Expect:** only the current meeting and the next meeting show a Join button, and only when they have a link; the card with no link has none. Join opens the link in the default browser or conferencing app and closes the flyout. When Windows cannot open the link the flyout stays open and the card shows "TimeTug couldn't open the meeting link. Copy it and open it yourself." with the link in a box and a Copy link button that puts the link on the clipboard ("Link copied"). Pressing Tab then Enter on the Join button does the same as the click.
+- **Automated:** partly. `FlyoutViewModelTests` (Join, failure, no engine command sent), `flyout-day` and `flyout-problems` (the real window's Join and the failure card). Not automated: a real link opening in a real browser or app.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 5.9 An expired sign-in: the problem row and Reconnect
+
+- **Build:** `msix-x64` (or `msix-arm64`) with Google or Microsoft configured (`dev-oauth.json` on the PC, see `docs/development.md`).
+- **Do:** connect the account. In the provider's account page remove TimeTug's access (Google: myaccount.google.com/permissions > TimeTug > Delete all connections; Microsoft: account.live.com/consent/Manage). Restart TimeTug and wait for its next calendar refresh (up to a few minutes), then left-click the tray icon. Press "Sign in again" and finish the browser sign-in.
+- **Expect:** an amber row above the header reads "<account> needs you to sign in again" with a "Sign in again" button (a failing source without that cause shows "<account> failed" and no button). The button opens the browser sign-in for that account; after it succeeds the row disappears and the day's meetings come back without restarting. The row is a group named "Calendar problems" for Narrator.
+- **Automated:** partly. `FlyoutViewModelTests` (a row for each problem kind, Reconnect calls the engine), `flyout-problems` (two rows, screenshot, `docs/screenshots/flyout-problems.png`). Not automated: a real revoked token and the real browser round trip.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 5.10 The popup hotkey: set through the dev store, and a conflict with another program
+
+- **Build:** `msix-x64` (or `msix-arm64`); the CI development package reads the dev store (the recorder in Settings is slice 3, so there is no other way yet).
+- **Do:** (a) quit TimeTug from its tray menu; create `%LOCALAPPDATA%\TimeTug\dev-hotkey.txt` containing one line, `Ctrl+Alt+T`; start TimeTug; press Ctrl+Alt+T twice, with another window focused. (b) Quit TimeTug; start another program that already uses Ctrl+Alt+T (AutoHotkey with `^!t::MsgBox`, or a text expander); start TimeTug; press Ctrl+Alt+T. (c) Quit both, delete `dev-hotkey.txt`, start TimeTug and press Ctrl+Alt+T.
+- **Expect:** (a) the first press opens the flyout (near the icon, even with the icon in the overflow), the second closes it; while a tug shows the press does nothing. (b) TimeTug starts normally and the other program keeps the key; TimeTug's log (`%LOCALAPPDATA%\Packages\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew\LocalState\logs\timetug.log`) has a warning "the shortcut Ctrl+Alt+T is used by another program, so it is inactive" and no other message names that program; the state is kept for the Settings page of slice 3. (c) nothing happens, as on the Mac (no default shortcut).
+- **Automated:** partly. `HotkeyServiceTests` and `DevHotkeyStoreTests`; the `hotkey` scenario registers a real chord, takes the conflict path when another process holds it (forced once on the VM), and `compose` presses it in the real shell; on the VM the dev file registers the chord (a second process then cannot). Not automated: real key presses with a real keyboard layout, and a real other program's key.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 5.11 A second launch while a tug shows
+
+- **Build:** `msix-x64` (or `msix-arm64`).
+- **Do:** right-click the tray icon > Test tug. While the tug is on screen start TimeTug again from the Start menu (or run `timetug-dev.exe`). Dismiss the tug. Start TimeTug again.
+- **Expect:** the second start shows nothing and its process ends by itself within a couple of seconds (Task Manager: still one TimeTug); the tug stays exactly as it was (same window, still counting, keyboard still working) and no flyout opens. After the tug is gone the next start opens the flyout. The log has "a second launch was ignored because the tug is showing".
+- **Automated:** yes for the logic and the real launches: `second-launch` (starts the packaged app through its alias during a tug: exit code 0, one process, no flyout, the tug unaffected, nothing sent to the engine) and `AppInstanceServiceTests`. Left for you: the real Start-menu launch.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 5.12 The flyout with Narrator
+
+- **Build:** `msix-x64` (or `msix-arm64`), an account with a current meeting, a next meeting with a link, and one problem row (see 5.9).
+- **Do:** turn Narrator on (Win+Ctrl+Enter). Open the flyout from the tray icon. Move with Tab and Shift+Tab, with Narrator's item navigation (Caps Lock+Right arrow), then press Enter on Join and Esc.
+- **Expect:** Narrator says the window opened and reads the header (weekday and "N meetings left"); each card is read as one item: title, time range, how soon ("starts in 12 minutes" or "now"), state, calendar and attendees; Join reads "Join <title>" and works with Enter; the problem group is read as "Calendar problems" with its Sign in again button; the Settings button is read as unavailable; Esc closes the flyout and focus returns to the previous window. Nothing is read twice or as "unlabelled".
+- **Automated:** partly. `a11y-hold` round 3 runs axe-windows over the flyout (a problem row and a long day) with no error-level violation; `FlyoutViewModelTests` assert each row's spoken description. Not automated: what Narrator actually says and where focus goes.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 5.13 The clock changed backwards while the app runs
+
+- **Build:** `msix-x64` (or `msix-arm64`), an account connected, a hotkey set as in 5.10 (a).
+- **Do:** with TimeTug running, turn off Settings > Time & language > Date & time > Set time automatically, and set the clock back one hour (Change date and time). Within a minute: click the tray icon, close it by clicking elsewhere, click the icon again; press the hotkey; start TimeTug again from the Start menu. Then set the clock back to the right time and turn automatic time on again.
+- **Expect:** every click, hotkey press and second start still works at once: the flyout opens each time (a click right after the flyout closed by clicking elsewhere is still treated as that same click and does not reopen it, within about half a second), and no launch is lost. The tooltip and the flyout rows follow the engine's new state, not a stale one.
+- **Automated:** partly. `FlyoutHostTests` and `AppInstanceServiceTests` step the wall clock backwards and forwards while real time passes (the click grace and the launch coalescing now use a monotonic timer). Not automated: a real clock change reaching the engine.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ---
