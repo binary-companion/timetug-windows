@@ -84,7 +84,7 @@ internal static class StartupScenario
 
         var services = shell.Services;
         var client = services.GetRequiredService<IEngineClient>();
-        var state = await FirstStateAsync(client, cancellation);
+        var state = await FirstStateWithKindsAsync(client, cancellation);
         Check(state is not null, "the engine published its first state");
         if (state is not null)
         {
@@ -182,22 +182,29 @@ internal static class StartupScenario
         return run.Finish();
     }
 
-    private static async Task<AppState?> FirstStateAsync(IEngineClient client, CancellationToken cancellation)
+    /// <summary>
+    /// The first state that lists the account kinds, or the last state seen when none does within 20 s. The engine can publish a state before
+    /// its account manager has filled in the kinds (it did once on a hosted runner), and the checks are about the kinds, not about that very first state.
+    /// </summary>
+    private static async Task<AppState?> FirstStateWithKindsAsync(IEngineClient client, CancellationToken cancellation)
     {
         var first = new TaskCompletionSource<AppState>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = client.State.Subscribe(new StateObserver(first));
+        var observer = new StateObserver(first);
+        using var subscription = client.State.Subscribe(observer);
         try
         {
             return await first.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellation);
         }
         catch (TimeoutException)
         {
-            return null;
+            return observer.Last;
         }
     }
 
     private sealed class StateObserver(TaskCompletionSource<AppState> first) : IObserver<AppState>
     {
+        public AppState? Last { get; private set; }
+
         public void OnCompleted()
         {
         }
@@ -206,7 +213,14 @@ internal static class StartupScenario
         {
         }
 
-        public void OnNext(AppState value) => first.TrySetResult(value);
+        public void OnNext(AppState value)
+        {
+            Last = value;
+            if (ExpectedKinds.All(id => value.AvailableKinds.Any(k => k.Id == id)))
+            {
+                first.TrySetResult(value);
+            }
+        }
     }
 }
 #endif

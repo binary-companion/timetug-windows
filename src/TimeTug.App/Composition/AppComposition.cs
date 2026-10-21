@@ -141,7 +141,11 @@ internal static class AppComposition
         // ---- the Settings window (the tray's Settings row and the flyout's gear call SettingsHost.Show) ------------------------
         services.AddSingleton(sp => new SettingsPaneModels(
             tugRules: () => new TugRulesViewModel(
-                sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<ISettingsClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>())));
+                sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<ISettingsClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()),
+            calendars: () => new CalendarsViewModel(
+                sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<ISettingsClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(),
+                // Windows 1.0 registers no on-device text generator (WindowsEngineHost.TextGenerator is null); phase 8 changes this.
+                inferenceSupported: false)));
         services.AddSingleton(sp => new SettingsWindowFactory(
             sp.GetRequiredService<SettingsText>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<IPresentationSettingsStore>(),
             sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<SettingsPaneModels>()));

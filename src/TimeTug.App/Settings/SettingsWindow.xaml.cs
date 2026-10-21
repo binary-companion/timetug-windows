@@ -258,9 +258,16 @@ public sealed partial class SettingsWindow : Window
         SettingsPane.General => new GeneralPage(_shell, _text, _localizer, () => ApplyHighlight()),
         SettingsPane.Appearance => new AppearancePage(_text.PaneTitle(pane)),
         SettingsPane.Accounts => new AccountsPage(_text.PaneTitle(pane)),
-        SettingsPane.Calendars => new CalendarsPage(_text.PaneTitle(pane)),
+        SettingsPane.Calendars => NewCalendarsPage(),
         _ => NewTugRulesPage(),
     };
+
+    private CalendarsPage NewCalendarsPage()
+    {
+        var model = _models.CreateCalendars();
+        _ownedModels.Add(model);
+        return new CalendarsPage(model, _shell, _text, _localizer, _text.PaneTitle(SettingsPane.Calendars));
+    }
 
     private TugRulesPage NewTugRulesPage()
     {

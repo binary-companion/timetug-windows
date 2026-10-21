@@ -15,7 +15,7 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// the accessibility scanner (<c>tests/TimeTug.App.A11y</c>, axe-windows) reads them. Round 0 is a canary: a window with a button that
 /// has no name, which the scanner must flag (a scan that finds nothing there is not seeing the app, and fails). Then three rounds: the
 /// welcome window's Connect step with the tug as it first appears, then its Connected step with the tug showing the link to copy after a
-/// failed Join, then the flyout (a problem row and a long day), then the Settings window (its search results, then the Tug Rules pane). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
+/// failed Join, then the flyout (a problem row and a long day), then the Settings window (its search results, then the Tug Rules and Calendars panes). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
 /// <c>done-N.txt</c>; without it the scenario gives up after <see cref="WaitForScanner"/>.
 /// </summary>
 internal static class A11yHoldScenario
@@ -23,7 +23,7 @@ internal static class A11yHoldScenario
     public const string Name = "a11y-hold";
 
     /// <summary>How many rounds the scanner is told to expect (<c>scripts/ci/run-a11y.ps1</c> passes the same number).</summary>
-    public const int Rounds = 5;
+    public const int Rounds = 6;
 
     private static readonly TimeSpan WaitForScanner = TimeSpan.FromSeconds(120);
 
@@ -91,6 +91,18 @@ internal static class A11yHoldScenario
             await rig.Settle();
             run.Check(settingsWindow.CurrentPage is TugRulesPage, "the Tug Rules pane is showing");
             run.Check(await HoldForScannerAsync(rig, 5, "the Tug Rules pane with its warnings", cancellation), "the scanner finished round 5");
+
+            // Round 6: the Calendars pane (a hidden calendar with its Tug switch disabled, the subscribed list open, the options).
+            settingsWindow.Shell.SelectedPane = SettingsPane.Calendars;
+            await rig.Settle();
+            if (settingsWindow.CurrentPage is CalendarsPage calendars && calendars.Disclosure is { } disclosure)
+            {
+                disclosure.IsExpanded = true;
+            }
+
+            await rig.Settle();
+            run.Check(settingsWindow.CurrentPage is CalendarsPage, "the Calendars pane is showing");
+            run.Check(await HoldForScannerAsync(rig, 6, "the Calendars pane", cancellation), "the scanner finished round 6");
             settings.Host.Close();
         }
 

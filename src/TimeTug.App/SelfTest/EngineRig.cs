@@ -34,6 +34,7 @@ internal sealed class EngineRig : IAsyncDisposable
     private AppState? _latest;
     private IDisposable? _subscription;
     private AppShell? _shell;
+    private string _calendarList = "google-calendar-list.json";
 
     private EngineRig(ScenarioRun run, CancellationToken cancellation)
     {
@@ -88,9 +89,10 @@ internal sealed class EngineRig : IAsyncDisposable
     public IReadOnlyList<string> Terminal => TerminalCommands.Of(Client.Sent);
 
     /// <summary>Starts the app with the recorded calendar and waits until the engine has published the meeting.</summary>
-    public static async Task<EngineRig> StartAsync(SelfTestOptions options, CancellationToken cancellation)
+    /// <param name="calendarList">The recorded calendar-list answer (the single calendar by default). Every other calendar it names has no events.</param>
+    public static async Task<EngineRig> StartAsync(SelfTestOptions options, CancellationToken cancellation, string calendarList = "google-calendar-list.json")
     {
-        var rig = new EngineRig(new ScenarioRun(options), cancellation);
+        var rig = new EngineRig(new ScenarioRun(options), cancellation) { _calendarList = calendarList };
         await rig.StartCoreAsync();
         return rig;
     }
@@ -204,7 +206,8 @@ internal sealed class EngineRig : IAsyncDisposable
 
         Host.Secrets.Seed("conn-1", "refresh_token", "test-refresh-token");
         Host.Answers.Answer("https://oauth2.googleapis.com/token", "google-token.json", "POST");
-        Host.Answers.Answer("https://www.googleapis.com/calendar/v3/users/me/calendarList", "google-calendar-list.json");
+        Host.Answers.Answer("https://www.googleapis.com/calendar/v3/users/me/calendarList", _calendarList);
+        Host.Answers.Answer("https://www.googleapis.com/calendar/v3/calendars/", "google-events-empty.json");
         Host.Answers.Answer(EventsUrl, "google-events-simple.json");
 
         var (main, second) = FakeMonitors.Layout();
