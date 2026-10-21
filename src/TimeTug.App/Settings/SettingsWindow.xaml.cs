@@ -14,6 +14,7 @@ namespace TimeTug.App.Settings;
 /// and what the search finds come from <see cref="SettingsShellViewModel"/>; the pane pages show their own content. It remembers its size
 /// and place between runs (kept in the presentation settings; a place on a display that is gone is discarded) and does not close on Esc.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "The save delay's token source is cancelled and disposed when the window closes (OnClosed).")]
 public sealed partial class SettingsWindow : Window
 {
     private static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(600);
@@ -186,6 +187,8 @@ public sealed partial class SettingsWindow : Window
     {
         _closed = true;
         _saveWait?.Cancel();
+        _saveWait?.Dispose();
+        _saveWait = null;
         SaveGeometry();
         _shell.PropertyChanged -= OnShellChanged;
         _shell.HighlightRequested -= OnHighlightRequested;
