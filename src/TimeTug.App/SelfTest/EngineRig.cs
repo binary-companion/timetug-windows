@@ -5,6 +5,7 @@ using TimeTug.App.Composition;
 using TimeTug.App.Tug;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tug;
 using Pkg = TimeTug.Engine;
@@ -41,6 +42,9 @@ internal sealed class EngineRig : IAsyncDisposable
     }
 
     public ScenarioRun Run { get; }
+
+    /// <summary>The running app (null before the rig started).</summary>
+    public AppShell Shell => _shell ?? throw new InvalidOperationException("The rig has not started.");
 
     public ManualClock Clock { get; } = new(ClockStart);
 
@@ -106,6 +110,28 @@ internal sealed class EngineRig : IAsyncDisposable
         }
 
         return condition();
+    }
+
+    /// <summary>
+    /// Opens the Settings window on a pane and sizes it to most of the primary display's work area (the rig's monitors carry no scale, so the
+    /// window's own placement would make it too small to read in a screenshot).
+    /// </summary>
+    public async Task<TimeTug.App.Settings.SettingsWindow?> OpenSettingsAsync(SettingsPane pane)
+    {
+        var factory = Shell.Services.GetRequiredService<TimeTug.App.Settings.SettingsWindowFactory>();
+        Shell.ShowSettings(pane);
+        if (!await WaitFor(() => Shell.Settings is { IsOpen: true } && factory.Last is not null))
+        {
+            return null;
+        }
+
+        var window = factory.Last!.Window;
+        var work = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
+        var width = Math.Min(1100, work.Width - 40);
+        var height = Math.Min(860, work.Height - 40);
+        window.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(work.X + 20, work.Y + 20, width, height));
+        await SelfTestRunner.WaitForFrameAsync(window, _cancellation, 900);
+        return window;
     }
 
     public Task Settle(int milliseconds = 1200) => Task.Delay(milliseconds, _cancellation);
@@ -199,6 +225,8 @@ internal sealed class EngineRig : IAsyncDisposable
                 services.AddSingleton<IUiSettings>(Settings);
                 services.AddSingleton<IToastService>(Toasts);
                 services.AddSingleton<IUrlLauncher>(Launcher);
+                // The Settings window remembers its place in memory, not in the package's real settings.
+                services.AddSingleton<IPresentationSettingsStore>(new MemoryPresentationSettingsStore());
                 services.AddSingleton<IEngineClient>(sp => new RecordingEngineClient(sp.GetRequiredService<EngineClient>()));
             },
             withTray: false);

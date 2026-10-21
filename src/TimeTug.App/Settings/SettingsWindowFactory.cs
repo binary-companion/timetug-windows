@@ -23,7 +23,8 @@ internal sealed class SettingsWindowSurface : ISettingsWindow
 
 /// <summary>Makes a Settings window around a shell, each time the window opens.</summary>
 internal sealed class SettingsWindowFactory(
-    SettingsText text, ILocalizer localizer, IPresentationSettingsStore store, IMonitorService monitors, IUiSettings ui) : ISettingsWindowFactory
+    SettingsText text, ILocalizer localizer, IPresentationSettingsStore store, IMonitorService monitors, IUiSettings ui,
+    SettingsPaneModels models) : ISettingsWindowFactory
 {
     /// <summary>How many windows have been made (for the self-test).</summary>
     public int Created { get; private set; }
@@ -33,7 +34,7 @@ internal sealed class SettingsWindowFactory(
 
     public ISettingsWindow Create(SettingsShellViewModel shell)
     {
-        var surface = new SettingsWindowSurface(new SettingsWindow(shell, text, localizer, store, monitors, ui));
+        var surface = new SettingsWindowSurface(new SettingsWindow(shell, text, localizer, store, monitors, ui, models));
         Created++;
         Last = surface;
         return surface;

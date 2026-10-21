@@ -29,4 +29,5 @@ second-launch            1  150  selftest
 hotkey                   0  120  selftest
 compose                  1  180  selftest
 settings-shell           8  180  selftest
+settings-tugrules        4  180  selftest
 a11y-hold                0  300  a11y

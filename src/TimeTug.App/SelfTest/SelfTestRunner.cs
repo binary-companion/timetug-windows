@@ -79,6 +79,7 @@ internal static class SelfTestRunner
         [HotkeyScenario.Name] = HotkeyScenario.RunAsync,
         [ComposeScenario.Name] = ComposeScenario.RunAsync,
         [SettingsShellScenario.Name] = SettingsShellScenario.RunAsync,
+        [SettingsTugRulesScenario.Name] = SettingsTugRulesScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
     };
 

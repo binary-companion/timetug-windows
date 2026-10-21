@@ -552,6 +552,22 @@ public sealed class FlyoutViewModelTests : IDisposable
         _model.Footer.Should().Be("Tugs you at start");
     }
 
+    [Fact]
+    public void The_footer_follows_the_engines_lead_time_setting()
+    {
+        _engine.Push(States.Empty() with { Settings = Presentation.Settings.EngineSettingsView.Defaults with { LeadTime = TimeSpan.FromMinutes(5) } });
+        _model.Footer.Should().Be("Tugs you 5 min before");
+        var changes = _changes;
+
+        _engine.Push(States.Empty() with { Settings = Presentation.Settings.EngineSettingsView.Defaults with { LeadTime = TimeSpan.FromMinutes(10) } });
+
+        _model.Footer.Should().Be("Tugs you 10 min before");
+        _changes.Should().BeGreaterThan(changes, "the flyout is told its footer changed");
+
+        _engine.Push(States.Empty() with { Settings = Presentation.Settings.EngineSettingsView.Defaults with { LeadTime = TimeSpan.Zero } });
+        _model.Footer.Should().Be("Tugs you at start");
+    }
+
     // ---- staying current ----------------------------------------------------------------------------------------
 
     [Fact]

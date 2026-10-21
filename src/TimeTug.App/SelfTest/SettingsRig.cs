@@ -19,7 +19,8 @@ internal sealed class SettingsRig : IDisposable
         var queue = DispatcherQueue.GetForCurrentThread();
         Text = new SettingsText(tug.Text);
         Store = new MemoryPresentationSettingsStore();
-        Factory = new SettingsWindowFactory(Text, tug.Text, Store, new StaticMonitors(MonitorService.Enumerate()), tug.Settings);
+        Factory = new SettingsWindowFactory(Text, tug.Text, Store, new StaticMonitors(MonitorService.Enumerate()), tug.Settings,
+            new SettingsPaneModels(() => new TugRulesViewModel(tug.Engine, new SettingsClient(tug.Engine), new DispatcherQueueDispatcher(queue), tug.Text)));
         var dispatcher = new DispatcherQueueDispatcher(queue);
         Host = new SettingsHost(
             Factory, () => new SettingsShellViewModel(tug.Engine, Text, tug.Settings, dispatcher, TimeProvider.System), dispatcher, tug.Diagnostics);
@@ -53,8 +54,9 @@ internal sealed class SettingsRig : IDisposable
         return window;
     }
 
-    public static AppState State(DateTimeOffset now) => Scenes.Connected(now) with
+    public static AppState State(DateTimeOffset now, bool tugRequirements = false) => Scenes.Connected(now) with
     {
+        Settings = EngineSettingsView.Defaults with { RequireConferenceLink = tugRequirements, RequireOtherAttendees = tugRequirements },
         CalendarGroups =
         [
             new CalendarGroup("you@example.com", "google-conn-1", "google", CalendarOrigin.Account, "you@example.com · connected directly", false,
