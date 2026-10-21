@@ -138,6 +138,9 @@ internal static class StartupScenario
         var trayCreated = shell.TrayIcon is { IsCreated: true };
         Check(trayCreated || diagnostics.Entries.Any(e => e.Category == "tray" && e.Level == "error"), "the tray icon was created in the notification area, or its failure was recorded: created=" + trayCreated);
         Check(shell.TrayModel is { } tray && tray.Current.Rows.Single(r => r.Command == TrayCommand.Quit).IsEnabled, "the tray menu offers Quit");
+        Check(shell.Flyout is { IsOpen: false }, "the flyout is composed and closed at startup");
+        shell.TrayModel!.PrimaryClick();
+        Check(shell.Flyout is { IsOpen: false } && shell.Welcome is not null, "a left click with no account shows the welcome window, not the flyout");
         run.Info("tray icon " + shell.TrayIcon?.AppliedIcon?.Width + " px, tooltip \"" + shell.TrayIcon?.AppliedTooltip + "\"");
 
         // ---- a second test tug (from the tray menu) is left outstanding so that quitting must close it -----------------------
@@ -149,6 +152,7 @@ internal static class StartupScenario
         await shell.QuitAsync(exitProcess: false).WaitAsync(TimeSpan.FromSeconds(30), cancellation);
         Check(controller.Current is null && controller.State == TugState.Hidden, "quitting closed the outstanding request");
         Check(shell.TrayIcon is null, "quitting removed the tray icon");
+        Check(shell.Flyout is { IsOpen: false }, "the flyout is closed after quitting");
         Check(await WaitFor(() => windows.WindowCount == 0, 3000), "quitting closed the tug windows");
         var files = Directory.GetFiles(dataDirectory, "*", SearchOption.AllDirectories);
         run.Info("the engine wrote " + files.Length + " file(s) under its data folder: " + string.Join(", ", files.Select(f => Path.GetRelativePath(dataDirectory, f))));

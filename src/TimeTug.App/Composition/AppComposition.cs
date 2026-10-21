@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Dispatching;
+using TimeTug.App.Flyout;
+using TimeTug.App.Tray;
 using TimeTug.App.Tug;
 using TimeTug.Engine;
 using TimeTug.Platform;
@@ -104,6 +106,22 @@ internal static class AppComposition
         services.AddSingleton<ITugActions>(sp => sp.GetRequiredService<TugController>());
         services.AddSingleton(sp => new TugPresence(sp.GetRequiredService<TugController>()));
         services.AddSingleton<ITugPresence>(sp => sp.GetRequiredService<TugPresence>());
+        // ---- the flyout (the shell opens it from the tray, a second launch and the shortcut; see FlyoutComposition) ------------
+        services.AddSingleton<TrayIconIdSource>();
+        services.AddSingleton<ITaskbarProbe>(_ => new WindowsTaskbarProbe());
+        services.AddSingleton<ITrayAnchor>(sp => new TrayAnchor(
+            () => sp.GetRequiredService<TrayIconIdSource>().Id, sp.GetRequiredService<ITaskbarProbe>(),
+            sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton(sp => new FlyoutViewModel(
+            sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IUrlLauncher>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<IMinuteTicker>(), sp.GetRequiredService<ILocalizer>()));
+        services.AddSingleton<IFlyoutSurfaceFactory>(sp => new FlyoutSurfaceFactory(
+            sp.GetRequiredService<FlyoutViewModel>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(),
+            sp.GetRequiredService<IUiSettings>()));
+        services.AddSingleton(sp => new FlyoutHost(
+            sp.GetRequiredService<IFlyoutSurfaceFactory>(), sp.GetRequiredService<ITugPresence>(), sp.GetRequiredService<IUiSettings>(),
+            sp.GetRequiredService<ITrayAnchor>(), sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiDispatcher>(),
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton(sp => new TugWindowHost(
             sp.GetRequiredService<TugController>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<IUiSettings>(),
             sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ISecondTicker>()));

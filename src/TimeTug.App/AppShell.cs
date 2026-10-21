@@ -6,6 +6,8 @@ using TimeTug.App.Composition;
 using TimeTug.App.Tray;
 using TimeTug.App.Tug;
 using TimeTug.App.Views;
+using TimeTug.Platform.Flyout;
+using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.Instance;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
@@ -18,9 +20,16 @@ namespace TimeTug.App;
 
 /// <summary>
 /// The running app on the UI thread: it builds the host, keeps a hidden window alive (closing the last visible window ends a WinUI
-/// app), puts the icon in the notification area (whose Quit is how a person ends the app), opens the welcome window once the
-/// engine's first state says this is a first run, and quits in the order the engine needs: the tray icon is removed, an outstanding
-/// takeover is closed, the engine is disposed, then the process exits.
+/// app), puts the icon in the notification area (whose Quit is how a person ends the app), opens the flyout from the icon, a second
+/// launch and the shortcut, opens the welcome window once the engine's first state says this is a first run, and quits in the order
+/// the engine needs (<see cref="QuitSequence"/>): the flyout is closed, an outstanding takeover is closed, the tray icon is removed,
+/// the engine is disposed, then the process exits.
+/// <para>
+/// Startup order: the host and its services are built; a second launch is listened for (<see cref="FlyoutComposition.ConnectActivation"/>)
+/// before the engine starts, and one that arrives early is held; the engine starts; the tray icon appears; the engine's first state
+/// arrives; then the held launch is delivered (it opens the flyout) and the stored shortcut is registered; then the welcome window
+/// opens when this is a first run.
+/// </para>
 /// </summary>
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "QuitAsync disposes the tray; the shell lives as long as the process and has one ordered shutdown.")]
 internal sealed class AppShell
@@ -36,6 +45,9 @@ internal sealed class AppShell
     private WelcomeWindow? _welcome;
     private TrayViewModel? _trayModel;
     private TrayIconService? _tray;
+    private FlyoutHost? _flyoutHost;
+    private FlyoutComposition? _flyout;
+    private AppRuntime? _runtime;
     private int _quitting;
 
     /// <param name="replace">Replaces registrations after the real ones (the self-test scripts the engine host and the OS state this way).</param>
@@ -65,6 +77,9 @@ internal sealed class AppShell
     /// <summary>What the tray shows and does (null when there is no tray).</summary>
     internal TrayViewModel? TrayModel => _trayModel;
 
+    /// <summary>Opens, closes and places the flyout (null before the services are built).</summary>
+    internal FlyoutHost? Flyout => _flyoutHost;
+
     /// <summary>True when startup failed and the failure window is showing.</summary>
     public bool Failed => _failure is not null;
 
@@ -81,16 +96,24 @@ internal sealed class AppShell
         {
             _anchor = new Window { Title = "TimeTug" };
             _host = AppComposition.CreateHost(_queue, _diagnostics, _replace);
+            _flyoutHost = Services.GetRequiredService<FlyoutHost>();
+            _flyout = new FlyoutComposition(
+                _instance, Services.GetRequiredService<HotkeyService>(), _flyoutHost, Services.GetRequiredService<ITugPresence>(),
+                Services.GetRequiredService<IUiDispatcher>(), _diagnostics);
+
+            // Before the engine starts: a second launch that comes in while this copy is starting is held, not lost.
+            _flyout.ConnectActivation();
             await _host.StartAsync();
+            _runtime = Services.GetRequiredService<AppRuntime>();
             if (_withTray)
             {
                 StartTray();
             }
 
-            var showWelcome = await Services.GetRequiredService<AppRuntime>().ShouldShowWelcome;
+            var showWelcome = await _runtime.ShouldShowWelcome;
 
-            // The engine is up and has sent its first state: a second launch that came in while this was starting is delivered now.
-            _instance?.MarkReady(Services.GetRequiredService<ITugPresence>());
+            // The engine is up and has sent its first state: the held second launch opens the flyout and the stored shortcut is registered.
+            await _flyout.CompleteStartupAsync();
             if (showWelcome)
             {
                 ShowWelcome();
@@ -108,7 +131,7 @@ internal sealed class AppShell
     private void StartTray()
     {
         var runtime = Services.GetRequiredService<AppRuntime>();
-        var host = new DelegateTrayHost(ShowWelcome, () => runtime.TestTugAsync(), () => new ValueTask(QuitAsync()));
+        var host = new DelegateTrayHost(ShowWelcome, () => _flyoutHost?.Toggle(), () => runtime.TestTugAsync(), () => new ValueTask(QuitAsync()));
         _trayModel = new TrayViewModel(
             Services.GetRequiredService<IEngineClient>(),
             Services.GetRequiredService<TugController>(),
@@ -118,6 +141,8 @@ internal sealed class AppShell
             Services.GetRequiredService<TimeProvider>(),
             Services.GetRequiredService<IMinuteTicker>());
         _tray = new TrayIconService(_trayModel, Services.GetRequiredService<IUiDispatcher>(), _diagnostics);
+        var tray = _tray;
+        Services.GetRequiredService<TrayIconIdSource>().Provider = () => tray.IconId;
         _tray.Start();
     }
 
@@ -139,7 +164,7 @@ internal sealed class AppShell
         window.Activate();
     }
 
-    /// <summary>Quits in order: the runtime closes an outstanding takeover, the host stops and disposes the services (the engine last), then the app exits.</summary>
+    /// <summary>Quits in the order <see cref="QuitSequence"/> describes, then exits the app.</summary>
     public async Task QuitAsync(bool exitProcess = true)
     {
         if (Interlocked.Exchange(ref _quitting, 1) == 1)
@@ -147,12 +172,36 @@ internal sealed class AppShell
             return;
         }
 
-        // The icon goes first, so a quit never leaves a ghost icon in the notification area.
+        await new QuitSequence(CloseFlyout, CloseOutstandingTakeoverAsync, RemoveTrayIcon, DisposeEngineAsync, _diagnostics).RunAsync();
+
+        if (exitProcess)
+        {
+            Application.Current.Exit();
+        }
+    }
+
+    /// <summary>The flyout closes and stays closed: no click, second launch or shortcut opens it again.</summary>
+    private void CloseFlyout()
+    {
+        _flyout?.Retire();
+        _flyoutHost?.Dispose();
+    }
+
+    /// <summary>The runtime stops listening, applies what was queued and tells the engine an outstanding takeover is closed (nothing to do when startup did not finish).</summary>
+    private Task CloseOutstandingTakeoverAsync() => _runtime?.QuitAsync() ?? Task.CompletedTask;
+
+    /// <summary>The icon goes before the engine, so a quit never leaves a ghost icon in the notification area.</summary>
+    private void RemoveTrayIcon()
+    {
         _tray?.Dispose();
         _trayModel?.Dispose();
         _tray = null;
         _trayModel = null;
+    }
 
+    /// <summary>The host stops and disposes the services; the engine is the last of them.</summary>
+    private async Task DisposeEngineAsync()
+    {
         try
         {
             if (_host is not null)
@@ -167,11 +216,6 @@ internal sealed class AppShell
         catch (Exception e) when (e is not OperationCanceledException)
         {
             _diagnostics.Record("error", "shutdown", $"shutting down raised {e.GetType().Name}: {e.Message} {string.Join(" <- ", (e.StackTrace ?? string.Empty).Split('\n').Take(6).Select(l => l.Trim()))}");
-        }
-
-        if (exitProcess)
-        {
-            Application.Current.Exit();
         }
     }
 

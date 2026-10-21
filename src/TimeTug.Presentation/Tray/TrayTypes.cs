@@ -69,8 +69,11 @@ public sealed record TrayView(IReadOnlyList<TrayRow> Rows, TrayIconView Icon, st
 /// <summary>What the tray asks the rest of the app to do.</summary>
 public interface ITrayHost
 {
-    /// <summary>Opens the welcome window (the stand-in for the flyout until slice 2).</summary>
+    /// <summary>Opens the welcome window (a left click on the icon while no account is connected).</summary>
     void ShowWelcome();
+
+    /// <summary>Opens the flyout, or closes it when it is open (a left click on the icon while an account is connected).</summary>
+    void ToggleFlyout();
 
     /// <summary>Shows the test tug.</summary>
     ValueTask TestTugAsync();
