@@ -303,4 +303,29 @@
   <data name="Calendars_ForgetBody" xml:space="preserve"><value>TimeTug will forget what it learned from the meetings you merged and separated. This cannot be undone.</value></data>
   <data name="Calendars_ForgetConfirm" xml:space="preserve"><value>Forget</value></data>
   <data name="Calendars_ForgetCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Status_ok" xml:space="preserve"><value>Connected</value></data>
+  <data name="Status_connecting" xml:space="preserve"><value>Connecting…</value></data>
+  <data name="Status_buildFailure" xml:space="preserve"><value>Can’t start this account</value></data>
+  <data name="Accounts_Intro" xml:space="preserve"><value>Choose where TimeTug reads your calendars from.</value></data>
+  <data name="Accounts_ConnectedTitle" xml:space="preserve"><value>Connected Accounts</value></data>
+  <data name="Accounts_AddTitle" xml:space="preserve"><value>Add an Account</value></data>
+  <data name="Accounts_Empty" xml:space="preserve"><value>No internet accounts yet. Add one below.</value></data>
+  <data name="Accounts_SignInAgain" xml:space="preserve"><value>Sign in again</value></data>
+  <data name="Accounts_SignInAgainAutomation" xml:space="preserve"><value>Sign in again to {0}</value></data>
+  <data name="Accounts_RowAutomation" xml:space="preserve"><value>{0}, {1}, {2}</value><comment>{0} is the provider, {1} the account's name and {2} its status.</comment></data>
+  <data name="Accounts_ActionsAutomation" xml:space="preserve"><value>{0} actions</value></data>
+  <data name="Accounts_Remove" xml:space="preserve"><value>Remove account</value></data>
+  <data name="Accounts_RemoveAutomation" xml:space="preserve"><value>Remove {0}</value></data>
+  <data name="Accounts_RemoveTitle" xml:space="preserve"><value>Remove {0}?</value></data>
+  <data name="Accounts_RemoveBody" xml:space="preserve"><value>Its calendars will no longer appear and their Tug and visibility choices are forgotten.</value></data>
+  <data name="Accounts_RemoveConfirm" xml:space="preserve"><value>Remove</value></data>
+  <data name="Accounts_RemoveCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Accounts_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Accounts_CancelAutomation" xml:space="preserve"><value>Cancel signing in</value></data>
+  <data name="Accounts_Add" xml:space="preserve"><value>Add</value></data>
+  <data name="Accounts_Unavailable" xml:space="preserve"><value>Unavailable</value></data>
+  <data name="Accounts_UnavailableAutomation" xml:space="preserve"><value>{0}, unavailable in this build</value></data>
+  <data name="Accounts_UnavailableNotice" xml:space="preserve"><value>This build is missing configuration for some account types, so they can’t be added right now.</value></data>
+  <data name="Accounts_NoticeOne" xml:space="preserve"><value>Some repeating events from this link use a rule TimeTug can’t read, so they may not appear.</value></data>
+  <data name="Accounts_NoticeMany" xml:space="preserve"><value>{0} repeating events from this link use a rule TimeTug can’t read, so they may not appear.</value></data>
 </root>
