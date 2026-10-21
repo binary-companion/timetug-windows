@@ -138,9 +138,17 @@ public sealed class TrayAnchorTests
             return ThrowOnIcon ? throw new InvalidOperationException("explorer is restarting") : Icon;
         }
 
+        /// <summary>When set, asking for the overflow button waits for it (Explorer is slow or hung).</summary>
+        public ManualResetEventSlim? ChevronGate { get; set; }
+
         public PixelRect? OverflowButtonRect()
         {
-            Asked.Add("chevron");
+            lock (Asked)
+            {
+                Asked.Add("chevron");
+            }
+
+            ChevronGate?.Wait(TimeSpan.FromSeconds(20));
             return Chevron;
         }
 
@@ -159,10 +167,189 @@ public sealed class TrayAnchorTests
 
         public MonitorInfo Primary => Monitors.First(m => m.IsPrimary);
 
-        public event Action? Changed
+        public event Action? Changed;
+
+        public void Raise() => Changed?.Invoke();
+    }
+
+    // ---- not waiting for Explorer on the UI thread --------------------------------------------------------------
+
+    private static async Task<bool> Completes(Action work, int milliseconds = 2000)
+    {
+        var task = Task.Run(work);
+        return await Task.WhenAny(task, Task.Delay(milliseconds)) == task;
+    }
+
+    [Fact]
+    public async Task Peek_does_not_wait_for_a_slow_overflow_button_and_uses_the_notification_area()
+    {
+        using var gate = new ManualResetEventSlim(false);
+        _probe.ChevronGate = gate;
+        _probe.Chevron = Chevron;
+        _probe.Area = Area;
+        using var anchor = Anchor();
+        AnchorRect? peeked = null;
+
+        var returned = await Completes(() => peeked = anchor.Peek());
+        gate.Set();
+
+        returned.Should().BeTrue("the UI thread never waits for UI Automation");
+        peeked.Should().Be(new AnchorRect(Area, AnchorSource.NotificationArea));
+        _probe.Asked.Should().NotContain("chevron");
+    }
+
+    [Fact]
+    public void Peek_uses_the_icons_own_rectangle_when_Windows_gives_it_quickly()
+    {
+        _probe.Icon = IconBox;
+        using var anchor = Anchor();
+
+        anchor.Peek().Should().Be(new AnchorRect(IconBox, AnchorSource.Icon));
+    }
+
+    [Fact]
+    public async Task Refresh_returns_at_once_and_reports_the_better_place_when_the_slow_look_ends()
+    {
+        using var gate = new ManualResetEventSlim(false);
+        _probe.ChevronGate = gate;
+        _probe.Chevron = Chevron;
+        _probe.Area = Area;
+        using var anchor = Anchor();
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        anchor.Changed += () => changed.TrySetResult();
+        anchor.Peek().Should().Be(new AnchorRect(Area, AnchorSource.NotificationArea));
+
+        var returned = await Completes(anchor.Refresh);
+        returned.Should().BeTrue("Refresh only starts the look");
+        changed.Task.IsCompleted.Should().BeFalse("the overflow button has not answered yet");
+
+        gate.Set();
+        await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        anchor.Peek().Should().Be(new AnchorRect(Chevron, AnchorSource.OverflowButton));
+    }
+
+    [Fact]
+    public async Task A_fresh_look_that_finds_the_same_place_raises_nothing()
+    {
+        _probe.Icon = IconBox;
+        using var anchor = Anchor();
+        var raised = 0;
+        anchor.Changed += () => Interlocked.Increment(ref raised);
+        anchor.Peek();
+
+        anchor.Refresh();
+        await Task.Delay(300);
+
+        raised.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_last_good_answer_is_served_without_asking_the_taskbar_again()
+    {
+        _probe.Chevron = Chevron;
+        _probe.Area = Area;
+        using var anchor = Anchor();
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        anchor.Changed += () => changed.TrySetResult();
+        anchor.Peek();
+        anchor.Refresh();
+        await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        List<string> asked;
+        lock (_probe.Asked)
         {
-            add { }
-            remove { }
+            asked = [.. _probe.Asked];
+        }
+
+        anchor.Peek().Should().Be(new AnchorRect(Chevron, AnchorSource.OverflowButton));
+        anchor.Peek();
+
+        lock (_probe.Asked)
+        {
+            _probe.Asked.Should().Equal(asked, "the cached answer needs no question");
+        }
+    }
+
+    [Fact]
+    public async Task A_display_change_makes_it_forget_the_last_good_answer()
+    {
+        var monitors = new FixedMonitors(new MonitorInfo("m1", 0, 0, 1920, 1080, true));
+        _probe.Chevron = Chevron;
+        _probe.Area = Area;
+        using var anchor = Anchor(monitors: monitors);
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        anchor.Changed += () => changed.TrySetResult();
+        anchor.Peek();
+        anchor.Refresh();
+        await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        anchor.Peek()!.Source.Should().Be(AnchorSource.OverflowButton);
+
+        monitors.Raise();
+
+        anchor.Peek()!.Source.Should().Be(AnchorSource.NotificationArea, "the old rectangle may be on a display that is gone");
+    }
+
+    [Fact]
+    public async Task Invalidate_forgets_the_last_good_answer()
+    {
+        _probe.Chevron = Chevron;
+        _probe.Area = Area;
+        using var anchor = Anchor();
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        anchor.Changed += () => changed.TrySetResult();
+        anchor.Peek();
+        anchor.Refresh();
+        await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        anchor.Invalidate();
+
+        anchor.Peek()!.Source.Should().Be(AnchorSource.NotificationArea);
+    }
+
+    [Fact]
+    public async Task A_fresh_look_that_fails_drops_the_cached_answer()
+    {
+        _probe.Chevron = Chevron;
+        _probe.Area = Area;
+        using var anchor = Anchor();
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        anchor.Changed += () => changed.TrySetResult();
+        anchor.Peek();
+        anchor.Refresh();
+        await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        anchor.Peek()!.Source.Should().Be(AnchorSource.OverflowButton);
+
+        // Explorer restarted: nothing answers any more.
+        _probe.Chevron = null;
+        _probe.Area = null;
+        var again = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        anchor.Changed += () => again.TrySetResult();
+        anchor.Refresh();
+        await again.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        anchor.Peek().Should().BeNull("a stale rectangle is worse than none");
+    }
+
+    [Fact]
+    public async Task Two_refreshes_at_once_make_one_look()
+    {
+        using var gate = new ManualResetEventSlim(false);
+        _probe.ChevronGate = gate;
+        _probe.Chevron = Chevron;
+        using var anchor = Anchor();
+        var changed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        anchor.Changed += () => changed.TrySetResult();
+        anchor.Peek();
+
+        anchor.Refresh();
+        anchor.Refresh();
+        gate.Set();
+        await changed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.Delay(200);
+
+        lock (_probe.Asked)
+        {
+            _probe.Asked.Count(a => a == "chevron").Should().Be(1);
         }
     }
 }

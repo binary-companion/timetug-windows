@@ -31,8 +31,6 @@ public sealed record TrayIconPlan(TrayIconState State, int? Digit, string Toolti
     /// <summary>The notification area shows at most 127 characters of tooltip.</summary>
     private const int MaxTooltip = 127;
 
-    private const string Ellipsis = "…";
-
     /// <summary>The digit for a meeting <paramref name="remaining"/> from starting: 1 to 9 in the last ten minutes (a whole minute or more left), else null.</summary>
     public static int? DigitFor(TimeSpan remaining)
     {
@@ -102,17 +100,8 @@ public sealed record TrayIconPlan(TrayIconState State, int? Digit, string Toolti
             return off ? string.Format(culture, text.GetString("Tray_Tooltip_TugOff"), line) : line;
         }
 
-        var tooltip = Compose(next.Title);
-        if (tooltip.Length <= MaxTooltip)
-        {
-            return tooltip;
-        }
-
-        // Shorten only the title, so the time stays readable.
-        var title = next.Title;
-        var excess = tooltip.Length - MaxTooltip + Ellipsis.Length;
-        title = title[..Math.Max(1, title.Length - excess)] + Ellipsis;
-        return Compose(title);
+        // Shorten only the title, on whole characters, so the time stays readable and the limit always holds.
+        return TextCut.Fit(next.Title, MaxTooltip, Compose);
     }
 
     private static string WhenText(string title, TimeSpan until, ILocalizer text, CultureInfo culture)

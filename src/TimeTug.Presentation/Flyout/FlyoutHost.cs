@@ -88,7 +88,8 @@ public sealed class FlyoutHost : IDisposable
     private readonly IDiagnostics? _diagnostics;
     private IFlyoutSurface? _surface;
     private PixelRect? _anchorRect;
-    private DateTimeOffset _closedByDeactivation = DateTimeOffset.MinValue;
+    // A monotonic timestamp, not a wall-clock instant: a clock set back must not leave the icon and the hotkey doing nothing.
+    private long? _closedByDeactivation;
     private bool _disposed;
 
     public FlyoutHost(
@@ -118,6 +119,7 @@ public sealed class FlyoutHost : IDisposable
         _diagnostics = diagnostics;
         _tug.Changed += OnTugChanged;
         _settings.Changed += OnSettingsChanged;
+        _anchor.Changed += OnAnchorChanged;
     }
 
     /// <summary>True while the flyout window is open.</summary>
@@ -146,7 +148,7 @@ public sealed class FlyoutHost : IDisposable
             return false;
         }
 
-        if (_time.GetUtcNow() - _closedByDeactivation < ClickGrace)
+        if (_closedByDeactivation is { } closed && _time.GetElapsedTime(closed) < ClickGrace)
         {
             // The tray click that deactivated the flyout and closed it has now arrived: it was meant to close it.
             return false;
@@ -192,6 +194,7 @@ public sealed class FlyoutHost : IDisposable
         _disposed = true;
         _tug.Changed -= OnTugChanged;
         _settings.Changed -= OnSettingsChanged;
+        _anchor.Changed -= OnAnchorChanged;
         if (_ui.HasThreadAccess)
         {
             Close();
@@ -220,7 +223,8 @@ public sealed class FlyoutHost : IDisposable
         surface.EscapePressed += OnEscape;
         surface.Closed += OnClosed;
         surface.ContentChanged += OnContentChanged;
-        _anchorRect = _anchor.TryGetAnchor()?.Rect;
+        // Never wait for Explorer here: use what is known now and let a background look move the window if it finds a better place.
+        _anchorRect = _anchor.Peek()?.Rect;
         try
         {
             surface.Show(Place(surface), Look());
@@ -235,6 +239,7 @@ public sealed class FlyoutHost : IDisposable
         }
 
         OpenChanged?.Invoke();
+        _anchor.Refresh();
     }
 
     private void Close(bool byDeactivation)
@@ -246,7 +251,7 @@ public sealed class FlyoutHost : IDisposable
 
         if (byDeactivation)
         {
-            _closedByDeactivation = _time.GetUtcNow();
+            _closedByDeactivation = _time.GetTimestamp();
         }
 
         Detach(surface);
@@ -289,11 +294,24 @@ public sealed class FlyoutHost : IDisposable
         }
     }
 
-    private void OnSettingsChanged() => _ui.Post(() =>
+    private void OnAnchorChanged() => _ui.Post(() =>
     {
         if (!_disposed && _surface is { } surface)
         {
+            _anchorRect = _anchor.Peek()?.Rect;
             surface.Update(Place(surface), Look());
+        }
+    });
+
+    private void OnSettingsChanged() => _ui.Post(() =>
+    {
+        // The taskbar's settings (position, size, auto-hide) and the scaling may have moved the icon.
+        _anchor.Invalidate();
+        if (!_disposed && _surface is { } surface)
+        {
+            _anchorRect = _anchor.Peek()?.Rect;
+            surface.Update(Place(surface), Look());
+            _anchor.Refresh();
         }
     });
 
