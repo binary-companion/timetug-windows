@@ -39,7 +39,7 @@ internal static class FlyoutEmptyScenario
         run.Check(window.EmptyStateShown, "the empty state is shown");
         run.Check(window.EventCards.Count == 0 && !window.NoMoreShown, "no cards and no banner");
         run.Check(window.ViewModel.Footer == "Tugs you 1 min before", "the footer says when the Tug fires: " + window.ViewModel.Footer);
-        run.Check(window.SettingsEntry is { IsEnabled: false } && AutomationProperties.GetName(window.SettingsEntry) == "Settings", "Settings is present, disabled and named Settings");
+        run.Check(window.SettingsEntry is { IsEnabled: true } && AutomationProperties.GetName(window.SettingsEntry) == "Settings", "Settings is present, enabled and named Settings");
         run.Check(ScenarioUi.Unnamed(window).Count == 0, "every control has a name: " + string.Join(", ", ScenarioUi.Unnamed(window)));
 
         // ---- where it is ----------------------------------------------------------------------------------------------

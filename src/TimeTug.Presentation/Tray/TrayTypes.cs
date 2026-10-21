@@ -72,6 +72,9 @@ public interface ITrayHost
     /// <summary>Opens the welcome window (a left click on the icon while no account is connected).</summary>
     void ShowWelcome();
 
+    /// <summary>Opens the Settings window, or brings it forward when it is open.</summary>
+    void ShowSettings();
+
     /// <summary>Opens the flyout, or closes it when it is open (a left click on the icon while an account is connected).</summary>
     void ToggleFlyout();
 

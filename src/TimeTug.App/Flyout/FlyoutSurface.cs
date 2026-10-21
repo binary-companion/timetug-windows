@@ -13,6 +13,7 @@ internal sealed class FlyoutSurface : IFlyoutSurface
         window.EscapeRequested += () => EscapePressed?.Invoke();
         window.WindowClosed += () => Closed?.Invoke();
         window.ContentRebuilt += () => ContentChanged?.Invoke();
+        window.SettingsPressed += () => SettingsRequested?.Invoke();
     }
 
     public FlyoutWindow Window { get; }
@@ -24,6 +25,8 @@ internal sealed class FlyoutSurface : IFlyoutSurface
     public event Action? Closed;
 
     public event Action? ContentChanged;
+
+    public event Action? SettingsRequested;
 
     public SizeInDips MeasureContent() => Window.MeasureContent();
 

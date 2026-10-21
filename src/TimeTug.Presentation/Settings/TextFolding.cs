@@ -3,7 +3,7 @@ using System.Text;
 
 namespace TimeTug.Presentation.Settings;
 
-/// <summary>Case- and diacritic-insensitive text, the way the Mac folds text for settings search and for sorting calendar titles.</summary>
+/// <summary>Case- and diacritic-insensitive text, the way the Mac folds text for settings search and for sorting calendar titles (a typographic apostrophe also folds to the plain one).</summary>
 public static class TextFolding
 {
     /// <summary>"Café" and "CAFE" fold to the same text. Letters keep their order and nothing else changes.</summary>
@@ -20,7 +20,8 @@ public static class TextFolding
             }
         }
 
-        return builder.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
+        // A typographic apostrophe in a label ("today’s") must be found by the plain one a keyboard types.
+        return builder.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant().Replace('\u2019', '\'');
     }
 
     /// <summary>Folded titles in the order a person counts: "Team 2" before "Team 10". Equal folded titles fall back to an ordinal comparison, so the order is total.</summary>

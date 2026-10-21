@@ -82,6 +82,9 @@ internal sealed partial class FlyoutWindow : Window
     /// <summary>The window closed, whoever closed it.</summary>
     public event Action? WindowClosed;
 
+    /// <summary>The gear in the header was pressed.</summary>
+    public event Action? SettingsPressed;
+
     /// <summary>True once the open animation was started (never when Windows has animations off).</summary>
     public bool Animated { get; private set; }
 
@@ -310,6 +313,8 @@ internal sealed partial class FlyoutWindow : Window
     public bool EmptyStateShown => EmptyPanel.Visibility == Visibility.Visible;
 
     public bool NoMoreShown => NoMorePanel.Visibility == Visibility.Visible;
+
+    private void OnSettingsClick(object sender, RoutedEventArgs e) => SettingsPressed?.Invoke();
 
     private void OnJoin(string eventId) => _ = JoinAsync(eventId);
 

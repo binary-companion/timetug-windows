@@ -61,7 +61,9 @@ internal static class TrayScenario
         Check(model.Current.Tooltip == "Design review in 2 hr 30 min", "tooltip: " + model.Current.Tooltip);
         model.PrimaryClick();
         Check(host.Welcomes == 1 && host.FlyoutToggles == 1, "a left click with accounts toggles the flyout and does not open the welcome window");
-        Check(model.Current.Rows.Single(r => r.Command == TrayCommand.Settings) is { IsEnabled: false }, "Settings is a disabled placeholder");
+        Check(model.Current.Rows.Single(r => r.Command == TrayCommand.Settings) is { IsEnabled: true }, "Settings is enabled");
+        model.InvokeAsync(TrayCommand.Settings).AsTask().GetAwaiter().GetResult();
+        Check(host.SettingsOpens == 1, "choosing Settings asks the host to open the Settings window once");
 
         // ---- the engine says a takeover is near; the clock moves on ---------------------------------------------------------
         var meeting = new EventSummary("evt-1", "Design review", Noon.AddMinutes(150), Noon.AddMinutes(180), false, true);
@@ -223,7 +225,11 @@ internal static class TrayScenario
 
         public int Quits { get; private set; }
 
+        public int SettingsOpens { get; private set; }
+
         public void ShowWelcome() => Welcomes++;
+
+        public void ShowSettings() => SettingsOpens++;
 
         public void ToggleFlyout() => FlyoutToggles++;
 

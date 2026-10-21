@@ -78,6 +78,7 @@ internal static class SelfTestRunner
         [SecondLaunchScenario.Name] = SecondLaunchScenario.RunAsync,
         [HotkeyScenario.Name] = HotkeyScenario.RunAsync,
         [ComposeScenario.Name] = ComposeScenario.RunAsync,
+        [SettingsShellScenario.Name] = SettingsShellScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
     };
 

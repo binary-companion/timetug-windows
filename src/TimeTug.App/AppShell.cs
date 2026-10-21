@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using TimeTug.App.Composition;
+using TimeTug.App.Settings;
 using TimeTug.App.Tray;
 using TimeTug.App.Tug;
 using TimeTug.App.Views;
@@ -12,6 +13,7 @@ using TimeTug.Platform.Instance;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
+using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tray;
 using TimeTug.Presentation.Tug;
@@ -46,6 +48,7 @@ internal sealed class AppShell
     private TrayViewModel? _trayModel;
     private TrayIconService? _tray;
     private FlyoutHost? _flyoutHost;
+    private SettingsHost? _settingsHost;
     private FlyoutComposition? _flyout;
     private AppRuntime? _runtime;
     private int _quitting;
@@ -80,6 +83,9 @@ internal sealed class AppShell
     /// <summary>Opens, closes and places the flyout (null before the services are built).</summary>
     internal FlyoutHost? Flyout => _flyoutHost;
 
+    /// <summary>Opens the Settings window, once (null before the services are built).</summary>
+    internal SettingsHost? Settings => _settingsHost;
+
     /// <summary>True when startup failed and the failure window is showing.</summary>
     public bool Failed => _failure is not null;
 
@@ -97,6 +103,9 @@ internal sealed class AppShell
             _anchor = new Window { Title = "TimeTug" };
             _host = AppComposition.CreateHost(_queue, _diagnostics, _replace);
             _flyoutHost = Services.GetRequiredService<FlyoutHost>();
+            _settingsHost = Services.GetRequiredService<SettingsHost>();
+            // The gear in the flyout's header: the flyout has closed itself, and the Settings window comes forward.
+            _flyoutHost.SettingsRequested += OpenSettings;
             _flyout = new FlyoutComposition(
                 _instance, Services.GetRequiredService<HotkeyService>(), _flyoutHost, Services.GetRequiredService<ITugPresence>(),
                 Services.GetRequiredService<IUiDispatcher>(), _diagnostics);
@@ -131,7 +140,7 @@ internal sealed class AppShell
     private void StartTray()
     {
         var runtime = Services.GetRequiredService<AppRuntime>();
-        var host = new DelegateTrayHost(ShowWelcome, () => _flyoutHost?.Toggle(), () => runtime.TestTugAsync(), () => new ValueTask(QuitAsync()));
+        var host = new DelegateTrayHost(ShowWelcome, OpenSettings, () => _flyoutHost?.Toggle(), () => runtime.TestTugAsync(), () => new ValueTask(QuitAsync()));
         _trayModel = new TrayViewModel(
             Services.GetRequiredService<IEngineClient>(),
             Services.GetRequiredService<TugController>(),
@@ -145,6 +154,11 @@ internal sealed class AppShell
         Services.GetRequiredService<TrayIconIdSource>().Provider = () => tray.IconId;
         _tray.Start();
     }
+
+    /// <summary>Opens the Settings window, or brings the open one forward. Optionally on a pane and with a control highlighted.</summary>
+    public void ShowSettings(SettingsPane? pane = null, string? highlightId = null) => _settingsHost?.Show(pane, highlightId);
+
+    private void OpenSettings() => ShowSettings();
 
     public void ShowWelcome()
     {
@@ -180,11 +194,17 @@ internal sealed class AppShell
         }
     }
 
-    /// <summary>The flyout closes and stays closed: no click, second launch or shortcut opens it again.</summary>
+    /// <summary>The flyout closes and stays closed (no click, second launch or shortcut opens it again), and the Settings window closes with it.</summary>
     private void CloseFlyout()
     {
         _flyout?.Retire();
         _flyoutHost?.Dispose();
+        if (_flyoutHost is { } flyout)
+        {
+            flyout.SettingsRequested -= OpenSettings;
+        }
+
+        _settingsHost?.Dispose();
     }
 
     /// <summary>The runtime stops listening, applies what was queued and tells the engine an outstanding takeover is closed (nothing to do when startup did not finish).</summary>

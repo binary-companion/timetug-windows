@@ -18,7 +18,11 @@ internal sealed class FakeTrayHost : ITrayHost
 
     public int Quits { get; private set; }
 
+    public int SettingsOpens { get; private set; }
+
     public void ShowWelcome() => Welcomes++;
+
+    public void ShowSettings() => SettingsOpens++;
 
     public void ToggleFlyout() => FlyoutToggles++;
 
@@ -150,11 +154,11 @@ public sealed class TrayViewModelTests : IDisposable
     }
 
     [Fact]
-    public void Settings_is_a_disabled_placeholder_until_slice_three()
+    public void Settings_is_available_as_soon_as_the_menu_exists()
     {
+        Row(TrayCommand.Settings).IsEnabled.Should().BeTrue("the Settings window does not need the engine's first state");
         _engine.Push(State());
-
-        Row(TrayCommand.Settings).IsEnabled.Should().BeFalse();
+        Row(TrayCommand.Settings).IsEnabled.Should().BeTrue();
     }
 
     [Fact]
@@ -326,15 +330,28 @@ public sealed class TrayViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task Settings_and_Next_do_nothing_when_invoked()
+    public async Task Settings_opens_the_settings_window_once_per_choice()
     {
-        _engine.Push(State(next: Meeting(8, link: true)));
+        _engine.Push(State());
 
         await _model.InvokeAsync(TrayCommand.Settings);
-        await _model.InvokeAsync(TrayCommand.Next);
+        _host.SettingsOpens.Should().Be(1);
+        await _model.InvokeAsync(TrayCommand.Settings);
+        _host.SettingsOpens.Should().Be(2);
 
         _engine.Sent.Should().BeEmpty();
         (_host.Quits + _host.TestTugs + _host.Welcomes + _host.FlyoutToggles).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_information_row_does_nothing_when_invoked()
+    {
+        _engine.Push(State(next: Meeting(8, link: true)));
+
+        await _model.InvokeAsync(TrayCommand.Next);
+
+        _engine.Sent.Should().BeEmpty();
+        (_host.Quits + _host.TestTugs + _host.Welcomes + _host.FlyoutToggles + _host.SettingsOpens).Should().Be(0);
     }
 
     [Fact]

@@ -33,6 +33,9 @@ public interface IFlyoutSurface
     /// <summary>What is shown changed, so the wanted height may be different.</summary>
     event Action? ContentChanged;
 
+    /// <summary>The person pressed the gear in the header.</summary>
+    event Action? SettingsRequested;
+
     /// <summary>The size the content wants at 360 DIP wide (its height is capped by the placement).</summary>
     SizeInDips MeasureContent();
 
@@ -127,6 +130,9 @@ public sealed class FlyoutHost : IDisposable
 
     /// <summary>Raised on the UI thread after the flyout opened or closed.</summary>
     public event Action? OpenChanged;
+
+    /// <summary>Raised on the UI thread after the gear was pressed and the flyout closed: the person wants the Settings window.</summary>
+    public event Action? SettingsRequested;
 
     /// <summary>Opens the flyout, or closes it when it is open. Returns true when it is open afterwards.</summary>
     public bool Toggle()
@@ -223,6 +229,7 @@ public sealed class FlyoutHost : IDisposable
         surface.EscapePressed += OnEscape;
         surface.Closed += OnClosed;
         surface.ContentChanged += OnContentChanged;
+        surface.SettingsRequested += OnSettingsRequested;
         // Never wait for Explorer here: use what is known now and let a background look move the window if it finds a better place.
         _anchorRect = _anchor.Peek()?.Rect;
         try
@@ -286,6 +293,13 @@ public sealed class FlyoutHost : IDisposable
         }
     }
 
+    /// <summary>The gear: the flyout gets out of the way (the Settings window takes the front) and the host's owner opens the window.</summary>
+    private void OnSettingsRequested()
+    {
+        Close(byDeactivation: false);
+        SettingsRequested?.Invoke();
+    }
+
     private void OnContentChanged()
     {
         if (_surface is { } surface)
@@ -330,6 +344,7 @@ public sealed class FlyoutHost : IDisposable
         surface.EscapePressed -= OnEscape;
         surface.Closed -= OnClosed;
         surface.ContentChanged -= OnContentChanged;
+        surface.SettingsRequested -= OnSettingsRequested;
     }
 
     private void TryClose(IFlyoutSurface surface)

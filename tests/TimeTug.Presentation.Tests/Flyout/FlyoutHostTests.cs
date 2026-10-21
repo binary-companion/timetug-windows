@@ -30,6 +30,8 @@ internal sealed class FakeSurface : IFlyoutSurface
 
     public event Action? ContentChanged;
 
+    public event Action? SettingsRequested;
+
     public SizeInDips MeasureContent() => Content;
 
     public void Show(PixelRect bounds, FlyoutLook look)
@@ -64,6 +66,8 @@ internal sealed class FakeSurface : IFlyoutSurface
     public void RaiseClosed() => Closed?.Invoke();
 
     public void RaiseContentChanged() => ContentChanged?.Invoke();
+
+    public void RaiseSettingsRequested() => SettingsRequested?.Invoke();
 }
 
 internal sealed class FakeSurfaceFactory : IFlyoutSurfaceFactory
@@ -201,6 +205,34 @@ public sealed class FlyoutHostTests : IDisposable
 
         _host.IsOpen.Should().BeFalse();
         _factory.Last.Closes.Should().Be(1);
+    }
+
+    [Fact]
+    public void The_gear_closes_the_flyout_and_asks_for_the_settings_window_once()
+    {
+        _host.Toggle();
+        var asked = new List<bool>();
+        _host.SettingsRequested += () => asked.Add(_host.IsOpen);
+
+        _factory.Last!.RaiseSettingsRequested();
+
+        asked.Should().Equal(false);
+        _host.IsOpen.Should().BeFalse("the flyout has gone by the time the Settings window opens");
+        _factory.Last.Closes.Should().Be(1);
+    }
+
+    [Fact]
+    public void A_gear_press_after_the_flyout_closed_asks_for_nothing()
+    {
+        _host.Toggle();
+        var surface = _factory.Last!;
+        _host.Toggle();
+        var asked = 0;
+        _host.SettingsRequested += () => asked++;
+
+        surface.RaiseSettingsRequested();
+
+        asked.Should().Be(0);
     }
 
     [Fact]

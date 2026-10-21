@@ -17,8 +17,7 @@
           <TextBlock x:Name="WeekdayText" FontSize="15" FontWeight="Medium" AutomationProperties.HeadingLevel="Level1" />
           <TextBlock x:Name="SummaryText" FontSize="12" />
         </StackPanel>
-        <!-- Present but disabled until the settings window exists (slice 3); no explanatory text. -->
-        <Button x:Name="SettingsButton" Grid.Column="2" Width="28" Height="28" Padding="0" CornerRadius="14" IsEnabled="False" VerticalAlignment="Center">
+        <Button x:Name="SettingsButton" Grid.Column="2" Width="28" Height="28" Padding="0" CornerRadius="14" VerticalAlignment="Center" Click="OnSettingsClick">
           <FontIcon Glyph="&#xE713;" FontSize="13" AutomationProperties.AccessibilityView="Raw" />
         </Button>
       </Grid>
