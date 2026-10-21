@@ -1,3 +1,4 @@
+using TimeTug.Presentation.Settings;
 using Pkg = global::TimeTug.Engine;
 
 namespace TimeTug.Presentation.Engine;
@@ -20,7 +21,11 @@ public sealed record NextMeetingInfo(string Title, DateTimeOffset Start, bool Ha
 /// <summary>The engine's own answer to "when is the next takeover"; never computed in C#.</summary>
 public sealed record NextTakeoverInfo(string EventId, DateTimeOffset FireAt);
 
-public sealed record EngineDiagnosticInfo(string Level, string Category, string Message);
+/// <summary>An engine diagnostic. <see cref="CommandId"/> is the id of the command it answers (a refusal of a patch the app sent), or null.</summary>
+public sealed record EngineDiagnosticInfo(string Level, string Category, string Message)
+{
+    public string? CommandId { get; init; }
+}
 
 /// <summary>Where an agenda item stands today. It is the engine's own answer (<c>agenda.items[].state</c>), never recomputed from the clock.</summary>
 public enum AgendaPhase
@@ -99,6 +104,34 @@ public sealed record AppState(
 
     /// <summary>How long before a meeting the Tug fires (the engine's setting).</summary>
     public TimeSpan LeadTime { get; init; }
+
+    /// <summary>The engine's state revision; it rises with every state the engine publishes.</summary>
+    public ulong Revision { get; init; }
+
+    /// <summary>
+    /// The engine's settings. Before the engine has published a state they are its defaults, and <see cref="Enabled"/> and
+    /// <see cref="LeadTime"/> stay the single source for those two fields so a state built without settings agrees with itself.
+    /// </summary>
+    public EngineSettingsView Settings
+    {
+        get => field ?? EngineSettingsView.Defaults with { Enabled = Enabled, LeadTime = LeadTime };
+        init;
+    }
+
+    /// <summary>The calendars the pane lists, in sections (the Mac's order: system source, accounts in connection order, then sources no longer connected).</summary>
+    public IReadOnlyList<CalendarGroup> CalendarGroups { get; init; } = [];
+
+    /// <summary>The subscribed and system-style calendars the pane sets apart in a disclosure (not tugging, not standard).</summary>
+    public IReadOnlyList<CalendarEntry> SystemCalendars { get; init; } = [];
+
+    /// <summary>Whether on-device duplicate finding can run, from the engine's status.</summary>
+    public InferenceAvailability Inference { get; init; } = InferenceAvailability.Disabled;
+
+    /// <summary>The engine's reason when <see cref="Inference"/> is <see cref="InferenceAvailability.Unavailable"/>; null otherwise.</summary>
+    public string? InferenceReason { get; init; }
+
+    /// <summary>The name of the engine that runs the inference when <see cref="Inference"/> is <see cref="InferenceAvailability.Active"/>.</summary>
+    public string? InferenceEngineName { get; init; }
 }
 
 /// <summary>A takeover the engine says is due.</summary>
@@ -117,13 +150,18 @@ public sealed record TakeoverRequest(
 /// <summary>Maps the engine package's records to the Presentation types. Pure: no rules, no clock.</summary>
 public static class EngineMapping
 {
-    public static AppState ToAppState(Pkg.EngineState state)
+    /// <param name="state">The engine's state.</param>
+    /// <param name="text">The app's strings, for the calendar section titles; English when null.</param>
+    public static AppState ToAppState(Pkg.EngineState state, Abstractions.ILocalizer? text = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         var events = state.Events.Select(ToSummary).ToList();
         var next = state.Agenda.NextEventID is { } id ? events.FirstOrDefault(e => e.Id == id) : null;
+        var accounts = state.Accounts.Select(account => ToAccount(account, state)).ToList();
+        var settings = EngineSettingsMapping.ToView(state.Settings);
+        var layout = CalendarSections.Make(state.Calendars, accounts, settings, text);
         return new AppState(
-            state.Accounts.Select(account => ToAccount(account, state)).ToList(),
+            accounts,
             state.AvailableAccountKinds.Select(k => new AccountKindInfo(k.Id, k.DisplayName, k.IsConfigured, k.Authorization ?? "")).ToList(),
             events,
             next is null ? null : new NextMeetingInfo(next.Title, next.Start, next.HasJoinLink),
@@ -137,7 +175,14 @@ public static class EngineMapping
         {
             Agenda = ToAgenda(state),
             Problems = ToProblems(state),
-            LeadTime = ToLeadTime(state.Settings.Takeover.LeadTime),
+            LeadTime = settings.LeadTime,
+            Revision = state.Revision,
+            Settings = settings,
+            CalendarGroups = layout.Groups,
+            SystemCalendars = layout.System,
+            Inference = EngineSettingsMapping.ToAvailability(state.InferenceStatus),
+            InferenceReason = NullIfBlank(state.InferenceStatus?.Reason),
+            InferenceEngineName = NullIfBlank(state.InferenceStatus?.EngineName),
         };
     }
 
@@ -300,8 +345,7 @@ public static class EngineMapping
         return problems;
     }
 
-    private static TimeSpan ToLeadTime(double seconds) =>
-        double.IsFinite(seconds) && seconds >= 0 && seconds <= TimeSpan.MaxValue.TotalSeconds ? TimeSpan.FromSeconds(seconds) : TimeSpan.Zero;
+    private static string? NullIfBlank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text;
 
     private static AccountInfo ToAccount(Pkg.Account account, Pkg.EngineState state)
     {

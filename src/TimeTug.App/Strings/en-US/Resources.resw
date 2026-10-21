@@ -204,4 +204,15 @@
   <data name="Flyout_Settings" xml:space="preserve"><value>Settings</value><comment>The gear button in the flyout header.</comment></data>
   <data name="Flyout_AgendaList" xml:space="preserve"><value>Today’s meetings</value></data>
   <data name="Flyout_ProblemsList" xml:space="preserve"><value>Calendar problems</value></data>
+  <data name="Calendars_SubtitleDirect" xml:space="preserve"><value>{0} · connected directly</value><comment>{0} is the account name.</comment></data>
+  <data name="Calendars_TitleOther" xml:space="preserve"><value>Other</value></data>
+  <data name="Calendars_SubtitleOther" xml:space="preserve"><value>Sources that are no longer connected</value></data>
+  <data name="Calendars_TitleSystem" xml:space="preserve"><value>This PC</value></data>
+  <data name="Calendars_SubtitleSystem" xml:space="preserve"><value>Calendars on this PC</value></data>
+  <data name="Calendars_AccountFallback" xml:space="preserve"><value>Other</value><comment>The group name for calendars whose source gives no account name.</comment></data>
+  <data name="CalendarProvider_google" xml:space="preserve"><value>Google</value></data>
+  <data name="CalendarProvider_microsoft" xml:space="preserve"><value>Microsoft</value></data>
+  <data name="CalendarProvider_icloud" xml:space="preserve"><value>iCloud</value></data>
+  <data name="CalendarProvider_caldav" xml:space="preserve"><value>CalDAV</value></data>
+  <data name="CalendarProvider_icalsub" xml:space="preserve"><value>iCal link</value></data>
 </root>

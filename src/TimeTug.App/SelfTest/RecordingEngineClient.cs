@@ -67,6 +67,10 @@ internal sealed class RecordingEngineClient(IEngineClient inner) : IEngineClient
 
     public ValueTask SetEnabledAsync(bool enabled) => inner.SetEnabledAsync(enabled);
 
+    public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null) => inner.ApplySettingsAsync(patch, commandId);
+
+    public ValueTask ForgetCorrectionsAsync() => inner.ForgetCorrectionsAsync();
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => inner.SystemEventAsync(kind, timeZone);
 }
 #endif

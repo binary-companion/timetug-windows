@@ -120,6 +120,45 @@ public class EngineClientTests
     }
 
     [Fact]
+    public async Task A_settings_patch_goes_out_as_one_settings_apply_with_its_command_id()
+    {
+        var (engine, client) = await StartedAsync();
+        await using (client)
+        {
+            await client.ApplySettingsAsync(new TimeTug.Presentation.Settings.EngineSettingsPatch { LeadTime = TimeSpan.FromMinutes(2), SkipAllDayEvents = false }, "settings-7");
+
+            engine.Commands.OfType<Pkg.EngineCommand.ApplySettings>().Should().ContainSingle()
+                .Which.Should().Be(new Pkg.EngineCommand.ApplySettings { LeadTime = 120, SkipAllDayEvents = false });
+            engine.Ids[^1].Should().Be("settings-7");
+        }
+    }
+
+    [Fact]
+    public async Task Forgetting_corrections_sends_dedup_forget()
+    {
+        var (engine, client) = await StartedAsync();
+        await using (client)
+        {
+            await client.ForgetCorrectionsAsync();
+
+            engine.Commands[^1].Should().Be(new Pkg.EngineCommand.ForgetCorrections());
+        }
+    }
+
+    [Fact]
+    public async Task A_diagnostic_carries_the_id_of_the_command_it_answers()
+    {
+        var (engine, client) = await StartedAsync();
+        await using (client)
+        {
+            using var diagnostics = new Collector<EngineDiagnosticInfo>(client.Diagnostics);
+            engine.Push(new Pkg.EngineEvent.Diagnostic(new Pkg.EngineDiagnostic { Level = "warning", Category = "command", Message = "no", CommandId = "settings-7" }));
+
+            (await diagnostics.WaitForAsync(1))[0].CommandId.Should().Be("settings-7");
+        }
+    }
+
+    [Fact]
     public async Task Snooze_sends_the_duration_in_seconds()
     {
         var (engine, client) = await StartedAsync();

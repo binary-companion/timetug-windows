@@ -9,6 +9,7 @@ using TimeTug.Platform;
 using TimeTug.Platform.Auth;
 using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.OsState;
+using TimeTug.Platform.Settings;
 using TimeTug.Platform.Tray;
 using TimeTug.Platform.Tug;
 using TimeTug.Presentation.Abstractions;
@@ -68,8 +69,12 @@ internal static class AppComposition
                 Host = sp.GetRequiredService<IEngineHost>(),
             });
         });
-        services.AddSingleton(sp => new EngineClient(sp.GetRequiredService<Pkg.IEngine>(), sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton(sp => new EngineClient(sp.GetRequiredService<Pkg.IEngine>(), sp.GetRequiredService<IDiagnostics>(), sp.GetRequiredService<ILocalizer>()));
         services.AddSingleton<IEngineClient>(sp => sp.GetRequiredService<EngineClient>());
+
+        // ---- settings: the engine's (patches the engine persists) and the app's own presentation preferences -----------------
+        services.AddSingleton<ISettingsClient>(sp => new SettingsClient(sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<IPresentationSettingsStore>(sp => LocalSettingsPresentationStore.ForCurrentPackage(sp.GetRequiredService<IDiagnostics>()));
 
         // ---- OS state -------------------------------------------------------------------------------------------
         services.AddSingleton<MessageWindow>();

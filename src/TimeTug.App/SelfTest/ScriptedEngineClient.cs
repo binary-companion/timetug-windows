@@ -79,6 +79,10 @@ internal sealed class ScriptedEngineClient(AccountFormService forms) : IEngineCl
 
     public ValueTask SetEnabledAsync(bool enabled) => Record("enabled:" + enabled);
 
+    public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null) => Record("settings");
+
+    public ValueTask ForgetCorrectionsAsync() => Record("forget");
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => Record("system:" + kind);
 
     public void Dispose() => _form?.Dispose();

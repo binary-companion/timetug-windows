@@ -21,6 +21,18 @@ internal sealed class FakeEngine : IEngine
         }
     }
 
+    /// <summary>The command ids that were passed with the commands (null where none was).</summary>
+    public IReadOnlyList<string?> Ids
+    {
+        get
+        {
+            lock (_sent)
+            {
+                return _sent.Select(s => s.Id).ToList();
+            }
+        }
+    }
+
     public bool Disposed { get; private set; }
 
     public IAsyncEnumerable<EngineState> State => _states.Reader.ReadAllAsync();

@@ -58,6 +58,10 @@ internal sealed class TugEngineClient : IEngineClient
 
     public ValueTask SetEnabledAsync(bool enabled) => throw new NotSupportedException();
 
+    public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null) => throw new NotSupportedException();
+
+    public ValueTask ForgetCorrectionsAsync() => throw new NotSupportedException();
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => throw new NotSupportedException();
 
     private ValueTask Record(string command)

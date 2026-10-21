@@ -39,6 +39,15 @@ public interface IEngineClient
     /// <summary>The Enable Tug switch: a <c>settings.apply</c> patch carrying only <c>takeover.enabled</c>.</summary>
     ValueTask SetEnabledAsync(bool enabled);
 
+    /// <summary>
+    /// Sends one <c>settings.apply</c> patch carrying only the fields that are set. <paramref name="commandId"/> is echoed by the engine's
+    /// diagnostic if it refuses the patch, which is how a rejection is told from an acceptance.
+    /// </summary>
+    ValueTask ApplySettingsAsync(Settings.EngineSettingsPatch patch, string? commandId = null);
+
+    /// <summary>Asks the engine to forget learned duplicate corrections (<c>dedup.forget</c>).</summary>
+    ValueTask ForgetCorrectionsAsync();
+
     /// <summary><paramref name="kind"/> is one of the <c>TimeTug.Engine.SystemEventKind</c> constants.</summary>
     ValueTask SystemEventAsync(string kind, string? timeZone = null);
 }
