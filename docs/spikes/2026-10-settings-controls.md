@@ -2,14 +2,14 @@
 
 Question (flagged untested in slice 1): do `SettingsCard` and `SettingsExpander` from `CommunityToolkit.WinUI.Controls.SettingsControls` 8.2.251219 work in this app, which pins Microsoft.WindowsAppSDK 2.5.1 (WinUI 2.3.9) on .NET 10, in a Mica window with a `NavigationView`?
 
-Answer: yes. They restore, compile (XAML and code), render and lay out on Windows 11 ARM64 (the VM) and on both CI architectures, with no extra resource dictionary to merge. The first real use is General's hub (two click-enabled cards); `settings-shell` also builds a card with a switch and an expander with an item in code, checks sizes and the collapse and expand, and keeps a screenshot (`docs/screenshots/settings-controls-probe.png`).
+Answer: yes. They restore, compile (XAML and code), render and lay out on Windows 11 ARM64 (the VM) and in the x64 and ARM64 CI jobs (all 68 checks of `settings-shell` pass on both), with no extra resource dictionary to merge. The first real use is General's hub (two click-enabled cards); `settings-shell` also builds a card with a switch and an expander with an item in code, checks sizes and the collapse and expand, and keeps a screenshot (`docs/screenshots/settings-controls-probe.png`).
 
 ## What was checked
 
 | Check | Result |
 | --- | --- |
 | Package restore with the pinned version, referenced by `TimeTug.App` only | works; nothing else to pin |
-| `<toolkit:SettingsCard IsClickEnabled Click=...>` with `HeaderIcon` in XAML (hub rows) | renders as the Windows 11 settings row, with the chevron; clicking it (a real mouse click in the self-test) raises `Click` |
+| `<toolkit:SettingsCard IsClickEnabled Click=...>` with `HeaderIcon` in XAML (hub rows) | renders as the Windows 11 settings row, with the chevron; clicking it (a real mouse click in the self-test) raises `Click`; on the hosted ARM64 runner no window is ever in front and the click does not arrive, so the scenario opens the row through the shell there and says so in `result.json` |
 | `SettingsCard` with a `ToggleSwitch` as content | renders, 71 DIP high at the default settings |
 | `SettingsExpander` with `Items` holding a `SettingsCard` and a `ComboBox` | renders expanded; `IsExpanded` false and true change its height (71 and 122 pixels in the probe) |
 | Fonts, theme and backdrop | follow the app theme; the card fill is drawn over Mica as in the Settings app |
