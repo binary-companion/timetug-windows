@@ -328,4 +328,11 @@
   <data name="Accounts_UnavailableNotice" xml:space="preserve"><value>This build is missing configuration for some account types, so they can’t be added right now.</value></data>
   <data name="Accounts_NoticeOne" xml:space="preserve"><value>Some repeating events from this link use a rule TimeTug can’t read, so they may not appear.</value></data>
   <data name="Accounts_NoticeMany" xml:space="preserve"><value>{0} repeating events from this link use a rule TimeTug can’t read, so they may not appear.</value></data>
+  <data name="Diagnostics_Copy" xml:space="preserve"><value>Copy Diagnostics</value></data>
+  <data name="Diagnostics_Clear" xml:space="preserve"><value>Clear</value></data>
+  <data name="Diagnostics_Explanation" xml:space="preserve"><value>A short log of recent calendar activity to share when reporting a problem. It contains no feed links or event titles.</value></data>
+  <data name="Diagnostics_Copied" xml:space="preserve"><value>Copied to the clipboard.</value></data>
+  <data name="Diagnostics_CopyFailed" xml:space="preserve"><value>Couldn’t copy to the clipboard.</value></data>
+  <data name="Diagnostics_Cleared" xml:space="preserve"><value>The log was cleared.</value></data>
+  <data name="Diagnostics_ClearFailed" xml:space="preserve"><value>Couldn’t clear the log.</value></data>
 </root>
