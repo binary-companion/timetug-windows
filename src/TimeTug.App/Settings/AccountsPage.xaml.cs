@@ -275,20 +275,10 @@ public sealed partial class AccountsPage : UserControl
         {
             Account = account;
             var description = new StackPanel { Spacing = 2 };
-            var status = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-            if (account.NeedsAttention)
-            {
-                status.Children.Add(Warning());
-            }
-
-            status.Children.Add(new TextBlock { Text = account.StatusText, TextWrapping = TextWrapping.Wrap });
-            description.Children.Add(status);
+            description.Children.Add(IconLine(account.NeedsAttention ? Warning() : null, new TextBlock { Text = account.StatusText, TextWrapping = TextWrapping.Wrap }));
             if (account.NoticeText is { } notice)
             {
-                var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-                row.Children.Add(Warning());
-                row.Children.Add(new TextBlock { Text = notice, TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] });
-                description.Children.Add(row);
+                description.Children.Add(IconLine(Warning(), new TextBlock { Text = notice, TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] }));
             }
 
             Card = new SettingsCard
@@ -308,12 +298,12 @@ public sealed partial class AccountsPage : UserControl
                 actions.Children.Add(_signIn);
             }
 
-            _remove = new MenuFlyoutItem { Text = model.RemoveText, Icon = new FontIcon { Glyph = "" } };
+            _remove = new MenuFlyoutItem { Text = model.RemoveText, Icon = new FontIcon { Glyph = "\uE74D" } };
             AutomationProperties.SetName(_remove, account.RemoveAutomationName);
             _remove.Click += (_, _) => model.BeginRemove(account.ConnectionId);
             var menu = new Button
             {
-                Content = new FontIcon { Glyph = "", FontSize = 16 },
+                Content = new FontIcon { Glyph = "\uE712", FontSize = 16 },
                 Flyout = new MenuFlyout { Items = { _remove } },
                 Padding = new Thickness(8, 6, 8, 6),
             };
@@ -351,14 +341,39 @@ public sealed partial class AccountsPage : UserControl
             _remove.IsEnabled = !busy;
         }
 
-        private static FontIcon Warning() => new()
+        /// <summary>An optional icon before text that wraps (a horizontal stack would measure the text without a width limit and cut it off).</summary>
+        internal static Grid IconLine(FontIcon? icon, TextBlock text)
         {
-            Glyph = "",
-            FontSize = 14,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"],
-            VerticalAlignment = VerticalAlignment.Center,
-            AutomationProperties = { AccessibilityView = Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw },
-        };
+            var line = new Grid { ColumnSpacing = 6 };
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            line.ColumnDefinitions.Add(new ColumnDefinition());
+            if (icon is not null)
+            {
+                line.Children.Add(icon);
+            }
+            else
+            {
+                line.ColumnDefinitions[0].Width = new GridLength(0);
+                line.ColumnSpacing = 0;
+            }
+
+            Grid.SetColumn(text, 1);
+            line.Children.Add(text);
+            return line;
+        }
+
+        private static FontIcon Warning()
+        {
+            var icon = new FontIcon
+            {
+                Glyph = "\uE7BA",
+                FontSize = 14,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCautionBrush"],
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            AutomationProperties.SetAccessibilityView(icon, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+            return icon;
+        }
     }
 
     /// <summary>One place to add an account from: its icon, name, how it signs in (or why it cannot), the Add button and, after a failure, what went wrong.</summary>
@@ -379,18 +394,17 @@ public sealed partial class AccountsPage : UserControl
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"],
             };
-            AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
+            AutomationProperties.SetLiveSetting(_error, Microsoft.UI.Xaml.Automation.Peers.AutomationLiveSetting.Assertive);
             var icon = new FontIcon
             {
-                Glyph = "",
+                Glyph = "\uE783",
                 FontSize = 14,
                 Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"],
                 VerticalAlignment = VerticalAlignment.Center,
             };
             AutomationProperties.SetAccessibilityView(icon, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
-            _errorRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Visibility = Visibility.Collapsed };
-            _errorRow.Children.Add(icon);
-            _errorRow.Children.Add(_error);
+            _errorRow = new StackPanel { Visibility = Visibility.Collapsed };
+            _errorRow.Children.Add(AccountCard.IconLine(icon, _error));
             _detail = new TextBlock
             {
                 TextWrapping = TextWrapping.Wrap,

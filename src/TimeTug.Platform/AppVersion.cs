@@ -21,5 +21,5 @@ public static class AppVersion
     }
 
     /// <summary>"10.0.26100.0 (Arm64)".</summary>
-    public static string Windows() => $"{Environment.OSVersion.Version} ({RuntimeInformation.OSArchitecture})";
+    public static string WindowsVersion() => $"{Environment.OSVersion.Version} ({RuntimeInformation.OSArchitecture})";
 }

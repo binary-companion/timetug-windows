@@ -88,7 +88,7 @@ internal static class SettingsAccountsScenario
         // ---- Remove: the question, Cancel, then Remove ----------------------------------------------------------------------------------
         run.Check(await OpenRemoveQuestionAsync(window, tug, "family@example.com"), "Remove account asks first");
         run.Check(page.OpenDialog is { Title: "Remove family@example.com?" } d && d.Content is "Its calendars will no longer appear and their Tug and visibility choices are forgotten.", "naming the account and what is lost");
-        await tug.Settle();
+        await tug.Settle(2500);
         await run.ShotAsync(window, "accounts-remove");
         run.Check(await PressDialogAsync(window, tug, "CloseButton"), "Cancel closes the question");
         run.Check(await tug.WaitFor(() => page.OpenDialog is null), "the question is gone");
@@ -127,10 +127,13 @@ internal static class SettingsAccountsScenario
         run.Check(icloud.ErrorText == "Couldn’t connect to iCloud. Check your details and try again." && icloud.DetailText == "Sign-in failed: access denied.", "in words and with the engine's detail: " + icloud.ErrorText);
         run.Check(page.ProviderCardOf("google") is { ErrorText.Length: 0 }, "and not beside the others");
         run.Check(!page.ErrorNotice.IsOpen, "and not a second time at the top");
+        await tug.Settle();
+        await run.ShotAsync(window, "accounts-failure");
         tug.Engine.Push(SettingsRig.AccountsState(now));
         await tug.WaitFor(() => page.AccountCards.Count == 7);
 
         // ---- Diagnostics -------------------------------------------------------------------------------------------------------------------
+        await tug.Settle(800);
         page.ScrollArea.ChangeView(null, page.ScrollArea.ScrollableHeight, null, disableAnimation: true);
         run.Check(ScenarioUi.Invoke(window, "Copy Diagnostics"), "Copy Diagnostics is pressed");
         run.Check(await tug.WaitFor(() => settings.Clipboard.Texts.Count == 1), "the report is copied");
@@ -157,7 +160,7 @@ internal static class SettingsAccountsScenario
         run.Check(AutomationProperties.GetName(page.AccountCards[1].Card) == "Microsoft, work@example.com, Sign in again", "an account's card reads as provider, name and status");
 
         // ---- the real engine: Remove really removes the credentials ----------------------------------------------------------------
-        await RemoveWithTheRealEngineAsync(options, cancellation, run);
+        await RemoveWithTheRealEngineAsync(options, run, cancellation);
         return tug.Finish();
     }
 
@@ -165,7 +168,7 @@ internal static class SettingsAccountsScenario
     /// Starts the whole app over the real native engine (testing mode; one recorded Google account whose secrets are in the scripted credential
     /// store), removes the account through the Accounts pane and asserts the engine asked the host's credential store to remove them.
     /// </summary>
-    private static async Task<bool> RemoveWithTheRealEngineAsync(SelfTestOptions options, CancellationToken cancellation, ScenarioRun run)
+    private static async Task<bool> RemoveWithTheRealEngineAsync(SelfTestOptions options, ScenarioRun run, CancellationToken cancellation)
     {
         await using var rig = await EngineRig.StartAsync(options, cancellation);
         if (!rig.Ready)

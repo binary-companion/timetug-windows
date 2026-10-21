@@ -76,7 +76,7 @@ internal sealed class SettingsRig : IDisposable
         if (large)
         {
             var work = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
-            window.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(work.X + 20, work.Y + 20, Math.Min(1100, work.Width - 40), Math.Min(860, work.Height - 40)));
+            window.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(work.X + 20, work.Y + 20, Math.Min(1700, work.Width - 40), Math.Min(1500, work.Height - 40)));
         }
 
         await SelfTestRunner.WaitForFrameAsync(window, CancellationToken.None, 900).WaitAsync(TimeSpan.FromSeconds(10));

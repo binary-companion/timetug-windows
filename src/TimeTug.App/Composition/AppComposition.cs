@@ -154,7 +154,7 @@ internal static class AppComposition
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>()),
             diagnostics: () => new DiagnosticsViewModel(
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IDiagnosticsReader>(), sp.GetRequiredService<IClipboardService>(),
-                sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), AppVersion.Current(), AppVersion.Windows())));
+                sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), AppVersion.Current(), AppVersion.WindowsVersion())));
         services.AddSingleton<IClipboardService>(sp => new ClipboardService(sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<IDiagnosticsReader>(_ => new DiagnosticsReader(RollingFileLog.DefaultDirectory()));
         services.AddSingleton(sp => new SettingsWindowFactory(
