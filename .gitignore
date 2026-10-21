@@ -13,6 +13,7 @@ artifacts/
 local.settings.json
 # Developer-only OAuth client ids read from %LOCALAPPDATA%\TimeTug\ at run time (see docs/development.md); the name is ignored in case a copy lands in the tree.
 dev-oauth.json
+dev-hotkey.txt
 # Signing material is never committed or uploaded (the development MSIX uses a throwaway key that stays in the CI job).
 *.pfx
 *.p12
