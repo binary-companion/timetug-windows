@@ -20,7 +20,6 @@ public sealed class TrayViewModel : IDisposable
     public static readonly TimeSpan SoonWindow = TrayIconPlan.SoonWindow;
 
     private const int MaxMenuTitle = 60;
-    private const string Ellipsis = "…";
 
     private readonly IEngineClient _engine;
     private readonly ITugAttention _attention;
@@ -249,7 +248,7 @@ public sealed class TrayViewModel : IDisposable
         return local.ToString("t", _culture).Replace(' ', ' ').Replace(' ', ' ');
     }
 
-    private static string Shorten(string text, int max) => text.Length <= max ? text : text[..(max - 1)] + Ellipsis;
+    private static string Shorten(string text, int max) => TextCut.Shorten(text, max);
 
     private sealed class StateObserver(Action<AppState> onNext) : IObserver<AppState>
     {

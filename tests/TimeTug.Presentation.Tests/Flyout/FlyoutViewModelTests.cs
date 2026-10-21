@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.Extensions.Time.Testing;
 using TimeTug.Presentation.Engine;
+using Pkg = TimeTug.Engine;
 using TimeTug.Presentation.Flyout;
 using TimeTug.Presentation.Tests.Tray;
 using TimeTug.Presentation.Tests.Tug;
@@ -159,6 +160,67 @@ public sealed class FlyoutViewModelTests : IDisposable
         row.MetaText.Should().Be("30 min · done");
         row.IsPast.Should().BeTrue();
         row.BadgeText.Should().BeNull();
+    }
+
+    // ---- the phase is the engine's word (found with a real run: two events showed "0 min · done", one of them in progress) -----
+
+    /// <summary>
+    /// What the engine sends for an agenda: events and the agenda's own phase words (<c>past</c>, <c>current</c>, <c>upcoming</c>), mapped by
+    /// the real mapping. A zero-length event is one whose end equals its start: the engine sends that for a feed whose DTEND is not after
+    /// its DTSTART (the real run's test calendar had two such events: its generator wrote DTEND before DTSTART).
+    /// </summary>
+    private static AppState FromEngine(params (string Id, string Title, DateTimeOffset Start, DateTimeOffset End, string Phase)[] items) =>
+        EngineMapping.ToAppState(new Pkg.EngineState
+        {
+            Events = items.Select(i => new Pkg.CalendarEvent { Id = i.Id, Title = i.Title, Start = i.Start, End = i.End, CalendarKey = "ical-1/cal", TimeZone = "UTC" }).ToList(),
+            Agenda = new Pkg.Agenda { Items = items.Select(i => new Pkg.AgendaItem { EventID = i.Id, State = i.Phase }).ToList() },
+            Calendars = [new Pkg.CalendarInfo { Key = "ical-1/cal", SourceID = "ical-1", Title = "Fake Calendar" }],
+        });
+
+    [Fact]
+    public void An_event_the_engine_calls_current_is_shown_as_in_progress_with_its_end()
+    {
+        _engine.Push(FromEngine(("a", "In progress", Noon.AddMinutes(-5), Noon.AddMinutes(45), "current")));
+
+        var row = _model.Rows.Single();
+
+        row.Kind.Should().Be(FlyoutRowKind.Current);
+        row.MetaText.Should().Be("Ends 12:45 PM");
+        row.BadgeText.Should().Be("Now");
+        _model.Summary.Should().Be("Oct 16 · 1 meeting left");
+    }
+
+    [Fact]
+    public void A_zero_length_event_the_engine_calls_past_shows_zero_minutes_and_done_and_is_not_left()
+    {
+        _engine.Push(FromEngine(("a", "Zero length", Noon.AddMinutes(-5), Noon.AddMinutes(-5), "past")));
+
+        var row = _model.Rows.Single();
+
+        row.Kind.Should().Be(FlyoutRowKind.Past);
+        row.MetaText.Should().Be("0 min · done");
+        _model.NoMoreMeetings.Should().BeTrue();
+    }
+
+    [Fact]
+    public void The_flyout_follows_the_engines_phase_and_never_its_own_reading_of_the_clock()
+    {
+        // The clock says this event is in progress; the engine says it is past. The flyout shows what the engine says.
+        _engine.Push(FromEngine(("a", "Engine says past", Noon.AddMinutes(-5), Noon.AddMinutes(45), "past")));
+
+        _model.Rows.Single().Kind.Should().Be(FlyoutRowKind.Past);
+    }
+
+    [Fact]
+    public void A_zero_length_event_the_engine_calls_current_has_no_progress_and_no_failure()
+    {
+        _engine.Push(FromEngine(("a", "Zero length", Noon, Noon, "current")));
+
+        var row = _model.Rows.Single();
+
+        row.Kind.Should().Be(FlyoutRowKind.Current);
+        row.MetaText.Should().Be("Ends 12:00 PM");
+        row.Progress.Should().Be(0);
     }
 
     [Fact]

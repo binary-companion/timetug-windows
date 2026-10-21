@@ -110,11 +110,26 @@ internal sealed class FakeAnchor : ITrayAnchor
 
     public int Asked { get; private set; }
 
-    public AnchorRect? TryGetAnchor()
+    public int Refreshes { get; private set; }
+
+    public int Invalidations { get; private set; }
+
+    /// <summary>The blocking answer must never be asked for by the flyout (it runs on the UI thread).</summary>
+    public AnchorRect? TryGetAnchor() => throw new InvalidOperationException("the flyout asked for the blocking anchor on the UI thread");
+
+    public AnchorRect? Peek()
     {
         Asked++;
         return Anchor;
     }
+
+    public void Refresh() => Refreshes++;
+
+    public void Invalidate() => Invalidations++;
+
+    public void RaiseChanged() => Changed?.Invoke();
+
+    public event Action? Changed;
 }
 
 public sealed class FlyoutHostTests : IDisposable
@@ -210,6 +225,35 @@ public sealed class FlyoutHostTests : IDisposable
 
         _time.Advance(FlyoutHost.ClickGrace);
         _host.Toggle().Should().BeTrue("a click well after that opens it");
+    }
+
+    [Fact]
+    public void A_wall_clock_stepped_back_does_not_make_the_icon_and_the_hotkey_do_nothing()
+    {
+        var time = new SteppingTime(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero));
+        using var host = new FlyoutHost(_factory, _tug, _settings, _anchor, _monitors, new ImmediateDispatcher(), time, _diagnostics);
+        host.Toggle();
+        _factory.Last!.RaiseDeactivated();
+
+        // The clock is set back an hour; ten real seconds pass; the person clicks the icon (or presses the hotkey: both call Toggle).
+        time.StepWallClock(TimeSpan.FromHours(-1));
+        time.Advance(TimeSpan.FromSeconds(10));
+
+        host.Toggle().Should().BeTrue("ten seconds after the flyout closed this is a new click");
+    }
+
+    [Fact]
+    public void A_wall_clock_stepped_forward_does_not_turn_the_same_click_into_a_new_one()
+    {
+        var time = new SteppingTime(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero));
+        using var host = new FlyoutHost(_factory, _tug, _settings, _anchor, _monitors, new ImmediateDispatcher(), time, _diagnostics);
+        host.Toggle();
+        _factory.Last!.RaiseDeactivated();
+
+        time.StepWallClock(TimeSpan.FromHours(1));
+        time.Advance(TimeSpan.FromMilliseconds(80));
+
+        host.Toggle().Should().BeFalse("80 ms of real time have passed: it is the click that deactivated the flyout");
     }
 
     [Fact]
@@ -444,6 +488,50 @@ public sealed class FlyoutHostTests : IDisposable
         _factory.Last.Bounds!.Value.Height.Should().Be(520, "capped");
         _factory.Last.Bounds.Value.Bottom.Should().Be(1032 - 8, "still sitting on the taskbar");
         _anchor.Asked.Should().Be(asked, "the icon does not move while the flyout is open");
+    }
+
+    [Fact]
+    public void Opening_uses_the_answer_that_is_ready_and_starts_a_fresh_look_in_the_background()
+    {
+        _host.Toggle();
+
+        _factory.Last!.IsShown.Should().BeTrue();
+        _anchor.Refreshes.Should().Be(1);
+    }
+
+    [Fact]
+    public void A_fresh_look_that_finds_a_different_place_moves_the_open_flyout()
+    {
+        _host.Toggle();
+        var before = _factory.Last!.Bounds;
+
+        _anchor.Anchor = new AnchorRect(new PixelRect(1300, 1044, 24, 24), AnchorSource.OverflowButton);
+        _anchor.RaiseChanged();
+
+        _factory.Last.Bounds.Should().NotBe(before);
+        _factory.Last.Bounds!.Value.CenterX.Should().BeLessThan(before!.Value.CenterX, "the flyout now sits next to the new place");
+        _factory.Last.Updates.Should().Be(1);
+    }
+
+    [Fact]
+    public void A_fresh_look_that_ends_after_the_flyout_closed_does_nothing()
+    {
+        _host.Toggle();
+        _host.Close();
+        var surface = _factory.Last!;
+
+        _anchor.RaiseChanged();
+
+        surface.Updates.Should().Be(0);
+        _host.IsOpen.Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_change_of_taskbar_settings_makes_the_anchor_forget_its_last_answer()
+    {
+        _settings.Raise();
+
+        _anchor.Invalidations.Should().Be(1);
     }
 
     [Fact]

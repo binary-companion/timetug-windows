@@ -349,6 +349,22 @@ public sealed class FlyoutCompositionTests : IAsyncDisposable
     private sealed class NoAnchor : ITrayAnchor
     {
         public AnchorRect? TryGetAnchor() => null;
+
+        public AnchorRect? Peek() => null;
+
+        public void Refresh()
+        {
+        }
+
+        public void Invalidate()
+        {
+        }
+
+        public event Action? Changed
+        {
+            add { }
+            remove { }
+        }
     }
 
     private sealed class OneMonitor : IMonitorService

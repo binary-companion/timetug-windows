@@ -163,6 +163,22 @@ internal sealed class FixedAnchor(PixelRect rect) : ITrayAnchor
     public PixelRect Rect { get; } = rect;
 
     public AnchorRect? TryGetAnchor() => new(Rect, AnchorSource.Icon);
+
+    public AnchorRect? Peek() => TryGetAnchor();
+
+    public void Refresh()
+    {
+    }
+
+    public void Invalidate()
+    {
+    }
+
+    public event Action? Changed
+    {
+        add { }
+        remove { }
+    }
 }
 
 /// <summary>The real monitors, read once.</summary>

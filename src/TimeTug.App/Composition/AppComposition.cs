@@ -87,7 +87,16 @@ internal static class AppComposition
         services.AddSingleton<IUrlLauncher>(_ => new UrlLauncher());
 
         // ---- the popup shortcut (nothing starts it yet: the shell calls HotkeyService.StartAsync once the engine's first state is in) ----
-        services.AddSingleton<IHotkeyStore>(sp => LocalSettingsHotkeyStore.ForCurrentPackage(sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton<IHotkeyStore>(sp =>
+        {
+            IHotkeyStore store = LocalSettingsHotkeyStore.ForCurrentPackage(sp.GetRequiredService<IDiagnostics>());
+#if SELFTEST
+            // Development and CI builds only: dev-hotkey.txt stands in for the recorder that slice 3 adds.
+            store = new DevHotkeyStore(
+                store, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TimeTug", DevHotkeyStore.FileName), sp.GetRequiredService<TimeProvider>());
+#endif
+            return store;
+        });
         services.AddSingleton(sp => new HotkeyRegistrar(sp.GetRequiredService<MessageWindow>(), sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<IHotkeyRegistrar>(sp => sp.GetRequiredService<HotkeyRegistrar>());
         services.AddSingleton(sp => new HotkeyService(

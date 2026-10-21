@@ -214,6 +214,49 @@ public class AppInstanceServiceTests
     }
 
     [Fact]
+    public async Task A_wall_clock_stepped_back_does_not_swallow_later_launches()
+    {
+        var time = new SteppingTime(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero));
+        using var first = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log);
+        var (received, handler) = Collector();
+        first.Activated += handler;
+        first.MarkReady(_tug);
+        using (var one = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log))
+        {
+            await one.RedirectAsync(ActivationKind.Flyout);
+        }
+
+        // The machine's clock is set back an hour; ten real seconds pass; the person starts the app again.
+        time.StepWallClock(TimeSpan.FromHours(-1));
+        time.Advance(TimeSpan.FromSeconds(10));
+        using var two = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log);
+        await two.RedirectAsync(ActivationKind.Flyout);
+
+        received.Should().HaveCount(2, "the launch ten seconds later is a new activation whatever the wall clock says");
+    }
+
+    [Fact]
+    public async Task A_wall_clock_stepped_forward_does_not_split_a_burst()
+    {
+        var time = new SteppingTime(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero));
+        using var first = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log);
+        var (received, handler) = Collector();
+        first.Activated += handler;
+        first.MarkReady(_tug);
+        using (var one = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log))
+        {
+            await one.RedirectAsync(ActivationKind.Flyout);
+        }
+
+        time.StepWallClock(TimeSpan.FromHours(1));
+        time.Advance(TimeSpan.FromMilliseconds(100));
+        using var two = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log);
+        await two.RedirectAsync(ActivationKind.Flyout);
+
+        received.Should().HaveCount(1, "two launches 100 ms apart are one burst");
+    }
+
+    [Fact]
     public async Task A_handler_that_throws_does_not_break_later_activations()
     {
         using var first = Launch();

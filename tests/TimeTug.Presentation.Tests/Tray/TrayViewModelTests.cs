@@ -571,6 +571,105 @@ public sealed class TrayViewModelTests : IDisposable
         _model.Current.Tooltip.Should().EndWith(" in 4 min");
     }
 
+    // ---- shortening cuts on whole characters --------------------------------------------------------------------
+
+    private static bool HasLoneSurrogate(string text) => text.EnumerateRunes().Any(r => r == System.Text.Rune.ReplacementChar);
+
+    private static string[] Elements(string text)
+    {
+        var found = new List<string>();
+        var elements = System.Globalization.StringInfo.GetTextElementEnumerator(text);
+        while (elements.MoveNext())
+        {
+            found.Add((string)elements.Current);
+        }
+
+        return [.. found];
+    }
+
+    [Fact]
+    public void A_title_shortened_in_the_tooltip_never_ends_in_half_an_emoji()
+    {
+        _engine.Push(State(next: Meeting(4, title: string.Concat(Enumerable.Repeat("😀", 75)))));
+
+        var tooltip = _model.Current.Tooltip;
+
+        tooltip.Length.Should().BeLessThanOrEqualTo(127);
+        HasLoneSurrogate(tooltip).Should().BeFalse("the cut falls between characters, never inside an emoji");
+        tooltip.Should().EndWith("… in 4 min");
+    }
+
+    [Fact]
+    public void A_title_shortened_in_the_tooltip_keeps_a_letter_with_its_combining_mark()
+    {
+        _engine.Push(State(next: Meeting(4, title: string.Concat(Enumerable.Repeat("e\u0301", 100)))));
+
+        var tooltip = _model.Current.Tooltip;
+
+        tooltip.Length.Should().BeLessThanOrEqualTo(127);
+        tooltip.Should().EndWith("… in 4 min");
+        Elements(tooltip[..^" in 4 min".Length]).Should().OnlyContain(e => e == "e\u0301" || e == "…");
+    }
+
+    [Fact]
+    public void A_long_template_and_a_one_character_title_still_fit_the_limit()
+    {
+        var long_template = "{0} " + new string('t', 130) + " {1}";
+        using var model = new TrayViewModel(_engine, _attention, _ui, new OverrideText("Tray_Tooltip_InMinutes", long_template), _host, _time, _ticker, CultureInfo.GetCultureInfo("en-US"));
+        _engine.Push(State(next: Meeting(4, title: "x")));
+
+        var tooltip = model.Current.Tooltip;
+
+        tooltip.Length.Should().BeLessThanOrEqualTo(127);
+        HasLoneSurrogate(tooltip).Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_long_template_with_an_emoji_title_fits_without_splitting_it()
+    {
+        var long_template = "{0} " + string.Concat(Enumerable.Repeat("😀", 70)) + " {1}";
+        using var model = new TrayViewModel(_engine, _attention, _ui, new OverrideText("Tray_Tooltip_InMinutes", long_template), _host, _time, _ticker, CultureInfo.GetCultureInfo("en-US"));
+        _engine.Push(State(next: Meeting(4, title: "😀😀😀")));
+
+        var tooltip = model.Current.Tooltip;
+
+        tooltip.Length.Should().BeLessThanOrEqualTo(127);
+        HasLoneSurrogate(tooltip).Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_menu_title_shortened_never_ends_in_half_an_emoji_and_keeps_sixty_characters_at_most()
+    {
+        _engine.Push(State(next: Meeting(150, title: string.Concat(Enumerable.Repeat("😀", 100)))));
+
+        var next = Row(TrayCommand.Next).Text;
+
+        HasLoneSurrogate(next).Should().BeFalse();
+        next.Should().StartWith("Next: ").And.Contain("… ·");
+        Elements(next["Next: ".Length..next.IndexOf(" ·", StringComparison.Ordinal)]).Length.Should().BeLessThanOrEqualTo(60);
+    }
+
+    [Fact]
+    public void A_menu_title_with_a_combining_mark_at_the_cut_keeps_the_mark()
+    {
+        _engine.Push(State(next: Meeting(150, title: string.Concat(Enumerable.Repeat("e\u0301", 100)))));
+
+        var next = Row(TrayCommand.Next).Text;
+
+        var title = next["Next: ".Length..next.IndexOf(" ·", StringComparison.Ordinal)];
+        Elements(title).Should().OnlyContain(e => e == "e\u0301" || e == "…");
+        Elements(title).Length.Should().BeLessThanOrEqualTo(60);
+    }
+
+    private sealed class OverrideText(string key, string value) : ILocalizer
+    {
+        private readonly ReswLocalizer _inner = new();
+
+        public string GetString(string name) => name == key ? value : _inner.GetString(name);
+
+        public string? TryGetString(string name) => name == key ? value : _inner.TryGetString(name);
+    }
+
     [Theory]
     [InlineData(270, "Design review in 4 min")]
     [InlineData(59, "Design review in 1 min")]

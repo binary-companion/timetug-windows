@@ -36,7 +36,8 @@ public sealed class AppInstanceService : IAppInstance
     private bool _ready;
     private bool _disposed;
     private ActivationKind? _held;
-    private DateTimeOffset? _lastDelivered;
+    // A monotonic timestamp, not a wall-clock instant: a clock set back must not make every later launch look like part of the last burst.
+    private long? _lastDelivered;
 
     /// <summary>Registers (or finds) <paramref name="key"/>. This is the moment that decides whether the process is the primary.</summary>
     public AppInstanceService(IInstanceRegistry registry, string key, TimeProvider? time = null, IDiagnostics? diagnostics = null)
@@ -166,8 +167,8 @@ public sealed class AppInstanceService : IAppInstance
                 return;
             }
 
-            var now = _time.GetUtcNow();
-            if (_lastDelivered is { } last && now - last < CoalesceWindow)
+            var now = _time.GetTimestamp();
+            if (_lastDelivered is { } last && _time.GetElapsedTime(last, now) < CoalesceWindow)
             {
                 Note("info", "a second launch was folded into the one just before");
                 return;
