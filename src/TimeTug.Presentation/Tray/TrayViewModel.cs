@@ -86,7 +86,7 @@ public sealed class TrayViewModel : IDisposable
         }
     }
 
-    /// <summary>Runs the command behind a menu row. Settings and the information row do nothing.</summary>
+    /// <summary>Runs the command behind a menu row. The information row does nothing.</summary>
     public async ValueTask InvokeAsync(TrayCommand command)
     {
         switch (command)
@@ -107,6 +107,9 @@ public sealed class TrayViewModel : IDisposable
                 break;
             case TrayCommand.TestTug:
                 await _host.TestTugAsync();
+                break;
+            case TrayCommand.Settings:
+                _host.ShowSettings();
                 break;
             case TrayCommand.Quit:
                 if (Interlocked.Exchange(ref _quit, 1) == 0)
@@ -214,7 +217,7 @@ public sealed class TrayViewModel : IDisposable
             new TrayRow(TrayCommand.EnableTug, TrayRowKind.Toggle, _text.GetString("Tray_EnableTug"), started, state?.Enabled ?? false),
             new TrayRow(TrayCommand.TestTug, TrayRowKind.Command, _text.GetString("Tray_TestTug"), started),
             TrayRow.Separator,
-            new TrayRow(TrayCommand.Settings, TrayRowKind.Command, _text.GetString("Tray_Settings"), false),
+            new TrayRow(TrayCommand.Settings, TrayRowKind.Command, _text.GetString("Tray_Settings"), true),
             TrayRow.Separator,
             new TrayRow(TrayCommand.Quit, TrayRowKind.Command, _text.GetString("Tray_Quit"), true),
         ];

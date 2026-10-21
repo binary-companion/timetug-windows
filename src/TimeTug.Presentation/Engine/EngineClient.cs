@@ -8,6 +8,7 @@ public sealed class EngineClient : IEngineClient, IAsyncDisposable
 {
     private readonly Pkg.IEngine _engine;
     private readonly IDiagnostics? _diagnostics;
+    private readonly ILocalizer? _text;
     private readonly Subject<AppState> _state;
     private readonly Subject<TakeoverRequest> _due;
     private readonly Subject<string> _withdrawn;
@@ -17,11 +18,13 @@ public sealed class EngineClient : IEngineClient, IAsyncDisposable
     private int _started;
     private int _disposed;
 
-    public EngineClient(Pkg.IEngine engine, IDiagnostics? diagnostics = null)
+    /// <param name="text">The app's strings, for the section titles the calendars list carries; English when null.</param>
+    public EngineClient(Pkg.IEngine engine, IDiagnostics? diagnostics = null, ILocalizer? text = null)
     {
         ArgumentNullException.ThrowIfNull(engine);
         _engine = engine;
         _diagnostics = diagnostics;
+        _text = text;
         Action<Exception> report = e => _diagnostics?.Record("error", "engine-client", "A subscriber threw " + e.GetType().Name);
         _state = new Subject<AppState>(replayLatest: true, report);
         _due = new Subject<TakeoverRequest>(replayLatest: false, report);
@@ -46,7 +49,7 @@ public sealed class EngineClient : IEngineClient, IAsyncDisposable
 
         // Read both streams before the engine starts so that nothing it says first is missed.
         _pumps = Task.WhenAll(
-            Task.Run(() => PumpAsync(_engine.State, state => _state.OnNext(EngineMapping.ToAppState(state)), "state")),
+            Task.Run(() => PumpAsync(_engine.State, state => _state.OnNext(EngineMapping.ToAppState(state, _text)), "state")),
             Task.Run(() => PumpAsync(_engine.Events, Handle, "events")));
         await _engine.SendAsync(new Pkg.EngineCommand.Start()).ConfigureAwait(false);
     }
@@ -77,6 +80,14 @@ public sealed class EngineClient : IEngineClient, IAsyncDisposable
     public ValueTask SetEnabledAsync(bool enabled) =>
         _engine.SendAsync(new Pkg.EngineCommand.ApplySettings { Enabled = enabled });
 
+    public ValueTask ApplySettingsAsync(Settings.EngineSettingsPatch patch, string? commandId = null)
+    {
+        ArgumentNullException.ThrowIfNull(patch);
+        return _engine.SendAsync(Settings.EngineSettingsMapping.ToCommand(patch), commandId);
+    }
+
+    public ValueTask ForgetCorrectionsAsync() => _engine.SendAsync(new Pkg.EngineCommand.ForgetCorrections());
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) =>
         _engine.SendAsync(new Pkg.EngineCommand.SystemEvent(kind, timeZone));
 
@@ -105,7 +116,7 @@ public sealed class EngineClient : IEngineClient, IAsyncDisposable
                 _withdrawn.OnNext(withdrawn.EventID);
                 break;
             case Pkg.EngineEvent.Diagnostic diagnostic:
-                var info = new EngineDiagnosticInfo(diagnostic.Info.Level, diagnostic.Info.Category, diagnostic.Info.Message);
+                var info = new EngineDiagnosticInfo(diagnostic.Info.Level, diagnostic.Info.Category, diagnostic.Info.Message) { CommandId = diagnostic.Info.CommandId };
                 _diagnostics?.Record(info.Level, "engine:" + info.Category, info.Message);
                 _engineDiagnostics.OnNext(info);
                 break;

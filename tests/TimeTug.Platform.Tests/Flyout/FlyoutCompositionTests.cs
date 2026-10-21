@@ -316,6 +316,12 @@ public sealed class FlyoutCompositionTests : IAsyncDisposable
             remove { }
         }
 
+        public event Action? SettingsRequested
+        {
+            add { }
+            remove { }
+        }
+
         public SizeInDips MeasureContent() => new(360, 300);
 
         public void Show(PixelRect bounds, FlyoutLook look)

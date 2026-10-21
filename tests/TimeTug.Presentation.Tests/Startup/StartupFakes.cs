@@ -136,6 +136,10 @@ internal sealed class ScriptedClient : IEngineClient
 
     public ValueTask SetEnabledAsync(bool enabled) => Record("enabled:" + enabled);
 
+    public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null) => Record("settings");
+
+    public ValueTask ForgetCorrectionsAsync() => Record("forget");
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => Record("system:" + kind);
 
     private ValueTask Record(string command)

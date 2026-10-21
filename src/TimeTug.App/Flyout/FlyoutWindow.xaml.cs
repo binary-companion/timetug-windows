@@ -82,6 +82,9 @@ internal sealed partial class FlyoutWindow : Window
     /// <summary>The window closed, whoever closed it.</summary>
     public event Action? WindowClosed;
 
+    /// <summary>The gear in the header was pressed.</summary>
+    public event Action? SettingsPressed;
+
     /// <summary>True once the open animation was started (never when Windows has animations off).</summary>
     public bool Animated { get; private set; }
 
@@ -311,6 +314,8 @@ internal sealed partial class FlyoutWindow : Window
 
     public bool NoMoreShown => NoMorePanel.Visibility == Visibility.Visible;
 
+    private void OnSettingsClick(object sender, RoutedEventArgs e) => SettingsPressed?.Invoke();
+
     private void OnJoin(string eventId) => _ = JoinAsync(eventId);
 
     private async Task JoinAsync(string eventId)
@@ -340,8 +345,14 @@ internal sealed partial class FlyoutWindow : Window
             _everActive = true;
         }
 
-        // The first control takes the keyboard (not drawn as focused until a key is used), so Esc and Tab work at once.
-        if (FocusManager.FindFirstFocusableElement(Root) is Control first)
+        // The first Join button takes the keyboard (the gear in the header stays one Shift+Tab away); with no Join, the first control does.
+        // It is not drawn as focused until a key is used, so Esc and Tab work at once.
+        var firstJoin = Cards.Children.OfType<EventCard>().Select(c => c.Join).FirstOrDefault(j => j is not null);
+        if (firstJoin is not null)
+        {
+            firstJoin.Focus(FocusState.Programmatic);
+        }
+        else if (FocusManager.FindFirstFocusableElement(Root) is Control first)
         {
             first.Focus(FocusState.Programmatic);
         }

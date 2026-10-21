@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Dispatching;
 using TimeTug.App.Flyout;
+using TimeTug.App.Settings;
 using TimeTug.App.Tray;
 using TimeTug.App.Tug;
 using TimeTug.Engine;
@@ -9,6 +10,7 @@ using TimeTug.Platform;
 using TimeTug.Platform.Auth;
 using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.OsState;
+using TimeTug.Platform.Settings;
 using TimeTug.Platform.Tray;
 using TimeTug.Platform.Tug;
 using TimeTug.Presentation.Abstractions;
@@ -68,8 +70,13 @@ internal static class AppComposition
                 Host = sp.GetRequiredService<IEngineHost>(),
             });
         });
-        services.AddSingleton(sp => new EngineClient(sp.GetRequiredService<Pkg.IEngine>(), sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton(sp => new EngineClient(sp.GetRequiredService<Pkg.IEngine>(), sp.GetRequiredService<IDiagnostics>(), sp.GetRequiredService<ILocalizer>()));
         services.AddSingleton<IEngineClient>(sp => sp.GetRequiredService<EngineClient>());
+
+        // ---- settings: the engine's (patches the engine persists) and the app's own presentation preferences -----------------
+        services.AddSingleton<ISettingsClient>(sp => new SettingsClient(sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<IPresentationSettingsStore>(sp => LocalSettingsPresentationStore.ForCurrentPackage(sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton(sp => new SettingsText(sp.GetRequiredService<ILocalizer>()));
 
         // ---- OS state -------------------------------------------------------------------------------------------
         services.AddSingleton<MessageWindow>();
@@ -131,6 +138,17 @@ internal static class AppComposition
             sp.GetRequiredService<IFlyoutSurfaceFactory>(), sp.GetRequiredService<ITugPresence>(), sp.GetRequiredService<IUiSettings>(),
             sp.GetRequiredService<ITrayAnchor>(), sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiDispatcher>(),
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IDiagnostics>()));
+        // ---- the Settings window (the tray's Settings row and the flyout's gear call SettingsHost.Show) ------------------------
+        services.AddSingleton(sp => new SettingsWindowFactory(
+            sp.GetRequiredService<SettingsText>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<IPresentationSettingsStore>(),
+            sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiSettings>()));
+        services.AddSingleton<ISettingsWindowFactory>(sp => sp.GetRequiredService<SettingsWindowFactory>());
+        services.AddSingleton(sp => new SettingsHost(
+            sp.GetRequiredService<ISettingsWindowFactory>(),
+            () => new SettingsShellViewModel(
+                sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<SettingsText>(), sp.GetRequiredService<IUiSettings>(),
+                sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<TimeProvider>()),
+            sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton(sp => new TugWindowHost(
             sp.GetRequiredService<TugController>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<IUiSettings>(),
             sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ISecondTicker>()));

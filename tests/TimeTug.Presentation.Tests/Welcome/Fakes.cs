@@ -54,6 +54,21 @@ internal sealed class FakeEngineClient : IEngineClient
 
     public ValueTask SetEnabledAsync(bool enabled) => Record("enabled:" + enabled);
 
+    /// <summary>Every settings patch sent, with the command id it carried.</summary>
+    public List<(TimeTug.Presentation.Settings.EngineSettingsPatch Patch, string? Id)> Patches { get; } = [];
+
+    /// <summary>Runs after a patch is recorded (a test publishes the engine's answer from here).</summary>
+    public Action<TimeTug.Presentation.Settings.EngineSettingsPatch, string?>? OnApplySettings { get; set; }
+
+    public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null)
+    {
+        Patches.Add((patch, commandId));
+        OnApplySettings?.Invoke(patch, commandId);
+        return Record("settings");
+    }
+
+    public ValueTask ForgetCorrectionsAsync() => Record("forget");
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => Record("system:" + kind);
 
     private ValueTask Record(string command)

@@ -13,7 +13,7 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// the accessibility scanner (<c>tests/TimeTug.App.A11y</c>, axe-windows) reads them. Round 0 is a canary: a window with a button that
 /// has no name, which the scanner must flag (a scan that finds nothing there is not seeing the app, and fails). Then three rounds: the
 /// welcome window's Connect step with the tug as it first appears, then its Connected step with the tug showing the link to copy after a
-/// failed Join, then the flyout (a problem row and a long day). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
+/// failed Join, then the flyout (a problem row and a long day), then the Settings window. A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
 /// <c>done-N.txt</c>; without it the scenario gives up after <see cref="WaitForScanner"/>.
 /// </summary>
 internal static class A11yHoldScenario
@@ -21,7 +21,7 @@ internal static class A11yHoldScenario
     public const string Name = "a11y-hold";
 
     /// <summary>How many rounds the scanner is told to expect (<c>scripts/ci/run-a11y.ps1</c> passes the same number).</summary>
-    public const int Rounds = 3;
+    public const int Rounds = 4;
 
     private static readonly TimeSpan WaitForScanner = TimeSpan.FromSeconds(120);
 
@@ -70,6 +70,20 @@ internal static class A11yHoldScenario
         await rig.Settle();
         run.Check(await HoldForScannerAsync(rig, 3, "the flyout with a problem and a long day", cancellation), "the scanner finished round 3");
         flyout.Host.Close();
+
+        // Round 4: the Settings window on its General pane, the search box with a result list.
+        using var settings = SettingsRig.Over(rig);
+        rig.Engine.Push(SettingsRig.State(rig.Time.GetUtcNow()));
+        var settingsWindow = await settings.OpenAsync();
+        run.Check(settingsWindow is not null, "the Settings window opens");
+        if (settingsWindow is not null)
+        {
+            settingsWindow.TypeInSearch("lead");
+            await rig.Settle();
+            run.Check(await HoldForScannerAsync(rig, 4, "the Settings window with the search results open", cancellation), "the scanner finished round 4");
+            settings.Host.Close();
+        }
+
         return rig.Finish();
     }
 

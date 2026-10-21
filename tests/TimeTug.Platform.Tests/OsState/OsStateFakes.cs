@@ -94,6 +94,10 @@ internal sealed class RecordingEngineClient : IEngineClient
     public ValueTask TestTugAsync(string title, string calendarTitle) => throw new NotSupportedException();
 
     public ValueTask SetEnabledAsync(bool enabled) => throw new NotSupportedException();
+
+    public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null) => throw new NotSupportedException();
+
+    public ValueTask ForgetCorrectionsAsync() => throw new NotSupportedException();
 }
 
 internal static class Wait

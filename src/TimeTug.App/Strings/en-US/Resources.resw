@@ -204,4 +204,60 @@
   <data name="Flyout_Settings" xml:space="preserve"><value>Settings</value><comment>The gear button in the flyout header.</comment></data>
   <data name="Flyout_AgendaList" xml:space="preserve"><value>Today’s meetings</value></data>
   <data name="Flyout_ProblemsList" xml:space="preserve"><value>Calendar problems</value></data>
+  <data name="Calendars_SubtitleDirect" xml:space="preserve"><value>{0} · connected directly</value><comment>{0} is the account name.</comment></data>
+  <data name="Calendars_TitleOther" xml:space="preserve"><value>Other</value></data>
+  <data name="Calendars_SubtitleOther" xml:space="preserve"><value>Sources that are no longer connected</value></data>
+  <data name="Calendars_TitleSystem" xml:space="preserve"><value>This PC</value></data>
+  <data name="Calendars_SubtitleSystem" xml:space="preserve"><value>Calendars on this PC</value></data>
+  <data name="Calendars_AccountFallback" xml:space="preserve"><value>Other</value><comment>The group name for calendars whose source gives no account name.</comment></data>
+  <data name="CalendarProvider_google" xml:space="preserve"><value>Google</value></data>
+  <data name="CalendarProvider_microsoft" xml:space="preserve"><value>Microsoft</value></data>
+  <data name="CalendarProvider_icloud" xml:space="preserve"><value>iCloud</value></data>
+  <data name="CalendarProvider_caldav" xml:space="preserve"><value>CalDAV</value></data>
+  <data name="CalendarProvider_icalsub" xml:space="preserve"><value>iCal link</value></data>
+  <data name="SettingsPane_General" xml:space="preserve"><value>General</value></data>
+  <data name="SettingsPane_Appearance" xml:space="preserve"><value>Appearance</value></data>
+  <data name="SettingsPane_Accounts" xml:space="preserve"><value>Accounts</value></data>
+  <data name="SettingsPane_Calendars" xml:space="preserve"><value>Calendars</value></data>
+  <data name="SettingsPane_TugRules" xml:space="preserve"><value>Tug Rules</value></data>
+  <data name="SettingsText_accounts" xml:space="preserve"><value>Accounts</value></data>
+  <data name="SettingsText_diagnostics" xml:space="preserve"><value>Diagnostics</value></data>
+  <data name="SettingsText_enable-tug" xml:space="preserve"><value>Enable Tug</value></data>
+  <data name="SettingsText_lead-time" xml:space="preserve"><value>Lead time</value></data>
+  <data name="SettingsText_video-link" xml:space="preserve"><value>Require a video link</value></data>
+  <data name="SettingsText_require-attendees" xml:space="preserve"><value>Require other attendees</value></data>
+  <data name="SettingsText_test-takeover" xml:space="preserve"><value>Test tug</value></data>
+  <data name="SettingsText_skip-all-day" xml:space="preserve"><value>Skip all-day events</value></data>
+  <data name="SettingsText_dedup-inference" xml:space="preserve"><value>Find duplicates with on-device intelligence</value></data>
+  <data name="SettingsText_appearance" xml:space="preserve"><value>Appearance</value></data>
+  <data name="SettingsText_popup-card-style" xml:space="preserve"><value>Flyout backdrop</value></data>
+  <data name="SettingsText_tray-icon-style" xml:space="preserve"><value>Tray icon</value></data>
+  <data name="SettingsText_launch-at-login" xml:space="preserve"><value>Launch at login</value></data>
+  <data name="SettingsText_popup-shortcut" xml:space="preserve"><value>Show today’s meetings</value></data>
+  <data name="SettingsText_about" xml:space="preserve"><value>About TimeTug</value></data>
+  <data name="SettingsKeywords_accounts" xml:space="preserve"><value>google;microsoft;outlook;office 365;exchange;account;accounts;sign in;add account;remove account;icloud;caldav;fastmail;nextcloud;ical;ics;webcal;feed;subscription;meetup;connect</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_diagnostics" xml:space="preserve"><value>log;logs;support;debug;copy diagnostics;troubleshoot;problem;report</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_enable-tug" xml:space="preserve"><value>disable;pause;off;mute;stop;do not disturb;focus;takeover;take over;tug</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_lead-time" xml:space="preserve"><value>tug;takeover;take over;before;start;minutes;at start;warning</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_video-link" xml:space="preserve"><value>tug;takeover;take over;zoom;meet;teams;conference;only events;only events with a video link;video link required</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_require-attendees" xml:space="preserve"><value>tug;takeover;take over;solo;alone;attendees;guests;skip;only events</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_test-takeover" xml:space="preserve"><value>tug;takeover;take over;preview;overlay;try</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_skip-all-day" xml:space="preserve"><value>list;hide;all day;takeover;take over;tug</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_dedup-inference" xml:space="preserve"><value>duplicate;duplicates;merge;merged;same meeting;ai;on-device;beta;inference</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_appearance" xml:space="preserve"><value>theme;light;dark;auto;automatic;mode;dark mode;color scheme;colour scheme;system theme</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_popup-card-style" xml:space="preserve"><value>glass;frosted;translucent;mica;acrylic;solid;transparency;cards;style;popup;flyout;background</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_tray-icon-style" xml:space="preserve"><value>tray;notification area;taskbar;icon;minutes;countdown;digit;next meeting</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_launch-at-login" xml:space="preserve"><value>startup;open at login;sign in;sign-in;boot;start with windows;autostart</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_popup-shortcut" xml:space="preserve"><value>hotkey;shortcut;keyboard;global;popup;flyout;open;toggle</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_about" xml:space="preserve"><value>version;license;licence;copyright;website;build;app info</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="Settings_WindowTitle" xml:space="preserve"><value>Settings</value><comment>The title of the Settings window.</comment></data>
+  <data name="Settings_SearchPlaceholder" xml:space="preserve"><value>Search settings</value></data>
+  <data name="Settings_SearchAutomation" xml:space="preserve"><value>Search settings</value></data>
+  <data name="Settings_NoResults" xml:space="preserve"><value>No results</value></data>
+  <data name="Settings_SearchResultAutomation" xml:space="preserve"><value>{0}, {1}</value><comment>{0} is the setting's name and {1} is the pane it is in.</comment></data>
+  <data name="Settings_PaneNavigation" xml:space="preserve"><value>Settings panes</value></data>
+  <data name="Settings_Back" xml:space="preserve"><value>General</value><comment>The button that leaves a General sub-page.</comment></data>
+  <data name="Settings_BackAutomation" xml:space="preserve"><value>Back to General</value></data>
+  <data name="Settings_Destination_About" xml:space="preserve"><value>About</value></data>
+  <data name="Settings_Destination_SoftwareUpdate" xml:space="preserve"><value>Software Update</value></data>
 </root>
