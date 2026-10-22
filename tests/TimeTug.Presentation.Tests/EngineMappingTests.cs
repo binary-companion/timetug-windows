@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Settings;
 using Pkg = TimeTug.Engine;
 
 namespace TimeTug.Presentation.Tests;
@@ -143,6 +144,20 @@ public class EngineMappingTests
         var mapped = EngineMapping.ToAppState(Full());
         mapped.TakeoverVisible.Should().BeTrue();
         mapped.Enabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_state_whose_takeover_settings_are_null_maps_to_the_defaults_instead_of_throwing()
+    {
+        var state = new Pkg.EngineState { Settings = new Pkg.EngineSettings { Takeover = null! } };
+
+        var map = () => EngineMapping.ToAppState(state);
+
+        var mapped = map.Should().NotThrow().Subject;
+        var expected = EngineSettingsMapping.ToView(state.Settings);
+        mapped.Enabled.Should().Be(expected.Enabled, "the Enabled the state carries is the mapped one, whichever way a missing Takeover reads");
+        mapped.LeadTime.Should().Be(expected.LeadTime);
+        mapped.Settings.SameAs(expected).Should().BeTrue();
     }
 
     [Fact]

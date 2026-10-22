@@ -20,6 +20,7 @@ public sealed class LaunchAtLoginViewModel : ObservableObject
     private readonly ISystemLauncher _launcher;
     private readonly IUiDispatcher _ui;
     private readonly ILocalizer _text;
+    private int _generation;
 
     public LaunchAtLoginViewModel(IStartupTaskService startup, ISystemLauncher launcher, IUiDispatcher ui, ILocalizer text)
     {
@@ -104,27 +105,40 @@ public sealed class LaunchAtLoginViewModel : ObservableObject
 
     public bool HasError => Error is not null;
 
-    /// <summary>Reads the state from Windows. Call it whenever the page appears and whenever the window becomes active again, since the person may have changed it in Windows Settings meanwhile.</summary>
+    /// <summary>
+    /// Reads the state from Windows. Call it whenever the page appears and whenever the window becomes active again, since the person may
+    /// have changed it in Windows Settings meanwhile. A read that finishes after a newer read or after a request has been answered is
+    /// stale and is dropped, so a slow read can never put back an older state.
+    /// </summary>
     public async Task RefreshAsync()
     {
+        var generation = Interlocked.Increment(ref _generation);
         try
         {
             var state = await _startup.GetStateAsync();
             await _ui.InvokeAsync(() =>
             {
-                State = state;
-                Error = null;
+                if (IsCurrent(generation))
+                {
+                    State = state;
+                    Error = null;
+                }
             });
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
             await _ui.InvokeAsync(() =>
             {
-                State = null;
-                Error = _text.Format("LaunchAtLogin_Unreadable", e.Message);
+                if (IsCurrent(generation))
+                {
+                    State = null;
+                    Error = _text.Format("LaunchAtLogin_Unreadable", e.Message);
+                }
             });
         }
     }
+
+    private bool IsCurrent(int generation) => Volatile.Read(ref _generation) == generation;
 
     /// <summary>The person turned the switch on or off. Windows is asked and the switch shows what Windows says afterwards.</summary>
     public async Task SetAsync(bool on)
@@ -142,10 +156,12 @@ public sealed class LaunchAtLoginViewModel : ObservableObject
         }
 
         IsBusy = true;
+        Interlocked.Increment(ref _generation);
         try
         {
             var state = on ? await _startup.RequestEnableAsync() : await _startup.DisableAsync();
             var error = Failure(on, state);
+            Interlocked.Increment(ref _generation);
             await _ui.InvokeAsync(() =>
             {
                 State = state;
@@ -190,14 +206,27 @@ public sealed class LaunchAtLoginViewModel : ObservableObject
     /// <summary>Reads the real state after a failed request, without wiping the message that says why it failed.</summary>
     private async Task RefreshKeepingErrorAsync()
     {
+        var generation = Interlocked.Increment(ref _generation);
         try
         {
             var state = await _startup.GetStateAsync();
-            await _ui.InvokeAsync(() => State = state);
+            await _ui.InvokeAsync(() =>
+            {
+                if (IsCurrent(generation))
+                {
+                    State = state;
+                }
+            });
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            await _ui.InvokeAsync(() => State = null);
+            await _ui.InvokeAsync(() =>
+            {
+                if (IsCurrent(generation))
+                {
+                    State = null;
+                }
+            });
         }
     }
 }

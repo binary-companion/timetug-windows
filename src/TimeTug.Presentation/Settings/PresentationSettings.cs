@@ -86,7 +86,7 @@ public readonly record struct WindowGeometry(int X, int Y, int Width, int Height
         const int Limit = 100_000;
         var geometry = new WindowGeometry(numbers[0], numbers[1], numbers[2], numbers[3]);
         var sane = geometry.Width is > 0 and <= Limit && geometry.Height is > 0 and <= Limit
-            && Math.Abs(geometry.X) <= Limit && Math.Abs(geometry.Y) <= Limit;
+            && geometry.X is >= -Limit and <= Limit && geometry.Y is >= -Limit and <= Limit;
         return sane ? geometry : null;
     }
 }

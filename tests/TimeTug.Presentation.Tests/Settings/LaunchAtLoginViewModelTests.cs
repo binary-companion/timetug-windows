@@ -242,6 +242,60 @@ public sealed class LaunchAtLoginViewModelTests
     }
 
     [Fact]
+    public async Task A_refresh_that_finishes_after_a_newer_change_does_not_overwrite_it()
+    {
+        var model = Model();
+        await model.RefreshAsync();
+        model.State.Should().Be(StartupState.Disabled);
+        _startup.GetGate = new TaskCompletionSource();
+        var slowRefresh = model.RefreshAsync();
+
+        await model.SetAsync(true);
+        model.IsOn.Should().BeTrue();
+        _startup.GetGate.SetResult();
+        await slowRefresh;
+
+        model.State.Should().Be(StartupState.Enabled, "the older read of Disabled is stale");
+        model.IsOn.Should().BeTrue();
+        model.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_refresh_that_fails_after_a_newer_change_does_not_wipe_it()
+    {
+        var model = Model();
+        await model.RefreshAsync();
+        _startup.GetGate = new TaskCompletionSource();
+        var slowRefresh = model.RefreshAsync();
+        await model.SetAsync(true);
+        _startup.GetGate.SetException(new InvalidOperationException("late failure"));
+
+        await slowRefresh;
+
+        model.State.Should().Be(StartupState.Enabled);
+        model.Error.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Of_two_refreshes_the_later_one_wins_even_when_the_earlier_finishes_last()
+    {
+        var model = Model();
+        await model.RefreshAsync();
+        var oldGate = new TaskCompletionSource();
+        _startup.GetGate = oldGate;
+        var older = model.RefreshAsync();
+        _startup.State = StartupState.DisabledByUser;
+        _startup.GetGate = null;
+        await model.RefreshAsync();
+        model.State.Should().Be(StartupState.DisabledByUser);
+
+        oldGate.SetResult();
+        await older;
+
+        model.State.Should().Be(StartupState.DisabledByUser);
+    }
+
+    [Fact]
     public async Task A_second_change_while_one_is_pending_is_ignored()
     {
         var model = Model();

@@ -42,4 +42,23 @@ public sealed record EngineSettingsPatch
         && (InferenceEnabled is null || InferenceEnabled == Current.InferenceEnabled)
         && (HiddenCalendarKeys is null || HiddenCalendarKeys.SetEquals(Current.HiddenCalendarKeys))
         && (TakeoverCalendarKeys is null || TakeoverCalendarKeys.SetEquals(Current.TakeoverCalendarKeys));
+
+    /// <summary>
+    /// True when <paramref name="published"/> holds every value this patch sets: the engine's published state contains the change. The
+    /// engine's own normalisation is allowed for: hidden wins over the tug list, so the stored tug list is the patched one minus the
+    /// calendars the published state hides.
+    /// </summary>
+    public bool IsReflectedBy(EngineSettingsView published)
+    {
+        ArgumentNullException.ThrowIfNull(published);
+        return (Enabled is null || Enabled == published.Enabled)
+            && (LeadTime is null || LeadTime == published.LeadTime)
+            && (RequireConferenceLink is null || RequireConferenceLink == published.RequireConferenceLink)
+            && (RequireOtherAttendees is null || RequireOtherAttendees == published.RequireOtherAttendees)
+            && (SkipAllDayEvents is null || SkipAllDayEvents == published.SkipAllDayEvents)
+            && (InferenceEnabled is null || InferenceEnabled == published.InferenceEnabled)
+            && (HiddenCalendarKeys is null || HiddenCalendarKeys.SetEquals(published.HiddenCalendarKeys))
+            && (TakeoverCalendarKeys is null
+                || TakeoverCalendarKeys.Where(key => !published.HiddenCalendarKeys.Contains(key)).ToHashSet(StringComparer.Ordinal).SetEquals(published.TakeoverCalendarKeys));
+    }
 }

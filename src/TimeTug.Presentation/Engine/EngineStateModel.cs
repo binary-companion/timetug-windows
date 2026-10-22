@@ -198,7 +198,7 @@ public static class EngineMapping
             next is null ? null : new NextMeetingInfo(next.Title, next.Start, next.HasJoinLink),
             state.NextTakeover is { } t ? new NextTakeoverInfo(t.EventID, t.FireAt) : null,
             state.TakeoverVisible,
-            state.Settings.Takeover.Enabled,
+            settings.Enabled,
             new AccountActivity(
                 state.AccountStatus.IsWorking,
                 string.IsNullOrWhiteSpace(state.AccountStatus.ErrorMessage) ? null : state.AccountStatus.ErrorMessage,

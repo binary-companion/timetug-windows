@@ -22,10 +22,25 @@ internal sealed class FakeStartupTask : IStartupTaskService
 
     public List<string> Calls { get; } = [];
 
+    /// <summary>When set, <see cref="GetStateAsync"/> reads the state at once but only answers when this is completed (a slow read that finishes late).</summary>
+    public TaskCompletionSource? GetGate { get; set; }
+
     public Task<StartupState> GetStateAsync()
     {
         Calls.Add("get");
-        return Throws is { } e ? Task.FromException<StartupState>(e) : Task.FromResult(State);
+        if (Throws is { } e)
+        {
+            return Task.FromException<StartupState>(e);
+        }
+
+        var read = State;
+        return GetGate is { } gate ? Late(gate.Task, read) : Task.FromResult(read);
+    }
+
+    private static async Task<StartupState> Late(Task gate, StartupState read)
+    {
+        await gate;
+        return read;
     }
 
     public async Task<StartupState> RequestEnableAsync()
