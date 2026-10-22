@@ -83,6 +83,12 @@ internal sealed class ScriptedEngineClient(AccountFormService forms) : IEngineCl
 
     public ValueTask ForgetCorrectionsAsync() => Record("forget");
 
+    public ValueTask MergeEventsAsync(string eventId, string otherEventId, string? commandId = null) => Record($"merge:{eventId}+{otherEventId}");
+
+    public ValueTask UnmergeEventAsync(string eventId, string? commandId = null) => Record("unmerge:" + eventId);
+
+    public ValueTask SeparateMembersAsync(string eventId, IReadOnlyList<string> memberIds, string? commandId = null) => Record($"separate:{eventId}:{string.Join(",", memberIds)}");
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => Record("system:" + kind);
 
     public void Dispose() => _form?.Dispose();

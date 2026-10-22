@@ -33,6 +33,21 @@
       <ScrollViewer x:Name="ListScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsTabStop="False">
         <StackPanel x:Name="Cards" Spacing="8" Margin="12,4" />
       </ScrollViewer>
+      <!-- A merge, unmerge or split that did not go through (the card changed under the person's hand). A live region, so a screen reader says it. -->
+      <Border x:Name="NoticePanel" Margin="12,8,12,0" Padding="12,6,6,6" CornerRadius="8" Visibility="Collapsed"
+              AutomationProperties.LiveSetting="Polite">
+        <Grid ColumnSpacing="6">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="NoticeText" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+          <Button x:Name="NoticeDismiss" Grid.Column="1" Width="24" Height="24" Padding="0" CornerRadius="12" Background="Transparent" BorderThickness="0"
+                  Click="OnNoticeDismiss">
+            <FontIcon Glyph="&#xE711;" FontSize="10" AutomationProperties.AccessibilityView="Raw" />
+          </Button>
+        </Grid>
+      </Border>
       <TextBlock x:Name="FooterText" FontSize="12" Margin="16,8,16,12" />
     </StackPanel>
   </Grid>

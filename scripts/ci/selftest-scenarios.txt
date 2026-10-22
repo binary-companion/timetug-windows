@@ -34,4 +34,5 @@ settings-calendars       5  210  selftest
 settings-accounts        6  240  selftest
 settings-general         13  240  selftest
 settings-appearance      9  240  selftest
-a11y-hold                0  360  a11y
+flyout-merge             6  240  selftest
+a11y-hold                0  420  a11y

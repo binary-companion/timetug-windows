@@ -26,6 +26,9 @@ internal sealed class EngineRig : IAsyncDisposable
 
     public const string EventsUrl = "https://www.googleapis.com/calendar/v3/calendars/me%40example.com/events";
 
+    /// <summary>The events request of the "Team Sync" calendar in <c>google-calendar-list-many.json</c>.</summary>
+    public const string TeamEventsUrl = "https://www.googleapis.com/calendar/v3/calendars/team%40example.com/events";
+
     /// <summary>The id the engine gives the recorded meeting.</summary>
     public const string MeetingId = "google-conn-1/evt-design-review/1792156560";
 
@@ -35,6 +38,8 @@ internal sealed class EngineRig : IAsyncDisposable
     private IDisposable? _subscription;
     private AppShell? _shell;
     private string _calendarList = "google-calendar-list.json";
+    private string _events = "google-events-simple.json";
+    private string? _teamEvents;
 
     private EngineRig(ScenarioRun run, CancellationToken cancellation)
     {
@@ -90,9 +95,16 @@ internal sealed class EngineRig : IAsyncDisposable
 
     /// <summary>Starts the app with the recorded calendar and waits until the engine has published the meeting.</summary>
     /// <param name="calendarList">The recorded calendar-list answer (the single calendar by default). Every other calendar it names has no events.</param>
-    public static async Task<EngineRig> StartAsync(SelfTestOptions options, CancellationToken cancellation, string calendarList = "google-calendar-list.json")
+    /// <param name="events">The recorded events of the first calendar ("Me"); it must start with the meeting "Design review".</param>
+    /// <param name="teamEvents">The recorded events of the "Team Sync" calendar; none when null.</param>
+    public static async Task<EngineRig> StartAsync(
+        SelfTestOptions options,
+        CancellationToken cancellation,
+        string calendarList = "google-calendar-list.json",
+        string events = "google-events-simple.json",
+        string? teamEvents = null)
     {
-        var rig = new EngineRig(new ScenarioRun(options), cancellation) { _calendarList = calendarList };
+        var rig = new EngineRig(new ScenarioRun(options), cancellation) { _calendarList = calendarList, _events = events, _teamEvents = teamEvents };
         await rig.StartCoreAsync();
         return rig;
     }
@@ -208,7 +220,11 @@ internal sealed class EngineRig : IAsyncDisposable
         Host.Answers.Answer("https://oauth2.googleapis.com/token", "google-token.json", "POST");
         Host.Answers.Answer("https://www.googleapis.com/calendar/v3/users/me/calendarList", _calendarList);
         Host.Answers.Answer("https://www.googleapis.com/calendar/v3/calendars/", "google-events-empty.json");
-        Host.Answers.Answer(EventsUrl, "google-events-simple.json");
+        Host.Answers.Answer(EventsUrl, _events);
+        if (_teamEvents is not null)
+        {
+            Host.Answers.Answer(TeamEventsUrl, _teamEvents);
+        }
 
         var (main, second) = FakeMonitors.Layout();
         Monitors.Set(main, second);

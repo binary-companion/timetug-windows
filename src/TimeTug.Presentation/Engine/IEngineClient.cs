@@ -48,6 +48,15 @@ public interface IEngineClient
     /// <summary>Asks the engine to forget learned duplicate corrections (<c>dedup.forget</c>).</summary>
     ValueTask ForgetCorrectionsAsync();
 
+    /// <summary>Merges two events by hand (<c>dedup.merge</c>, two event ids). The id comes back on a diagnostic if the engine refuses.</summary>
+    ValueTask MergeEventsAsync(string eventId, string otherEventId, string? commandId = null);
+
+    /// <summary>Splits a merged event back into its events (<c>dedup.unmerge</c>).</summary>
+    ValueTask UnmergeEventAsync(string eventId, string? commandId = null);
+
+    /// <summary>Shows the named members of a merged event as events of their own (<c>dedup.separate</c>; <paramref name="memberIds"/> are the engine's member keys).</summary>
+    ValueTask SeparateMembersAsync(string eventId, IReadOnlyList<string> memberIds, string? commandId = null);
+
     /// <summary><paramref name="kind"/> is one of the <c>TimeTug.Engine.SystemEventKind</c> constants.</summary>
     ValueTask SystemEventAsync(string kind, string? timeZone = null);
 }

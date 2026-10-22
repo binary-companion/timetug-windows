@@ -26,10 +26,24 @@
               <TextBlock x:Name="PillText" FontSize="11" FontWeight="SemiBold" Typography.NumeralAlignment="Tabular" />
             </Border>
           </Grid>
-          <TextBlock x:Name="MetaText" FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis" />
-          <StackPanel x:Name="MergePanel" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
-            <FontIcon x:Name="MergeIcon" Glyph="&#xE8FD;" FontSize="11" AutomationProperties.AccessibilityView="Raw" />
-            <TextBlock x:Name="MergeText" FontSize="11" MaxLines="1" TextTrimming="CharacterEllipsis" />
+          <Grid ColumnSpacing="4">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="MetaText" FontSize="12" MaxLines="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <!-- The merge menu (Not the same meeting, Unmerge, Merge with…); shown only on a card that has something to offer. -->
+            <Button x:Name="ActionsButton" Grid.Column="1" Width="28" Height="24" Padding="0" CornerRadius="12" Visibility="Collapsed"
+                    Background="Transparent" BorderThickness="0" VerticalAlignment="Center">
+              <FontIcon Glyph="&#xE712;" FontSize="13" AutomationProperties.AccessibilityView="Raw" />
+            </Button>
+          </Grid>
+          <StackPanel x:Name="MergePanel" Spacing="1" Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <FontIcon x:Name="MergeIcon" Glyph="&#xE8FD;" FontSize="11" AutomationProperties.AccessibilityView="Raw" />
+              <TextBlock x:Name="MergeText" FontSize="11" MaxLines="1" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <TextBlock x:Name="MergeCalendarsText" FontSize="11" MaxLines="1" TextTrimming="CharacterEllipsis" Margin="15,0,0,0" />
           </StackPanel>
           <ProgressBar x:Name="Progress" Height="3" MinHeight="3" Margin="0,4,0,0" Minimum="0" Maximum="1" Visibility="Collapsed"
                        AutomationProperties.AccessibilityView="Raw" />

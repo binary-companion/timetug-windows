@@ -51,6 +51,12 @@ internal sealed class RecordingEngineClient : IEngineClient
 
     public IObservable<EngineDiagnosticInfo> Diagnostics => throw new NotSupportedException();
 
+    public ValueTask MergeEventsAsync(string eventId, string otherEventId, string? commandId = null) => throw new NotSupportedException();
+
+    public ValueTask UnmergeEventAsync(string eventId, string? commandId = null) => throw new NotSupportedException();
+
+    public ValueTask SeparateMembersAsync(string eventId, IReadOnlyList<string> memberIds, string? commandId = null) => throw new NotSupportedException();
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null)
     {
         if (Cancel)

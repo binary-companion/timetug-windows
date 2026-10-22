@@ -39,6 +39,23 @@ internal static class ScenarioUi
         return true;
     }
 
+    /// <summary>Invokes this button through its UI Automation peer. False when it is hidden, disabled or has no Invoke pattern.</summary>
+    public static bool Invoke(ButtonBase button)
+    {
+        if (!button.IsEnabled || button.Visibility != Visibility.Visible)
+        {
+            return false;
+        }
+
+        if (FrameworkElementAutomationPeer.CreatePeerForElement(button)?.GetPattern(PatternInterface.Invoke) is not IInvokeProvider invoke)
+        {
+            return false;
+        }
+
+        invoke.Invoke();
+        return true;
+    }
+
     /// <summary>Toggles a switch or check box through its UI Automation peer. False when it has no toggle pattern or is disabled.</summary>
     public static bool Toggle(FrameworkElement element)
     {

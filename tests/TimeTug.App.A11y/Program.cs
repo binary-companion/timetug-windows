@@ -88,7 +88,7 @@ internal static class Program
                     properties.GetValueOrDefault("ControlType") ?? string.Empty,
                     properties.GetValueOrDefault("AutomationId") ?? string.Empty,
                     properties.GetValueOrDefault("BoundingRectangle") ?? string.Empty,
-                    suppressions.FirstOrDefault(s => s.Matches(error.Rule.ID.ToString(), properties.GetValueOrDefault("Name")))?.Reason);
+                    suppressions.FirstOrDefault(s => s.Matches(error.Rule.ID.ToString(), properties.GetValueOrDefault("Name"), round))?.Reason);
                 (finding.SuppressedBecause is null ? errors : accepted).Add(finding);
             }
         }
@@ -164,7 +164,7 @@ internal static class Program
         public int WindowsScanned { get; init; }
     }
 
-    private sealed record Suppression(string Rule, string? Name, string Reason)
+    private sealed record Suppression(string Rule, string? Name, string Reason, int? Round = null)
     {
         public static List<Suppression> Load(string path)
         {
@@ -183,12 +183,12 @@ internal static class Program
                     throw new InvalidOperationException("every suppression needs a reason");
                 }
 
-                list.Add(new Suppression(item.GetProperty("rule").GetString() ?? string.Empty, item.TryGetProperty("name", out var name) ? name.GetString() : null, reason));
+                list.Add(new Suppression(item.GetProperty("rule").GetString() ?? string.Empty, item.TryGetProperty("name", out var name) ? name.GetString() : null, reason, item.TryGetProperty("round", out var round) ? round.GetInt32() : null));
             }
 
             return list;
         }
 
-        public bool Matches(string rule, string? elementName) => Rule == rule && (Name is null || Name == elementName);
+        public bool Matches(string rule, string? elementName, int round) => Rule == rule && (Name is null || Name == (elementName ?? string.Empty)) && (Round is null || Round == round);
     }
 }

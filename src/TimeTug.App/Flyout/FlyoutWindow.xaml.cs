@@ -29,6 +29,9 @@ internal sealed partial class FlyoutWindow : Window
 {
     private static readonly TimeSpan OpenDuration = TimeSpan.FromMilliseconds(167);
 
+    /// <summary>How long after WinUI reports the window deactivated we look again at what Windows has in front.</summary>
+    private static readonly TimeSpan DeactivationGrace = TimeSpan.FromMilliseconds(150);
+
     private readonly FlyoutViewModel _model;
     private readonly IUiDispatcher _ui;
     private readonly ILocalizer _text;
@@ -37,6 +40,7 @@ internal sealed partial class FlyoutWindow : Window
     private bool _dark;
     private bool _everActive;
     private bool _closing;
+    private bool _rebuildAfterMenu;
     private Storyboard? _opening;
 
     public FlyoutWindow(FlyoutViewModel model, IUiDispatcher ui, ILocalizer text, IUiSettings settings)
@@ -234,12 +238,38 @@ internal sealed partial class FlyoutWindow : Window
 
     private void OnModelChanged() => _ui.Post(() =>
     {
-        if (!_closing)
+        if (_closing)
         {
-            Rebuild();
-            ContentRebuilt?.Invoke();
+            return;
         }
+
+        // The minute tick redraws the cards; a card's menu that is open would be drawn away under the person's hand. It waits until the menu closes.
+        if (MenuOpen)
+        {
+            _rebuildAfterMenu = true;
+            return;
+        }
+
+        Rebuild();
+        ContentRebuilt?.Invoke();
     });
+
+    private void OnMenuOpenChanged(bool open)
+    {
+        if (!open && _rebuildAfterMenu && !_closing)
+        {
+            _rebuildAfterMenu = false;
+            // After the menu's own Click and Closed handling has finished.
+            _ui.Post(() =>
+            {
+                if (!_closing && !MenuOpen)
+                {
+                    Rebuild();
+                    ContentRebuilt?.Invoke();
+                }
+            });
+        }
+    }
 
     private void Rebuild()
     {
@@ -247,9 +277,9 @@ internal sealed partial class FlyoutWindow : Window
         var palette = _palette;
 
         // Keep the keyboard on the same card's Join button when the cards are drawn again (the minute tick redraws them).
-        var focusedEvent = Root.XamlRoot is { } xamlRoot && FocusManager.GetFocusedElement(xamlRoot) is DependencyObject focused
-            ? EventIdOf(focused)
-            : null;
+        var focusedElement = Root.XamlRoot is { } xamlRoot ? FocusManager.GetFocusedElement(xamlRoot) as DependencyObject : null;
+        var focusedEvent = focusedElement is null ? null : EventIdOf(focusedElement);
+        var focusWasMenuButton = focusedElement is Button { Name: "ActionsButton" };
 
         AutomationProperties.SetName(SettingsButton, _text.GetString("Flyout_Settings"));
         WeekdayText.Text = model.Weekday;
@@ -262,6 +292,12 @@ internal sealed partial class FlyoutWindow : Window
         EmptyTitle.Foreground = palette.Primary;
         EmptySubtitle.Text = model.EmptySubtitle;
         EmptySubtitle.Foreground = palette.Secondary;
+        NoticePanel.Visibility = model.Notice is null ? Visibility.Collapsed : Visibility.Visible;
+        NoticeText.Text = model.Notice ?? string.Empty;
+        NoticeText.Foreground = palette.Primary;
+        NoticePanel.Background = palette.ProblemFill;
+        AutomationProperties.SetName(NoticePanel, model.Notice ?? string.Empty);
+        AutomationProperties.SetName(NoticeDismiss, _text.GetString("Flyout_Notice_Dismiss"));
         FooterText.Text = model.Footer;
         FooterText.Foreground = palette.Secondary;
 
@@ -277,7 +313,12 @@ internal sealed partial class FlyoutWindow : Window
         Cards.Children.Clear();
         foreach (var row in model.Rows)
         {
-            Cards.Children.Add(new EventCard(row, palette, _text, OnJoin));
+            Cards.Children.Add(new EventCard(row, palette, _text, new CardActions(
+                OnJoin,
+                id => _ = _model.UnmergeAsync(id).AsTask(),
+                (id, member) => _ = _model.SeparateAsync(id, member).AsTask(),
+                (id, other) => _ = _model.MergeAsync(id, other).AsTask(),
+                OnMenuOpenChanged)));
         }
 
         AutomationProperties.SetName(Cards, _text.GetString("Flyout_AgendaList"));
@@ -285,9 +326,17 @@ internal sealed partial class FlyoutWindow : Window
         EmptyPanel.Visibility = model.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
         NoMorePanel.Visibility = model.NoMoreMeetings ? Visibility.Visible : Visibility.Collapsed;
 
-        if (focusedEvent is not null && Cards.Children.OfType<EventCard>().FirstOrDefault(c => c.Row.EventId == focusedEvent)?.Join is { } restore)
+        if (focusedEvent is not null && Cards.Children.OfType<EventCard>().FirstOrDefault(c => c.Row.EventId == focusedEvent) is { } sameCard)
         {
-            restore.Focus(FocusState.Programmatic);
+            // Back to the control that had it: the merge menu's button, or the card's Join button.
+            if (focusWasMenuButton && sameCard.Row.HasMergeActions)
+            {
+                sameCard.MenuButton.Focus(FocusState.Programmatic);
+            }
+            else
+            {
+                sameCard.Join?.Focus(FocusState.Programmatic);
+            }
         }
     }
 
@@ -320,7 +369,16 @@ internal sealed partial class FlyoutWindow : Window
 
     public bool EmptyStateShown => EmptyPanel.Visibility == Visibility.Visible;
 
+    /// <summary>True while a card's merge menu is open.</summary>
+    public bool MenuOpen => Cards.Children.OfType<EventCard>().Any(c => c.Menu is { IsOpen: true });
+
+    public bool NoticeShown => NoticePanel.Visibility == Visibility.Visible;
+
+    public string NoticeShownText => NoticeText.Text;
+
     public bool NoMoreShown => NoMorePanel.Visibility == Visibility.Visible;
+
+    private void OnNoticeDismiss(object sender, RoutedEventArgs e) => _model.DismissNotice();
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => SettingsPressed?.Invoke();
 
@@ -404,7 +462,7 @@ internal sealed partial class FlyoutWindow : Window
                     return;
                 }
 #endif
-                WindowDeactivated?.Invoke();
+                _ = ReportDeactivationAsync();
             }
 
             return;
@@ -416,6 +474,22 @@ internal sealed partial class FlyoutWindow : Window
         {
             _everActive = true;
         }
+    }
+
+    /// <summary>
+    /// A card's merge menu is a window of its own. Opening it makes WinUI report this window as deactivated while Windows still has it in front
+    /// (the VM's activation log shows exactly that), which must not close the flyout. The person has left only when, a moment later, another
+    /// window is in front and no menu is open.
+    /// </summary>
+    private async Task ReportDeactivationAsync()
+    {
+        await Task.Delay(DeactivationGrace);
+        if (_closing || MenuOpen || TugWindowChrome.IsForeground(Handle))
+        {
+            return;
+        }
+
+        WindowDeactivated?.Invoke();
     }
 
     private void OnClosed(object sender, WindowEventArgs args)

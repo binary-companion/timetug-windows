@@ -62,6 +62,12 @@ internal sealed class TugEngineClient : IEngineClient
 
     public ValueTask ForgetCorrectionsAsync() => throw new NotSupportedException();
 
+    public ValueTask MergeEventsAsync(string eventId, string otherEventId, string? commandId = null) => throw new NotSupportedException();
+
+    public ValueTask UnmergeEventAsync(string eventId, string? commandId = null) => throw new NotSupportedException();
+
+    public ValueTask SeparateMembersAsync(string eventId, IReadOnlyList<string> memberIds, string? commandId = null) => throw new NotSupportedException();
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => throw new NotSupportedException();
 
     private ValueTask Record(string command)

@@ -6,7 +6,7 @@ namespace TimeTug.App.SelfTest;
 
 /// <summary>
 /// Passes everything to the real engine client and writes down the commands that answer a takeover, in the same words as the
-/// scripted client (<c>presented:id</c>, <c>join:id</c>, <c>snooze:id:300</c>, <c>dismiss:id</c>, <c>closed:id</c>), so a scenario that
+/// scripted client (<c>presented:id</c>, <c>join:id</c>, <c>snooze:id:300</c>, <c>dismiss:id</c>, <c>closed:id</c>), and the merge commands (<c>merge:a+b</c>, <c>unmerge:a</c>, <c>separate:a:member</c>), so a scenario that
 /// runs the real engine can still say "exactly one terminal command".
 /// </summary>
 internal sealed class RecordingEngineClient(IEngineClient inner) : IEngineClient
@@ -70,6 +70,24 @@ internal sealed class RecordingEngineClient(IEngineClient inner) : IEngineClient
     public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null) => inner.ApplySettingsAsync(patch, commandId);
 
     public ValueTask ForgetCorrectionsAsync() => inner.ForgetCorrectionsAsync();
+
+    public ValueTask MergeEventsAsync(string eventId, string otherEventId, string? commandId = null)
+    {
+        _sent.Enqueue($"merge:{eventId}+{otherEventId}");
+        return inner.MergeEventsAsync(eventId, otherEventId, commandId);
+    }
+
+    public ValueTask UnmergeEventAsync(string eventId, string? commandId = null)
+    {
+        _sent.Enqueue("unmerge:" + eventId);
+        return inner.UnmergeEventAsync(eventId, commandId);
+    }
+
+    public ValueTask SeparateMembersAsync(string eventId, IReadOnlyList<string> memberIds, string? commandId = null)
+    {
+        _sent.Enqueue($"separate:{eventId}:{string.Join(",", memberIds)}");
+        return inner.SeparateMembersAsync(eventId, memberIds, commandId);
+    }
 
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => inner.SystemEventAsync(kind, timeZone);
 }
