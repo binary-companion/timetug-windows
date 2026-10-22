@@ -202,9 +202,10 @@ internal static class SettingsAccountsScenario
         run.Check(await PressDialogAsync(window, rig, "PrimaryButton"), "(real engine) Remove confirms");
         run.Check(await rig.WaitFor(() => rig.Latest is { Accounts.Count: 0 }), "(real engine) the engine removed the account from its state");
         run.Check(await rig.WaitFor(() => page.AccountCards.Count == 0 && page.EmptyRowElement.Visibility == Visibility.Visible), "(real engine) the pane shows the empty state");
-        run.Check(rig.Host.Secrets.Calls.Contains("remove conn-1"), "(real engine) the engine asked the credential store to remove conn-1: " + string.Join(", ", rig.Host.Secrets.Calls));
-        run.Check(!rig.Host.Secrets.Has("conn-1"), "(real engine) no secrets of the removed account are left in the store");
-        run.Info("(real engine) credential calls: " + string.Join(", ", rig.Host.Secrets.Calls));
+        // The engine publishes the account's removal and then removes its secrets: wait for the store to be asked.
+        run.Check(await rig.WaitFor(() => rig.Host.Secrets.Calls.ToArray().Contains("remove conn-1")), "(real engine) the engine asked the credential store to remove conn-1: " + string.Join(", ", rig.Host.Secrets.Calls.ToArray()));
+        run.Check(await rig.WaitFor(() => !rig.Host.Secrets.Has("conn-1")), "(real engine) no secrets of the removed account are left in the store");
+        run.Info("(real engine) credential calls: " + string.Join(", ", rig.Host.Secrets.Calls.ToArray()));
         Merge(run, rig);
         return true;
     }
