@@ -16,7 +16,7 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// the accessibility scanner (<c>tests/TimeTug.App.A11y</c>, axe-windows) reads them. Round 0 is a canary: a window with a button that
 /// has no name, which the scanner must flag (a scan that finds nothing there is not seeing the app, and fails). Then three rounds: the
 /// welcome window's Connect step with the tug as it first appears, then its Connected step with the tug showing the link to copy after a
-/// failed Join, then the flyout (a problem row and a long day), then the Settings window (its search results, then the Tug Rules, Calendars, Accounts and General panes). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
+/// failed Join, then the flyout (a problem row and a long day), then the Settings window (its search results, then the Tug Rules, Calendars, Accounts and General panes and the About page). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
 /// <c>done-N.txt</c>; without it the scenario gives up after <see cref="WaitForScanner"/>.
 /// </summary>
 internal static class A11yHoldScenario
@@ -24,7 +24,7 @@ internal static class A11yHoldScenario
     public const string Name = "a11y-hold";
 
     /// <summary>How many rounds the scanner is told to expect (<c>scripts/ci/run-a11y.ps1</c> passes the same number).</summary>
-    public const int Rounds = 8;
+    public const int Rounds = 9;
 
     private static readonly TimeSpan WaitForScanner = TimeSpan.FromSeconds(120);
 
@@ -124,6 +124,11 @@ internal static class A11yHoldScenario
             run.Check(settingsWindow.CurrentPage is GeneralPage { LaunchToggle.IsEnabled: false }, "the General pane is showing launch at login as blocked");
             run.Check(await HoldForScannerAsync(rig, 8, "the General pane with a blocked launch at login and a shortcut conflict", cancellation), "the scanner finished round 8");
 
+            // Round 9: the About page (the hero picture, the lockup, the links).
+            settingsWindow.Shell.OpenDestination(GeneralDestination.About);
+            await rig.Settle();
+            run.Check(settingsWindow.CurrentPage is GeneralPage { AboutContent.Visibility: Visibility.Visible }, "the About page is showing");
+            run.Check(await HoldForScannerAsync(rig, 9, "the About page", cancellation), "the scanner finished round 9");
             settings.Host.Close();
         }
 

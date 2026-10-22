@@ -370,4 +370,23 @@
   <data name="HotkeyRecorder_NoModifier" xml:space="preserve"><value>A shortcut needs Ctrl, Alt, Shift or the Windows key as well as another key.</value></data>
   <data name="HotkeyRecorder_NoKey" xml:space="preserve"><value>Press a key together with Ctrl, Alt, Shift or the Windows key.</value></data>
   <data name="HotkeyRecorder_Failed" xml:space="preserve"><value>Couldn’t set the shortcut: {0}</value></data>
+  <data name="About_Name" xml:space="preserve"><value>TimeTug</value></data>
+  <data name="About_LockupAutomation" xml:space="preserve"><value>TimeTug. A tug when time needs your attention.</value></data>
+  <data name="About_Tagline" xml:space="preserve"><value>Never hyperfocus through another meeting.</value></data>
+  <data name="About_Version" xml:space="preserve"><value>Version {0}</value></data>
+  <data name="About_Credit" xml:space="preserve"><value>Created by Scott O’Bryan</value></data>
+  <data name="About_Copyright" xml:space="preserve"><value>© 2026 Binary Companion LLC</value></data>
+  <data name="About_LicenceNote" xml:space="preserve"><value>Source available under MIT with the Commons Clause.</value></data>
+  <data name="About_Website" xml:space="preserve"><value>Website</value></data>
+  <data name="About_WebsiteAutomation" xml:space="preserve"><value>TimeTug website</value></data>
+  <data name="About_Licences" xml:space="preserve"><value>Licences</value></data>
+  <data name="About_LicencesAutomation" xml:space="preserve"><value>TimeTug licence</value></data>
+  <data name="About_LinkFailed" xml:space="preserve"><value>Couldn’t open the link.</value></data>
+  <data name="About_HeroAutomation" xml:space="preserve"><value>TimeTug</value></data>
+  <data name="SoftwareUpdate_Title" xml:space="preserve"><value>TimeTug {0}</value></data>
+  <data name="SoftwareUpdate_Store" xml:space="preserve"><value>Updates come from the Microsoft Store. Windows installs new versions for you.</value></data>
+  <data name="SoftwareUpdate_StoreLink" xml:space="preserve"><value>Open Microsoft Store updates</value></data>
+  <data name="SoftwareUpdate_StoreLinkAutomation" xml:space="preserve"><value>Open Microsoft Store updates</value></data>
+  <data name="SoftwareUpdate_Development" xml:space="preserve"><value>Development build {0}. Updates are installed by hand, not from the Store.</value></data>
+  <data name="SoftwareUpdate_DevelopmentNoCommit" xml:space="preserve"><value>Development build. Updates are installed by hand, not from the Store.</value></data>
 </root>

@@ -293,6 +293,7 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 | Clock changed backwards while the app runs, then second launch and tray click | 5.13 |
 | Launch at login across a real sign-out and sign-in, and a task turned off in Task Manager | 5.15 |
 | The shortcut recorder with a real keyboard: record, the same chord again, Escape, a conflict with another program, a restart | 5.16 |
+| About and Software Update: the picture, the version, the links, the Store button | 5.17 |
 
 ### 5.7 The flyout beside a side or top taskbar, and on a second monitor
 
@@ -372,6 +373,14 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Do:** (a) Settings > General > Shortcut: click the button that says "Record shortcut", press only Ctrl, then press a bare letter, then press Ctrl+Alt+T. (b) Press Ctrl+Alt+T in another window: the flyout opens; again: it closes. Back in Settings click the button and press Ctrl+Alt+T again (the chord that is registered); click it and press Esc; click it and click elsewhere in the window. Check the flyout still opens on Ctrl+Alt+T. (c) Click the button and press Backspace; then record a shortcut again and click the ✕ button. (d) Start the other program holding Ctrl+Alt+M, record Ctrl+Alt+M in TimeTug. Quit TimeTug and start it again with the other program still running, and record Ctrl+Alt+T, quit, let the other program hold Ctrl+Alt+T, start TimeTug and open Settings > General.
 - **Expect:** (a) the button reads "Ctrl+…" while only Ctrl is down, a bare letter says a shortcut needs Ctrl, Alt, Shift or the Windows key, and Ctrl+Alt+T is accepted ("Shortcut is active."). (b) the flyout toggles on Ctrl+Alt+T from any window; recording the same chord works and the shortcut keeps working afterwards; Esc and clicking away leave it as it was and working. (c) Backspace and ✕ remove it ("Shortcut cleared."), the key no longer opens the flyout. (d) "Ctrl+Alt+M is already used by another program. Ctrl+Alt+T still works." and the old shortcut keeps working; after the restart with the other program holding the stored chord the row says "Ctrl+Alt+T is already used by another program, so it is inactive. Record a different shortcut." and the key does nothing.
 - **Automated:** partly. `HotkeyRecorderViewModelTests` (30), `HotkeyServiceTests` (suspend and resume), the `hotkey` and `settings-general` scenarios (a second registrar proves the registration is released while recording and held again after every way out; a real `RegisterHotKey` conflict; one real `SendInput` chord reached the recorder on the VM). Not automated: a real keyboard layout, the Windows key (the shell keeps some Win chords), and another program's real key.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 5.17 About and Software Update
+
+- **Build:** `msix-x64` (or `msix-arm64`).
+- **Do:** open Settings > General. Open About (read it, press Website and Licences), go back, open Software Update and press "Open Microsoft Store updates". Turn off the network and press Website again.
+- **Expect:** About shows the hero picture, the icon and "TimeTug", the tagline, the version of the installed package (Settings > Apps > Installed apps shows the same number), the credit, the copyright and the licence line; Website opens https://binarycompanion.com/ and Licences the LICENSE file on GitHub in the default browser; Software Update says "TimeTug <version>" and, for this development build, "Development build <commit>. Updates are installed by hand, not from the Store." with no Store button (a Store build says updates come from the Microsoft Store and the button opens the Store's Downloads page); with no network the browser, not TimeTug, shows the error. Every control reads sensibly with Narrator.
+- **Automated:** partly. `AboutViewModelTests`, `settings-general` (the texts, the links through a recording launcher, a link that fails, the development and Store variants) and axe round 9 on the About page. Not automated: the real browser and Store opening, and what Narrator says.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ---

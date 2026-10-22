@@ -1,0 +1,17 @@
+<UserControl
+    x:Class="TimeTug.App.Settings.SoftwareUpdatePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
+  <!-- Not Sparkle: updates come from the Microsoft Store (a development build says which commit it is instead). -->
+  <StackPanel Spacing="6">
+    <toolkit:SettingsCard x:Name="Card">
+      <toolkit:SettingsCard.HeaderIcon>
+        <FontIcon Glyph="&#xE895;" />
+      </toolkit:SettingsCard.HeaderIcon>
+      <Button x:Name="StoreButton" Click="OnStore" />
+    </toolkit:SettingsCard>
+    <TextBlock x:Name="ErrorText" Style="{StaticResource CaptionTextBlockStyle}" Margin="14,2,0,2"
+               Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" AutomationProperties.LiveSetting="Assertive" />
+  </StackPanel>
+</UserControl>

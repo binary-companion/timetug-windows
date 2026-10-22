@@ -9,7 +9,7 @@ namespace TimeTug.App.Settings;
 
 /// <summary>
 /// The General pane: a hub with a row for each sub-page (About, Software Update), then the App section (launch at login) and the Shortcut
-/// section (the recorder), in the Mac's order; on a sub-page, a back button and the page's title, as on the Mac. The sub-pages' contents come in a later step.
+/// section (the recorder), in the Mac's order; on a sub-page, a back button, the page's title and its content, as on the Mac.
 /// </summary>
 public sealed partial class GeneralPage : UserControl
 {
@@ -49,7 +49,12 @@ public sealed partial class GeneralPage : UserControl
         AboutCard.Header = localizer.GetString("Settings_Destination_About");
         AutomationProperties.SetName(AboutCard, localizer.GetString("Settings_Destination_About"));
         UpdateCard.Header = localizer.GetString("Settings_Destination_SoftwareUpdate");
-        AutomationProperties.SetName(UpdateCard, localizer.GetString("Settings_Destination_SoftwareUpdate"));
+        UpdateCard.Description = model.About.HubSubtitle;
+        AutomationProperties.SetName(UpdateCard, localizer.GetString("Settings_Destination_SoftwareUpdate") + ". " + model.About.HubSubtitle);
+        AboutContent = new AboutPage(model.About);
+        AboutHost.Content = AboutContent;
+        UpdateContent = new SoftwareUpdatePage(model.About);
+        UpdateHost.Content = UpdateContent;
         // The page is unloaded while another pane is open and loaded again when General comes back: listen only while it is on screen.
         Loaded += (_, _) =>
         {
@@ -71,6 +76,14 @@ public sealed partial class GeneralPage : UserControl
         SyncLaunch();
         SyncShortcut();
     }
+
+    /// <summary>The hub's Software Update row (for the self-test).</summary>
+    internal CommunityToolkit.WinUI.Controls.SettingsCard UpdateRow => UpdateCard;
+
+    /// <summary>The About and Software Update pages (for the self-test).</summary>
+    internal AboutPage AboutContent { get; }
+
+    internal SoftwareUpdatePage UpdateContent { get; }
 
     /// <summary>The shortcut recorder (for the self-test).</summary>
     internal HotkeyRecorder RecorderControl { get; }
@@ -167,6 +180,8 @@ public sealed partial class GeneralPage : UserControl
         var destination = _shell.Destination;
         BackButton.Visibility = destination is null ? Visibility.Collapsed : Visibility.Visible;
         Hub.Visibility = destination is null ? Visibility.Visible : Visibility.Collapsed;
+        AboutHost.Visibility = destination == GeneralDestination.About ? Visibility.Visible : Visibility.Collapsed;
+        UpdateHost.Visibility = destination == GeneralDestination.SoftwareUpdate ? Visibility.Visible : Visibility.Collapsed;
         Heading.Text = destination switch
         {
             GeneralDestination.About => _localizer.GetString("Settings_Destination_About"),

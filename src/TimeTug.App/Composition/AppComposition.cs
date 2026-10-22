@@ -164,7 +164,10 @@ internal static class AppComposition
                 sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), AppVersion.Current(), AppVersion.WindowsVersion()),
             general: () => new GeneralViewModel(
                 sp.GetRequiredService<LaunchAtLoginViewModel>(),
-                new HotkeyRecorderViewModel(sp.GetRequiredService<IHotkeyControl>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>())))));
+                new HotkeyRecorderViewModel(sp.GetRequiredService<IHotkeyControl>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()),
+                new AboutViewModel(
+                    AppVersion.Current(), AppVersion.BuildCommit(), IsDevelopmentBuild, sp.GetRequiredService<ISystemLauncher>(),
+                    sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()))));
         services.AddSingleton<IClipboardService>(sp => new ClipboardService(sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<IDiagnosticsReader>(_ => new DiagnosticsReader(RollingFileLog.DefaultDirectory()));
         services.AddSingleton(sp => new SettingsWindowFactory(
@@ -186,6 +189,14 @@ internal static class AppComposition
             sp.GetRequiredService<IDiagnostics>(), sp.GetRequiredService<TimeProvider>()));
         services.AddHostedService<AppRuntimeService>();
     }
+
+    /// <summary>A development or CI build (the <c>SELFTEST</c> configurations): not in the Store, so the Software Update page shows its commit.</summary>
+    private const bool IsDevelopmentBuild =
+#if SELFTEST
+        true;
+#else
+        false;
+#endif
 
     private static EngineStartup DefaultEngineStartup(IDiagnostics diagnostics)
     {

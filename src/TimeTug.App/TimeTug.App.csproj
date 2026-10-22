@@ -29,6 +29,9 @@
   <ItemGroup>
     <Manifest Include="app.manifest" />
   </ItemGroup>
+  <!-- The commit this build was made from reaches the app as the SDK's SourceRevisionId (the SDK's built-in Source Link reads it from the git
+       repository), which it appends to the informational version ("0.1.0+8060ec0..."); the Software Update page of a development build shows it.
+       A build outside a git repository has none. -->
   <!-- Recorded calendar responses and engine files for the self-test: development and CI builds only, never Release. -->
   <ItemGroup Condition="'$(Configuration)' != 'Release'">
     <EmbeddedResource Include="..\..\tests\data\*.json" LogicalName="TimeTug.SelfTest.Data.%(Filename)%(Extension)" />

@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Win32;
 using TimeTug.App.Settings;
+using TimeTug.Platform;
 using TimeTug.Platform.Capture;
 using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.OsState;
@@ -85,6 +86,7 @@ internal static class SettingsGeneralScenario
         }
 
         await LaunchAtLoginAsync(tug, settings, window, page);
+        await AboutAsync(tug, settings, window, page);
         await ShortcutAsync(tug, settings, window, page, service, store, values, ui);
         await RealStartupTaskAsync(tug);
         return tug.Finish();
@@ -165,6 +167,59 @@ internal static class SettingsGeneralScenario
         // Search finds the setting and tints it.
         window.Shell.Open(SettingsPane.General, GeneralViewModel.Ids.LaunchAtLogin);
         run.Check(await tug.WaitFor(() => SettingsHighlight.Hosts(page).Any(h => SettingsHighlight.GetId(h) == GeneralViewModel.Ids.LaunchAtLogin && SettingsHighlight.OverlayOf(h) is { Opacity: > 0 }), 2000), "a search result for Launch at login tints the switch");
+    }
+
+    // ---- About and Software Update ---------------------------------------------------------------------------------------------------------
+    private static async Task AboutAsync(TugRig tug, SettingsRig settings, SettingsWindow window, GeneralPage page)
+    {
+        var run = tug.Run;
+        run.Check(page.UpdateRow.Description is "TimeTug 1.0.0.0", "the hub's Software Update row shows the version under its name: " + page.UpdateRow.Description);
+
+        // ---- About -------------------------------------------------------------------------------------------------------------------------
+        window.Shell.OpenDestination(GeneralDestination.About);
+        run.Check(await tug.WaitFor(() => page.AboutContent.Visibility == Visibility.Visible && page.HubPanel.Visibility == Visibility.Collapsed), "About opens in place of the hub");
+        run.Check(page.Title.Text == "About" && page.Back.Visibility == Visibility.Visible, "under the heading About, with the back button");
+        var about = page.AboutContent;
+        run.Check(about.Version.Text == "Version 1.0.0.0", "it shows the version: " + about.Version.Text);
+        run.Check(about.Credit.Text == "Created by Scott O’Bryan" && about.Tagline.Text == "Never hyperfocus through another meeting.", "the credit and tagline are the Mac's");
+        run.Check(about.Copyright.Text == "© 2026 Binary Companion LLC" && about.Licence.Text == "Source available under MIT with the Commons Clause.", "with the copyright and the licence line");
+        run.Check(AutomationProperties.GetName(about.Website) == "TimeTug website" && AutomationProperties.GetName(about.Licences) == "TimeTug licence", "and the two links are named");
+        // The page is taller than the window the rows were drawn in: make the window tall enough to show all of it.
+        var area = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
+        window.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(area.X + 20, area.Y + 20, WindowSize.Width, Math.Min(1300, area.Height - 40)));
+        await tug.Settle(1200);
+        await run.ShotAsync(window, "general-about");
+        window.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(area.X + 20, area.Y + 20, WindowSize.Width, WindowSize.Height));
+
+        run.Check(ScenarioUi.Invoke(window, "TimeTug website") && ScenarioUi.Invoke(window, "TimeTug licence"), "the website and licence links are pressed");
+        run.Check(await tug.WaitFor(() => settings.Links.Opened.Count >= 3), "they open links");
+        run.Check(settings.Links.Opened.TakeLast(2).SequenceEqual([AboutViewModel.WebsiteUrl, AboutViewModel.LicenceUrl]), "the website and the licence: " + string.Join(", ", settings.Links.Opened.TakeLast(2)));
+        settings.Links.Succeeds = false;
+        run.Check(ScenarioUi.Invoke(window, "TimeTug website"), "the website link is pressed while links cannot be opened");
+        run.Check(await tug.WaitFor(() => about.Error.Visibility == Visibility.Visible) && about.Error.Text == "Couldn’t open the link.", "a link that cannot be opened says so: " + about.Error.Text);
+        settings.Links.Succeeds = true;
+        run.Check(ScenarioUi.Invoke(window, "TimeTug licence") && await tug.WaitFor(() => about.Error.Visibility == Visibility.Collapsed), "and the next one that opens clears it");
+
+        // ---- Software Update ---------------------------------------------------------------------------------------------------------------------------
+        run.Check(ScenarioUi.Invoke(window, "Back to General") && await tug.WaitFor(() => page.HubPanel.Visibility == Visibility.Visible), "the back button returns to the hub");
+        window.Shell.OpenDestination(GeneralDestination.SoftwareUpdate);
+        run.Check(await tug.WaitFor(() => page.UpdateContent.Visibility == Visibility.Visible && page.Title.Text == "Software Update"), "Software Update opens");
+        var update = page.UpdateContent;
+        run.Check(update.UpdateCard.Header is "TimeTug 1.0.0.0" && update.UpdateCard.Description is "Updates come from the Microsoft Store. Windows installs new versions for you.", "it says updates come from the Microsoft Store: " + update.UpdateCard.Description);
+        run.Check(update.StoreLink.Visibility == Visibility.Visible && AutomationProperties.GetName(update.StoreLink) == "Open Microsoft Store updates", "with a button for the Store's updates page");
+        await tug.Settle(1000);
+        await run.ShotAsync(window, "general-update");
+        var before = settings.Links.Opened.Count;
+        run.Check(ScenarioUi.Invoke(window, "Open Microsoft Store updates") && await tug.WaitFor(() => settings.Links.Opened.Count == before + 1), "the button opens a link");
+        run.Check(settings.Links.Opened[^1] == AboutViewModel.StoreUpdatesUrl, "to the Store's updates page: " + settings.Links.Opened[^1]);
+
+        // A development build is not in the Store: it shows its commit and no Store button.
+        var development = new SoftwareUpdatePage(new AboutViewModel("0.1.0.0", "8060ec0a1", isDevelopmentBuild: true, settings.Links, new DispatcherQueueDispatcher(DispatcherQueue.GetForCurrentThread()), tug.Text));
+        run.Check(development.UpdateCard.Description is "Development build 8060ec0a1. Updates are installed by hand, not from the Store." && development.StoreLink.Visibility == Visibility.Collapsed, "a development build shows its commit and no Store button: " + development.UpdateCard.Description);
+        run.Info("the build's own commit, as the app reads it: " + (AppVersion.BuildCommit() ?? "(none: no git on the build machine)"));
+        run.Info("the build's own version, from the package identity: " + AppVersion.Current());
+
+        run.Check(ScenarioUi.Invoke(window, "Back to General") && await tug.WaitFor(() => page.HubPanel.Visibility == Visibility.Visible), "and back to the hub again");
     }
 
     // ---- the Shortcut row: the recorder over the real HotkeyService and RegisterHotKey ---------------------------------------------------

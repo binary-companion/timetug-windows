@@ -14,6 +14,9 @@
       <Grid x:Name="HeadingHost">
         <TextBlock x:Name="Heading" Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.HeadingLevel="Level1" />
       </Grid>
+      <!-- The About and Software Update pages the hub's first two rows open. -->
+      <ContentControl x:Name="AboutHost" IsTabStop="False" HorizontalContentAlignment="Stretch" Visibility="Collapsed" />
+      <ContentControl x:Name="UpdateHost" IsTabStop="False" HorizontalContentAlignment="Stretch" Visibility="Collapsed" />
       <StackPanel x:Name="Hub" Spacing="4">
         <toolkit:SettingsCard x:Name="AboutCard" IsClickEnabled="True" Click="OnAbout">
           <toolkit:SettingsCard.HeaderIcon>
