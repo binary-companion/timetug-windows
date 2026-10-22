@@ -57,6 +57,7 @@ public sealed class AccountFormService(DispatcherQueue queue, ILocalizer text) :
             }
 
             var dialog = new CredentialFormDialog(request, text) { XamlRoot = root };
+            Theming.ThemeService.Match(dialog, root);
             var shown = dialog.ShowAsync().AsTask();
             using var registration = cancellationToken.Register(() => queue.TryEnqueue(dialog.Hide));
             var outcome = await shown;

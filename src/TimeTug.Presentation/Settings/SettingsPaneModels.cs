@@ -9,8 +9,10 @@ namespace TimeTug.Presentation.Settings;
 /// </summary>
 public sealed class SettingsPaneModels(
     Func<TugRulesViewModel> tugRules, Func<CalendarsViewModel> calendars, Func<AccountsViewModel> accounts, Func<DiagnosticsViewModel> diagnostics,
-    Func<GeneralViewModel> general)
+    Func<GeneralViewModel> general, Func<AppearanceViewModel> appearance)
 {
+    public AppearanceViewModel CreateAppearance() => appearance();
+
     public GeneralViewModel CreateGeneral() => general();
 
     public TugRulesViewModel CreateTugRules() => tugRules();

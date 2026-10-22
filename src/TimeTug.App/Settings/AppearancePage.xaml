@@ -2,9 +2,81 @@
     x:Class="TimeTug.App.Settings.AppearancePage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <ScrollViewer VerticalScrollBarVisibility="Auto" IsTabStop="False">
-    <StackPanel Padding="36,24" Spacing="12">
-      <TextBlock x:Name="Heading" Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.HeadingLevel="Level1" />
+  <UserControl.Resources>
+    <!-- A selectable tile: a preview with its label under it, framed by the accent colour while it is the chosen one. -->
+    <Style x:Key="TileRadioStyle" TargetType="RadioButton">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Margin" Value="0,0,12,12" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Grid x:Name="Frame" Background="Transparent" CornerRadius="12" BorderThickness="3" Padding="6"
+                  BorderBrush="Transparent">
+              <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="CommonStates">
+                  <VisualState x:Name="Normal" />
+                  <VisualState x:Name="PointerOver">
+                    <VisualState.Setters>
+                      <Setter Target="Frame.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                    </VisualState.Setters>
+                  </VisualState>
+                  <VisualState x:Name="Pressed">
+                    <VisualState.Setters>
+                      <Setter Target="Frame.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                    </VisualState.Setters>
+                  </VisualState>
+                  <VisualState x:Name="Disabled" />
+                </VisualStateGroup>
+                <VisualStateGroup x:Name="CheckStates">
+                  <VisualState x:Name="Unchecked" />
+                  <VisualState x:Name="Checked">
+                    <VisualState.Setters>
+                      <Setter Target="Frame.BorderBrush" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                    </VisualState.Setters>
+                  </VisualState>
+                  <VisualState x:Name="Indeterminate" />
+                </VisualStateGroup>
+              </VisualStateManager.VisualStateGroups>
+              <ContentPresenter x:Name="ContentPresenter" Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}" />
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+  <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" IsTabStop="False">
+    <StackPanel Padding="24,24" Spacing="6" MaxWidth="760" HorizontalAlignment="Stretch">
+      <TextBlock x:Name="Heading" Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.HeadingLevel="Level1" Margin="0,0,0,6" />
+
+      <!-- Tray icon (the Mac's Menu Bar Text) -->
+      <TextBlock x:Name="TrayHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,10,0,2" AutomationProperties.HeadingLevel="Level2" />
+      <Grid x:Name="TrayHost">
+        <StackPanel x:Name="TrayTiles" Orientation="Horizontal" />
+      </Grid>
+      <TextBlock x:Name="TrayNote" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="2,0,0,0" />
+
+      <!-- Flyout backdrop (the Mac's Popup Cards) -->
+      <TextBlock x:Name="BackdropHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,18,0,2" AutomationProperties.HeadingLevel="Level2" />
+      <Grid x:Name="BackdropHost">
+        <StackPanel x:Name="BackdropTiles" Orientation="Horizontal" />
+      </Grid>
+      <TextBlock x:Name="BackdropNote" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="2,0,0,0" />
+      <InfoBar x:Name="OverrideBar" Severity="Informational" IsOpen="False" IsClosable="False" Margin="0,6,0,0" />
+
+      <!-- Theme (the Mac's Light, Dark, or Auto) -->
+      <TextBlock x:Name="ThemeHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,18,0,2" AutomationProperties.HeadingLevel="Level2" />
+      <Grid x:Name="ThemeHost">
+        <StackPanel x:Name="ThemeTiles" Orientation="Horizontal" />
+      </Grid>
+      <TextBlock x:Name="ThemeNote" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="2,0,0,0" />
     </StackPanel>
   </ScrollViewer>
 </UserControl>

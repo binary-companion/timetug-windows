@@ -3,6 +3,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using TimeTug.App.Theming;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Settings;
 using Windows.Graphics;
@@ -26,6 +27,8 @@ public sealed partial class SettingsWindow : Window
     private readonly IMonitorService _monitors;
     private readonly IUiSettings _ui;
     private readonly SettingsPaneModels _models;
+    private readonly ThemeService _theme;
+    private readonly IDisposable _themeAttachment;
     private readonly List<IDisposable> _ownedModels = [];
     private readonly Dictionary<SettingsPane, FrameworkElement> _pages = [];
     private readonly Dictionary<SettingsPane, NavigationViewItem> _items = [];
@@ -35,9 +38,10 @@ public sealed partial class SettingsWindow : Window
 
     public SettingsWindow(
         SettingsShellViewModel shell, SettingsText text, ILocalizer localizer, IPresentationSettingsStore store, IMonitorService monitors, IUiSettings ui,
-        SettingsPaneModels models)
+        SettingsPaneModels models, ThemeService theme)
     {
         _models = models;
+        _theme = theme;
         _shell = shell;
         _text = text;
         _localizer = localizer;
@@ -45,6 +49,8 @@ public sealed partial class SettingsWindow : Window
         _monitors = monitors;
         _ui = ui;
         InitializeComponent();
+        // The person's theme: the root, the Mica behind it and the caption (applied again whenever it changes while the window is open).
+        _themeAttachment = theme.Attach(this, Root);
         Title = localizer.GetString("Settings_WindowTitle");
         AutomationProperties.SetName(Nav, localizer.GetString("Settings_PaneNavigation"));
         AutomationProperties.SetName(Search, localizer.GetString("Settings_SearchAutomation"));
@@ -240,6 +246,7 @@ public sealed partial class SettingsWindow : Window
         _saveWait?.Cancel();
         _saveWait?.Dispose();
         _saveWait = null;
+        _themeAttachment.Dispose();
         SaveGeometry();
         _shell.PropertyChanged -= OnShellChanged;
         _shell.HighlightRequested -= OnHighlightRequested;
@@ -295,7 +302,7 @@ public sealed partial class SettingsWindow : Window
     private FrameworkElement CreatePage(SettingsPane pane) => pane switch
     {
         SettingsPane.General => NewGeneralPage(),
-        SettingsPane.Appearance => new AppearancePage(_text.PaneTitle(pane)),
+        SettingsPane.Appearance => NewAppearancePage(),
         SettingsPane.Accounts => NewAccountsPage(),
         SettingsPane.Calendars => NewCalendarsPage(),
         _ => NewTugRulesPage(),
@@ -306,6 +313,13 @@ public sealed partial class SettingsWindow : Window
         var model = _models.CreateGeneral();
         _ownedModels.Add(model);
         return new GeneralPage(_shell, _text, _localizer, model, () => ApplyHighlight());
+    }
+
+    private AppearancePage NewAppearancePage()
+    {
+        var model = _models.CreateAppearance();
+        _ownedModels.Add(model);
+        return new AppearancePage(model, _text, _localizer, _text.PaneTitle(SettingsPane.Appearance));
     }
 
     private AccountsPage NewAccountsPage()

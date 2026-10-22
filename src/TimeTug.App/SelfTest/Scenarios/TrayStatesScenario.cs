@@ -7,6 +7,7 @@ using TimeTug.App.Tray;
 using TimeTug.Platform.Tray;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Tray;
 using System.Runtime.InteropServices.WindowsRuntime;
 
@@ -43,7 +44,9 @@ internal static class TrayStatesScenario
         var settings = new FakeUiSettings { TaskbarUsesLightTheme = false };
         var ticker = new TrayScenario.ManualTicker();
         var diagnostics = new RecordingDiagnostics();
-        using var model = new TrayViewModel(engine, attention, settings, text, new TrayScenario.CountingHost(), time, ticker, System.Globalization.CultureInfo.GetCultureInfo("en-US"));
+        var presentation = new MemoryPresentationSettingsStore();
+        using var model = new TrayViewModel(
+            engine, attention, settings, text, new TrayScenario.CountingHost(), time, ticker, System.Globalization.CultureInfo.GetCultureInfo("en-US"), presentation);
 
         var assets = Path.Combine(AppContext.BaseDirectory, "Assets", "Tray");
         var reference = new TrayIconRenderer(new TrayIconFiles(assets));
@@ -98,6 +101,12 @@ internal static class TrayStatesScenario
         var start = Noon.AddSeconds((9 * 60) + 30);
         engine.Push(Near(start));
         Expect("soon-9", TrayIconState.Soon, 9, false, "Design review in 9 min");
+
+        // The Appearance pane's tray icon style: icon only keeps the colour puppy and the tooltip and draws no digit; the digit comes back with the other style.
+        presentation.Save(presentation.Load() with { TrayStyle = TrayIconStyle.IconOnly });
+        Expect("soon-9-icon-only", TrayIconState.Soon, null, false, "Design review in 9 min");
+        presentation.Save(presentation.Load() with { TrayStyle = TrayIconStyle.IconWithMinuteDigit });
+        Expect("soon-9-digit-again", TrayIconState.Soon, 9, false, "Design review in 9 min");
 
         time.Advance(TimeSpan.FromMinutes(4));
         ticker.Tick();

@@ -294,6 +294,7 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 | Launch at login across a real sign-out and sign-in, and a task turned off in Task Manager | 5.15 |
 | The shortcut recorder with a real keyboard: record, the same chord again, Escape, a conflict with another program, a restart | 5.16 |
 | About and Software Update: the picture, the version, the links, the Store button | 5.17 |
+| The Appearance pane against real Windows settings: app mode switched while Settings is open, a real contrast theme, transparency effects off, the minute digit in the real tray | 5.18 |
 
 ### 5.7 The flyout beside a side or top taskbar, and on a second monitor
 
@@ -381,6 +382,14 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Do:** open Settings > General. Open About (read it, press Website and Licences), go back, open Software Update and press "Open Microsoft Store updates". Turn off the network and press Website again.
 - **Expect:** About shows the hero picture, the icon and "TimeTug", the tagline, the version of the installed package (Settings > Apps > Installed apps shows the same number), the credit, the copyright and the licence line; Website opens https://binarycompanion.com/ and Licences the LICENSE file on GitHub in the default browser; Software Update says "TimeTug <version>" and, for this development build, "Development build <commit>. Updates are installed by hand, not from the Store." with no Store button (a Store build says updates come from the Microsoft Store and the button opens the Store's Downloads page); with no network the browser, not TimeTug, shows the error. Every control reads sensibly with Narrator.
 - **Automated:** partly. `AboutViewModelTests`, `settings-general` (the texts, the links through a recording launcher, a link that fails, the development and Store variants) and axe round 9 on the About page. Not automated: the real browser and Store opening, and what Narrator says.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 5.18 The Appearance pane against real Windows settings
+
+- **Build:** `msix-x64` (or `msix-arm64`). Windows 11.
+- **Do:** (a) Open Settings > Appearance with Theme on "Use system". In Windows Settings > Personalization > Colors change "Choose your mode" between Light and Dark while TimeTug's Settings window and the flyout (open it from the tray) stay open. (b) Choose Dark in TimeTug while Windows is Light, close and open the Settings window and the welcome window (tray icon with no account), and restart TimeTug. (c) Turn on a contrast theme (Settings > Accessibility > Contrast themes), look at the Settings window and the flyout, turn it off. (d) Turn Transparency effects off (Settings > Accessibility > Visual effects) with Acrylic chosen and open the flyout. (e) Choose "Icon only", then add a meeting that starts in 6 minutes and watch the tray icon; choose "Icon with minute digit".
+- **Expect:** (a) the windows follow at once, caption included (a dark caption bar with light caption buttons in dark, a light one in light); (b) Dark is kept, the caption of every TimeTug window is dark from the moment it opens, nothing flashes light; (c) every window uses the contrast theme's own colours, caption included, and the flyout is solid; the pane says a high-contrast theme overrides the backdrop; (d) the flyout is solid and the pane says so; (e) with Icon only the colour puppy shows without a digit and the tooltip still counts the minutes; with the digit style the whole minutes (6, then 5...) are on the icon.
+- **Automated:** partly. `settings-appearance` (a fake system theme, scripted settings: each choice applied to the open windows, caption colours read from the window and from a screenshot, overrides), `tray-states`, `AppearanceViewModelTests`, `AppearanceResolverTests`, axe rounds 10 and 11. Not automated: a real change of the Windows theme, a real contrast theme, and the look of Mica and acrylic (PrintWindow cannot capture them).
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ---

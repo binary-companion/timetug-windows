@@ -440,6 +440,7 @@ public sealed partial class CalendarsPage : UserControl
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot,
             };
+            Theming.ThemeService.Match(dialog, XamlRoot);
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
             {

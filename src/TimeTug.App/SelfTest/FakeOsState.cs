@@ -135,6 +135,8 @@ internal sealed class FakeUiSettings : IUiSettings
 
     public bool TaskbarUsesLightTheme { get; set; }
 
+    public bool AppsUseDarkTheme { get; set; }
+
     public event Action? Changed;
 
     public void Raise() => Changed?.Invoke();

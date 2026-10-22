@@ -218,6 +218,39 @@
   <data name="CalendarProvider_icloud" xml:space="preserve"><value>iCloud</value></data>
   <data name="CalendarProvider_caldav" xml:space="preserve"><value>CalDAV</value></data>
   <data name="CalendarProvider_icalsub" xml:space="preserve"><value>iCal link</value></data>
+  <data name="Appearance_Theme_UseSystem" xml:space="preserve"><value>Use system</value></data>
+  <data name="Appearance_Theme_UseSystem_Name" xml:space="preserve"><value>Use system theme</value></data>
+  <data name="Appearance_Theme_UseSystem_Detail" xml:space="preserve"><value>Follows the Windows app mode</value></data>
+  <data name="Appearance_Theme_Light" xml:space="preserve"><value>Light</value></data>
+  <data name="Appearance_Theme_Light_Name" xml:space="preserve"><value>Light theme</value></data>
+  <data name="Appearance_Theme_Light_Detail" xml:space="preserve"><value>Always light</value></data>
+  <data name="Appearance_Theme_Dark" xml:space="preserve"><value>Dark</value></data>
+  <data name="Appearance_Theme_Dark_Name" xml:space="preserve"><value>Dark theme</value></data>
+  <data name="Appearance_Theme_Dark_Detail" xml:space="preserve"><value>Always dark</value></data>
+  <data name="Appearance_ThemeNote" xml:space="preserve"><value>Use system follows the app mode you chose in Windows. The tug stays navy in every theme.</value></data>
+  <data name="Appearance_Tray_IconOnly" xml:space="preserve"><value>Icon only</value></data>
+  <data name="Appearance_Tray_IconOnly_Name" xml:space="preserve"><value>Icon only tray icon</value></data>
+  <data name="Appearance_Tray_IconOnly_Detail" xml:space="preserve"><value>Just the puppy</value></data>
+  <data name="Appearance_Tray_IconWithMinuteDigit" xml:space="preserve"><value>Icon with minute digit</value></data>
+  <data name="Appearance_Tray_IconWithMinuteDigit_Name" xml:space="preserve"><value>Icon with minute digit tray icon</value></data>
+  <data name="Appearance_Tray_IconWithMinuteDigit_Detail" xml:space="preserve"><value>Minutes left on the puppy</value></data>
+  <data name="Appearance_TrayNote" xml:space="preserve"><value>With the digit, the icon shows the whole minutes left in the last ten minutes before a meeting. The tooltip always gives the time. Windows may keep the icon in the hidden-icons flyout until you drag it onto the taskbar.</value></data>
+  <data name="Appearance_Backdrop_Material" xml:space="preserve"><value>Acrylic</value></data>
+  <data name="Appearance_Backdrop_Material_Name" xml:space="preserve"><value>Acrylic flyout backdrop</value></data>
+  <data name="Appearance_Backdrop_Material_Detail" xml:space="preserve"><value>Translucent</value></data>
+  <data name="Appearance_Backdrop_Solid" xml:space="preserve"><value>Solid</value></data>
+  <data name="Appearance_Backdrop_Solid_Name" xml:space="preserve"><value>Solid flyout backdrop</value></data>
+  <data name="Appearance_Backdrop_Solid_Detail" xml:space="preserve"><value>Opaque</value></data>
+  <data name="Appearance_BackdropNote" xml:space="preserve"><value>Acrylic is translucent; Solid is opaque. When Windows has transparency effects off, or a high-contrast theme is on, the flyout is solid whatever you choose here.</value></data>
+  <data name="Appearance_BackdropOverride_Transparency" xml:space="preserve"><value>Windows has transparency effects off, so the flyout is solid for now. Your choice is kept.</value></data>
+  <data name="Appearance_BackdropOverride_Contrast" xml:space="preserve"><value>A high-contrast theme is on, so the flyout is solid for now. Your choice is kept.</value></data>
+  <data name="Appearance_Preview_Card1Title" xml:space="preserve"><value>Team Sync</value><comment>Invented sample text in the preview of the flyout backdrop.</comment></data>
+  <data name="Appearance_Preview_Card1Details" xml:space="preserve"><value>10:00 – 11:00 AM · Work</value><comment>Invented sample text in the preview of the flyout backdrop.</comment></data>
+  <data name="Appearance_Preview_Card1Chip" xml:space="preserve"><value>in 15m</value><comment>Invented sample text in the preview of the flyout backdrop.</comment></data>
+  <data name="Appearance_Preview_Card2Title" xml:space="preserve"><value>Call Mom</value><comment>Invented sample text in the preview of the flyout backdrop.</comment></data>
+  <data name="Appearance_Preview_Card2Details" xml:space="preserve"><value>6:00 – 7:00 PM · Personal</value><comment>Invented sample text in the preview of the flyout backdrop.</comment></data>
+  <data name="Appearance_Preview_Digit" xml:space="preserve"><value>7</value><comment>A sample minute digit on the tray icon in the preview.</comment></data>
+  <data name="Appearance_Preview_Clock" xml:space="preserve"><value>9:41 AM</value><comment>A sample clock in the preview of the tray.</comment></data>
   <data name="SettingsPane_General" xml:space="preserve"><value>General</value></data>
   <data name="SettingsPane_Appearance" xml:space="preserve"><value>Appearance</value></data>
   <data name="SettingsPane_Accounts" xml:space="preserve"><value>Accounts</value></data>
@@ -232,7 +265,7 @@
   <data name="SettingsText_test-takeover" xml:space="preserve"><value>Test tug</value></data>
   <data name="SettingsText_skip-all-day" xml:space="preserve"><value>Skip all-day events</value></data>
   <data name="SettingsText_dedup-inference" xml:space="preserve"><value>Find duplicates with on-device intelligence</value></data>
-  <data name="SettingsText_appearance" xml:space="preserve"><value>Appearance</value></data>
+  <data name="SettingsText_appearance" xml:space="preserve"><value>Theme</value></data>
   <data name="SettingsText_popup-card-style" xml:space="preserve"><value>Flyout backdrop</value></data>
   <data name="SettingsText_tray-icon-style" xml:space="preserve"><value>Tray icon</value></data>
   <data name="SettingsText_launch-at-login" xml:space="preserve"><value>Launch at login</value></data>

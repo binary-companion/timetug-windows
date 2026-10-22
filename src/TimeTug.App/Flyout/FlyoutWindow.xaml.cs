@@ -34,6 +34,7 @@ internal sealed partial class FlyoutWindow : Window
     private readonly ILocalizer _text;
     private readonly IUiSettings _settings;
     private FlyoutPalette _palette;
+    private bool _dark;
     private bool _everActive;
     private bool _closing;
     private Storyboard? _opening;
@@ -62,7 +63,9 @@ internal sealed partial class FlyoutWindow : Window
             icon.Background = new ImageBrush { ImageSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/tug-icon.png")) { DecodePixelWidth = 144 }, Stretch = Stretch.UniformToFill };
         }
 
-        _palette = FlyoutPalette.For(IsDark, settings.HighContrast);
+        // Until the host gives the first look (Present), the theme the app started in.
+        _dark = Application.Current.RequestedTheme == ApplicationTheme.Dark;
+        _palette = FlyoutPalette.For(_dark, settings.HighContrast);
         Rebuild();
         model.Changed += OnModelChanged;
         Root.PreviewKeyDown += OnPreviewKeyDown;
@@ -101,7 +104,8 @@ internal sealed partial class FlyoutWindow : Window
 
     public FlyoutViewModel ViewModel => _model;
 
-    private static bool IsDark => Application.Current.RequestedTheme == ApplicationTheme.Dark;
+    /// <summary>True when the flyout is in the dark theme now (the person's choice, resolved by the host).</summary>
+    public bool IsDarkTheme => _dark;
 
     // ---- showing and measuring ----------------------------------------------------------------------------------
 
@@ -175,10 +179,15 @@ internal sealed partial class FlyoutWindow : Window
 
     private void ApplyLook(FlyoutLook look)
     {
+        // The theme the person chose (Appearance pane): the controls take it from the root, the cards from the palette, and the acrylic is made
+        // again because an existing backdrop keeps the theme it was made with.
+        var themeChanged = look.Dark != _dark;
+        _dark = look.Dark;
+        Root.RequestedTheme = look.HighContrast ? ElementTheme.Default : look.Dark ? ElementTheme.Dark : ElementTheme.Light;
         var acrylic = look.Backdrop == FlyoutBackdrop.Material && DesktopAcrylicController.IsSupported();
         if (acrylic)
         {
-            if (SystemBackdrop is not DesktopAcrylicBackdrop)
+            if (SystemBackdrop is not DesktopAcrylicBackdrop || themeChanged)
             {
                 SystemBackdrop = new DesktopAcrylicBackdrop();
             }
@@ -189,23 +198,19 @@ internal sealed partial class FlyoutWindow : Window
         else
         {
             SystemBackdrop = null;
-            Root.Background = look.HighContrast ? FlyoutPalette.For(IsDark, true).CardFill : SolidFill();
+            Root.Background = look.HighContrast ? FlyoutPalette.For(_dark, true).CardFill : SolidFill();
         }
 
         Backdrop = acrylic ? FlyoutBackdrop.Material : FlyoutBackdrop.Solid;
-        if (look.HighContrast != _palette.IsContrast)
+        if (look.HighContrast != _palette.IsContrast || themeChanged)
         {
-            _palette = FlyoutPalette.For(IsDark, look.HighContrast);
+            _palette = FlyoutPalette.For(_dark, look.HighContrast);
             Rebuild();
         }
     }
 
-    private static Brush SolidFill() =>
-        Application.Current.Resources.TryGetValue("SolidBackgroundFillColorBaseBrush", out var value) && value is Brush brush
-            ? brush
-            : new SolidColorBrush(IsDark ? Color(32, 32, 32) : Color(243, 243, 243));
-
-    private static Windows.UI.Color Color(byte r, byte g, byte b) => Windows.UI.Color.FromArgb(255, r, g, b);
+    /// <summary>The flat fill of the solid backdrop: WinUI's base colour of the flyout's theme.</summary>
+    private SolidColorBrush SolidFill() => new SolidColorBrush(Theming.ThemeColors.Get("SolidBackgroundFillColorBase", _dark));
 
     private void StartOpenAnimation()
     {

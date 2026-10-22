@@ -1,6 +1,7 @@
 using System.Globalization;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Settings;
 
 namespace TimeTug.Presentation.Tray;
 
@@ -33,6 +34,7 @@ public sealed class TrayViewModel : IDisposable
     private readonly IDisposable _ticker;
     private readonly Action _onUiSettingsChanged;
     private readonly Action _onAttentionChanged;
+    private readonly IPresentationSettingsStore? _presentation;
     private AppState? _state;
     private TrayView _last;
     private bool _disposed;
@@ -46,7 +48,8 @@ public sealed class TrayViewModel : IDisposable
         ITrayHost host,
         TimeProvider time,
         IMinuteTicker ticker,
-        CultureInfo? culture = null)
+        CultureInfo? culture = null,
+        IPresentationSettingsStore? presentation = null)
     {
         ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(attention);
@@ -62,12 +65,19 @@ public sealed class TrayViewModel : IDisposable
         _host = host;
         _time = time;
         _culture = culture ?? CultureInfo.CurrentCulture;
+        _presentation = presentation;
         _last = Build();
         _onUiSettingsChanged = Refresh;
         _onAttentionChanged = Refresh;
         _stateSubscription = engine.State.Subscribe(new StateObserver(OnState));
         attention.AttentionChanged += _onAttentionChanged;
         ui.Changed += _onUiSettingsChanged;
+        if (presentation is not null)
+        {
+            // The Appearance pane's tray icon style: re-plan the icon (Refresh raises Changed only when what the tray shows differs).
+            presentation.Changed += _onUiSettingsChanged;
+        }
+
         _ticker = ticker.Start(Refresh);
     }
 
@@ -164,6 +174,10 @@ public sealed class TrayViewModel : IDisposable
         _ticker.Dispose();
         _attention.AttentionChanged -= _onAttentionChanged;
         _ui.Changed -= _onUiSettingsChanged;
+        if (_presentation is not null)
+        {
+            _presentation.Changed -= _onUiSettingsChanged;
+        }
     }
 
     private void OnState(AppState state)
@@ -203,7 +217,8 @@ public sealed class TrayViewModel : IDisposable
     {
         var now = _time.GetUtcNow();
         var nearness = TrayIconPlan.Measure(_state, now);
-        var plan = TrayIconPlan.Create(nearness, _state, now, _attention.NeedsAttention, _text, _culture);
+        var style = _presentation?.Load().TrayStyle ?? PresentationSettings.Defaults.TrayStyle;
+        var plan = TrayIconPlan.Create(nearness, _state, now, _attention.NeedsAttention, _text, _culture, style);
         return new TrayView(BuildRows(_state, nearness.OffersJoin), new TrayIconView(plan.State, _ui.TaskbarUsesLightTheme, plan.Digit), plan.Tooltip);
     }
 

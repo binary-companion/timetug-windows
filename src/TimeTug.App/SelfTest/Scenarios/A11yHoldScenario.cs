@@ -16,7 +16,7 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// the accessibility scanner (<c>tests/TimeTug.App.A11y</c>, axe-windows) reads them. Round 0 is a canary: a window with a button that
 /// has no name, which the scanner must flag (a scan that finds nothing there is not seeing the app, and fails). Then three rounds: the
 /// welcome window's Connect step with the tug as it first appears, then its Connected step with the tug showing the link to copy after a
-/// failed Join, then the flyout (a problem row and a long day), then the Settings window (its search results, then the Tug Rules, Calendars, Accounts and General panes and the About page). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
+/// failed Join, then the flyout (a problem row and a long day), then the Settings window (its search results, then the Tug Rules, Calendars, Accounts and General panes and the About page, then the Appearance pane in the light theme and in the dark theme with the backdrop notice open). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
 /// <c>done-N.txt</c>; without it the scenario gives up after <see cref="WaitForScanner"/>.
 /// </summary>
 internal static class A11yHoldScenario
@@ -24,7 +24,7 @@ internal static class A11yHoldScenario
     public const string Name = "a11y-hold";
 
     /// <summary>How many rounds the scanner is told to expect (<c>scripts/ci/run-a11y.ps1</c> passes the same number).</summary>
-    public const int Rounds = 9;
+    public const int Rounds = 11;
 
     private static readonly TimeSpan WaitForScanner = TimeSpan.FromSeconds(120);
 
@@ -129,6 +129,22 @@ internal static class A11yHoldScenario
             await rig.Settle();
             run.Check(settingsWindow.CurrentPage is GeneralPage { AboutContent.Visibility: Visibility.Visible }, "the About page is showing");
             run.Check(await HoldForScannerAsync(rig, 9, "the About page", cancellation), "the scanner finished round 9");
+
+            // Round 10: the Appearance pane in the light theme (the tiles with their previews, the notes).
+            settings.Store.Save(PresentationSettings.Defaults with { Theme = AppTheme.Light });
+            settingsWindow.Shell.SelectedPane = SettingsPane.Appearance;
+            await rig.Settle();
+            run.Check(settingsWindow.CurrentPage is AppearancePage { ThemeChoiceTiles.Count: 3 } && settingsWindow.RootElement.ActualTheme == ElementTheme.Light, "the Appearance pane is showing in the light theme");
+            run.Check(await HoldForScannerAsync(rig, 10, "the Appearance pane, light theme", cancellation), "the scanner finished round 10");
+
+            // Round 11: the same pane in the dark theme, with Windows overriding the flyout backdrop (the notice is open).
+            rig.Settings.TransparencyEffectsEnabled = false;
+            rig.Settings.Raise();
+            settings.Store.Save(settings.Store.Load() with { Theme = AppTheme.Dark });
+            await rig.Settle();
+            run.Check(settingsWindow.RootElement.ActualTheme == ElementTheme.Dark && settingsWindow.CurrentPage is AppearancePage { OverrideNotice.IsOpen: true }, "the Appearance pane is showing in the dark theme with the override notice");
+            run.Check(await HoldForScannerAsync(rig, 11, "the Appearance pane, dark theme, with the backdrop notice", cancellation), "the scanner finished round 11");
+            rig.Settings.TransparencyEffectsEnabled = true;
             settings.Host.Close();
         }
 

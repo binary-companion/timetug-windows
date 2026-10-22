@@ -4,6 +4,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using TimeTug.App.Composition;
 using TimeTug.App.Settings;
+using TimeTug.App.Theming;
 using TimeTug.App.Tray;
 using TimeTug.App.Tug;
 using TimeTug.App.Views;
@@ -151,7 +152,8 @@ internal sealed class AppShell
             Services.GetRequiredService<ILocalizer>(),
             host,
             Services.GetRequiredService<TimeProvider>(),
-            Services.GetRequiredService<IMinuteTicker>());
+            Services.GetRequiredService<IMinuteTicker>(),
+            presentation: Services.GetRequiredService<IPresentationSettingsStore>());
         _tray = new TrayIconService(_trayModel, Services.GetRequiredService<IUiDispatcher>(), _diagnostics);
         var tray = _tray;
         Services.GetRequiredService<TrayIconIdSource>().Provider = () => tray.IconId;
@@ -181,7 +183,8 @@ internal sealed class AppShell
             // "Add another" on the second step goes to the Accounts pane, where every kind can be added and every account managed.
             () => ShowSettings(SettingsPane.Accounts),
             // The checkbox on the second step: unchecked until the person ticks it; Windows decides what comes of the tick.
-            Services.GetRequiredService<LaunchAtLoginViewModel>());
+            Services.GetRequiredService<LaunchAtLoginViewModel>(),
+            Services.GetRequiredService<ThemeService>());
         window.Closed += (_, _) => _welcome = null;
         _welcome = window;
         window.Activate();

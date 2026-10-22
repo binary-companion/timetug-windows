@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Time.Testing;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Flyout;
+using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Tests.Tug;
 using TimeTug.Presentation.Tests.Welcome;
 
@@ -535,6 +536,127 @@ public sealed class FlyoutHostTests : IDisposable
 
         _factory.Last!.Look!.Backdrop.Should().Be(FlyoutBackdrop.Solid);
         _factory.Last.Updates.Should().Be(1);
+    }
+
+    // ---- the Appearance pane's choices ----------------------------------------------------------------------------
+
+    private FlyoutHost HostWith(MemoryPresentationSettingsStore store) =>
+        new(_factory, _tug, _settings, _anchor, _monitors, new ImmediateDispatcher(), _time, _diagnostics, store);
+
+    [Theory]
+    [InlineData(FlyoutBackdrop.Material)]
+    [InlineData(FlyoutBackdrop.Solid)]
+    public void The_chosen_backdrop_is_the_look_when_windows_allows_it(FlyoutBackdrop chosen)
+    {
+        using var host = HostWith(new MemoryPresentationSettingsStore(PresentationSettings.Defaults with { Backdrop = chosen }));
+
+        host.Toggle();
+
+        _factory.Last!.Look!.Backdrop.Should().Be(chosen);
+    }
+
+    [Theory]
+    [InlineData(FlyoutBackdrop.Material)]
+    [InlineData(FlyoutBackdrop.Solid)]
+    public void Reduced_transparency_or_contrast_make_the_look_solid_whatever_was_chosen(FlyoutBackdrop chosen)
+    {
+        using var host = HostWith(new MemoryPresentationSettingsStore(PresentationSettings.Defaults with { Backdrop = chosen }));
+
+        _settings.TransparencyEffectsEnabled = false;
+        host.Toggle();
+        _factory.Last!.Look!.Backdrop.Should().Be(FlyoutBackdrop.Solid);
+        host.Close();
+
+        _settings.TransparencyEffectsEnabled = true;
+        _settings.HighContrast = true;
+        host.Toggle();
+        _factory.Last!.Look!.Backdrop.Should().Be(FlyoutBackdrop.Solid);
+    }
+
+    [Theory]
+    [InlineData(AppTheme.UseSystem, false, false)]
+    [InlineData(AppTheme.UseSystem, true, true)]
+    [InlineData(AppTheme.Light, true, false)]
+    [InlineData(AppTheme.Dark, false, true)]
+    public void The_look_carries_the_theme_that_applies(AppTheme theme, bool systemDark, bool expectedDark)
+    {
+        _settings.AppsUseDarkTheme = systemDark;
+        using var host = HostWith(new MemoryPresentationSettingsStore(PresentationSettings.Defaults with { Theme = theme }));
+
+        host.Toggle();
+
+        _factory.Last!.Look!.Dark.Should().Be(expectedDark);
+    }
+
+    [Fact]
+    public void A_new_choice_while_open_restyles_the_window_once()
+    {
+        var store = new MemoryPresentationSettingsStore();
+        using var host = HostWith(store);
+        host.Toggle();
+
+        store.Save(store.Load() with { Backdrop = FlyoutBackdrop.Solid });
+
+        _factory.Last!.Look!.Backdrop.Should().Be(FlyoutBackdrop.Solid);
+        _factory.Last.Updates.Should().Be(1);
+
+        store.Save(store.Load() with { Theme = AppTheme.Dark });
+
+        _factory.Last.Look!.Dark.Should().BeTrue();
+        _factory.Last.Updates.Should().Be(2);
+    }
+
+    [Fact]
+    public void A_save_that_changes_nothing_the_flyout_shows_does_not_touch_the_open_window()
+    {
+        var store = new MemoryPresentationSettingsStore();
+        using var host = HostWith(store);
+        host.Toggle();
+
+        store.Save(store.Load() with { SettingsWindow = new WindowGeometry(10, 10, 900, 700) });
+        store.Save(store.Load() with { TrayStyle = TrayIconStyle.IconOnly });
+
+        _factory.Last!.Updates.Should().Be(0);
+    }
+
+    [Fact]
+    public void A_system_theme_change_while_open_restyles_a_window_that_follows_the_system()
+    {
+        using var host = HostWith(new MemoryPresentationSettingsStore());
+        host.Toggle();
+
+        _settings.AppsUseDarkTheme = true;
+        _settings.Raise();
+
+        _factory.Last!.Look!.Dark.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_choice_made_while_closed_applies_the_next_time_it_opens()
+    {
+        var store = new MemoryPresentationSettingsStore();
+        using var host = HostWith(store);
+        host.Toggle();
+        host.Close();
+
+        store.Save(store.Load() with { Backdrop = FlyoutBackdrop.Solid });
+        host.Toggle();
+
+        _factory.Last!.Look!.Backdrop.Should().Be(FlyoutBackdrop.Solid);
+    }
+
+    [Fact]
+    public void After_it_is_disposed_the_host_no_longer_follows_the_store()
+    {
+        var store = new MemoryPresentationSettingsStore();
+        var host = HostWith(store);
+        host.Toggle();
+        var surface = _factory.Last!;
+        host.Dispose();
+
+        store.Save(store.Load() with { Backdrop = FlyoutBackdrop.Solid });
+
+        surface.Updates.Should().Be(0);
     }
 
     // ---- size and place -----------------------------------------------------------------------------------------

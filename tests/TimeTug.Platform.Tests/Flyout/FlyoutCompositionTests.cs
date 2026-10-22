@@ -351,6 +351,8 @@ public sealed class FlyoutCompositionTests : IAsyncDisposable
 
         public bool TaskbarUsesLightTheme => false;
 
+        public bool AppsUseDarkTheme => false;
+
         public event Action? Changed
         {
             add { }

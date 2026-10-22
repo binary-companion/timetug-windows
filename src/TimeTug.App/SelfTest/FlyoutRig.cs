@@ -23,7 +23,7 @@ internal sealed class FlyoutRig : IDisposable
 
     private readonly bool _ownsTug;
 
-    private FlyoutRig(TugRig tug, bool ownsTug, ITrayAnchor? hostAnchor)
+    private FlyoutRig(TugRig tug, bool ownsTug, ITrayAnchor? hostAnchor, TimeTug.Presentation.Settings.MemoryPresentationSettingsStore? store = null)
     {
         FlyoutWindow.IgnoreSystemDeactivation = true;
         Tug = tug;
@@ -35,7 +35,8 @@ internal sealed class FlyoutRig : IDisposable
         var ui = new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
         Factory = new FlyoutSurfaceFactory(Model, ui, tug.Text, tug.Settings);
         Presence = new TimeTug.Presentation.Flyout.TugPresence(tug.Controller);
-        Host = new FlyoutHost(Factory, Presence, tug.Settings, hostAnchor ?? Anchor, Monitors, ui, TimeProvider.System, tug.Diagnostics);
+        Store = store ?? new TimeTug.Presentation.Settings.MemoryPresentationSettingsStore();
+        Host = new FlyoutHost(Factory, Presence, tug.Settings, hostAnchor ?? Anchor, Monitors, ui, TimeProvider.System, tug.Diagnostics, Store);
     }
 
     public TugRig Tug { get; }
@@ -56,6 +57,9 @@ internal sealed class FlyoutRig : IDisposable
 
     public FlyoutHost Host { get; }
 
+    /// <summary>The presentation settings the host follows (the Appearance pane's choices).</summary>
+    public TimeTug.Presentation.Settings.MemoryPresentationSettingsStore Store { get; }
+
     /// <summary>The flyout window while it is open.</summary>
     public FlyoutWindow? Window => Host.IsOpen ? Factory.Last?.Window : null;
 
@@ -65,7 +69,7 @@ internal sealed class FlyoutRig : IDisposable
         new(TugRig.Create(options, 1, cancellation), ownsTug: true, anchor);
 
     /// <summary>A flyout on a tug rig that someone else owns (the accessibility scenario).</summary>
-    public static FlyoutRig Over(TugRig tug) => new(tug, ownsTug: false, null);
+    public static FlyoutRig Over(TugRig tug, TimeTug.Presentation.Settings.MemoryPresentationSettingsStore? store = null) => new(tug, ownsTug: false, null, store);
 
     public bool Check(bool condition, string name) => Tug.Check(condition, name);
 

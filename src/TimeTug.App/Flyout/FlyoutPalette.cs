@@ -1,6 +1,7 @@
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using TimeTug.App.Theming;
 using TimeTug.Platform.Tug;
 using Windows.UI;
 
@@ -82,10 +83,10 @@ internal sealed class FlyoutPalette
 
         return new FlyoutPalette
         {
-            Primary = Theme("TextFillColorPrimaryBrush", dark ? Rgb(255, 255, 255) : Rgb(26, 26, 26)),
-            Secondary = Theme("TextFillColorSecondaryBrush", dark ? Rgb(200, 200, 200) : Rgb(96, 96, 96)),
-            CardFill = Theme("CardBackgroundFillColorDefaultBrush", dark ? Rgb(60, 60, 60) : Rgb(255, 255, 255)),
-            CardStroke = Theme("CardStrokeColorDefaultBrush", dark ? Rgb(70, 70, 70) : Rgb(229, 229, 229)),
+            Primary = Theme("TextFillColorPrimary", dark),
+            Secondary = Theme("TextFillColorSecondary", dark),
+            CardFill = Theme("CardBackgroundFillColorDefault", dark),
+            CardStroke = Theme("CardStrokeColorDefault", dark),
             Blue = dark ? Rgb(77, 148, 255) : Rgb(46, 122, 245),
             PillBackground = dark ? Rgb(31, 54, 102) : Rgb(222, 235, 255),
             PillText = dark ? Rgb(191, 217, 255) : Rgb(26, 87, 184),
@@ -111,6 +112,6 @@ internal sealed class FlyoutPalette
 
     private static SolidColorBrush Rgb(byte r, byte g, byte b) => new(Color.FromArgb(255, r, g, b));
 
-    private static Brush Theme(string key, Brush fallback) =>
-        Application.Current.Resources.TryGetValue(key, out var value) && value is Brush brush ? brush : fallback;
+    /// <summary>WinUI's own colour for the key in the theme the flyout is in (which is not always the theme the app started in).</summary>
+    private static SolidColorBrush Theme(string key, bool dark) => new(ThemeColors.Get(key, dark));
 }
