@@ -164,6 +164,23 @@ public class UiSettingsTests
     }
 
     [Fact]
+    public void A_change_of_the_apps_theme_raises_changed_and_is_readable()
+    {
+        var source = new FakeMessageSource();
+        var current = Snapshot();
+        using var settings = new UiSettings(source, () => current);
+        var changed = 0;
+        settings.Changed += () => changed++;
+        settings.AppsUseDarkTheme.Should().BeFalse();
+
+        current = current with { AppsUseDarkTheme = true };
+        source.Raise(WindowMessage.SettingChange, text: "ImmersiveColorSet");
+
+        changed.Should().Be(1);
+        settings.AppsUseDarkTheme.Should().BeTrue();
+    }
+
+    [Fact]
     public void Settings_messages_that_change_nothing_and_other_messages_raise_nothing()
     {
         var source = new FakeMessageSource();

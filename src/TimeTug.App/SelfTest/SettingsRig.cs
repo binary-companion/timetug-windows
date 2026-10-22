@@ -1,6 +1,7 @@
 #if SELFTEST
 using Microsoft.UI.Dispatching;
 using TimeTug.App.Settings;
+using TimeTug.App.Theming;
 using TimeTug.Platform.Clipboard;
 using TimeTug.Platform.Diagnostics;
 using TimeTug.Platform.OsState;
@@ -34,6 +35,7 @@ internal sealed class SettingsRig : IDisposable
         Clipboard = new RecordingClipboard();
         Startup = new ScriptedStartupTask();
         Links = new RecordingSystemLauncher();
+        Theme = new ThemeService(Store, tug.Settings, dispatcher);
         Factory = new SettingsWindowFactory(Text, tug.Text, Store, new StaticMonitors(MonitorService.Enumerate()), tug.Settings,
             new SettingsPaneModels(
                 () => new TugRulesViewModel(tug.Engine, _client, dispatcher, tug.Text),
@@ -42,7 +44,9 @@ internal sealed class SettingsRig : IDisposable
                 () => new DiagnosticsViewModel(tug.Engine, new DiagnosticsReader(LogFolder), Clipboard, dispatcher, tug.Text, TimeProvider.System, "1.0.0.0", "10.0.26100.0 (Test)"),
                 () => new GeneralViewModel(
                     new LaunchAtLoginViewModel(Startup, Links, dispatcher, tug.Text), new HotkeyRecorderViewModel(Hotkeys, dispatcher, tug.Text),
-                    new AboutViewModel("1.0.0.0", "8060ec0a1", isDevelopmentBuild: false, Links, dispatcher, tug.Text))));
+                    new AboutViewModel("1.0.0.0", "8060ec0a1", isDevelopmentBuild: false, Links, dispatcher, tug.Text)),
+                () => new AppearanceViewModel(Store, tug.Settings, dispatcher, tug.Text)),
+            Theme);
         Host = new SettingsHost(
             Factory, () => new SettingsShellViewModel(tug.Engine, Text, tug.Settings, dispatcher, TimeProvider.System), dispatcher, tug.Diagnostics);
     }
@@ -52,6 +56,9 @@ internal sealed class SettingsRig : IDisposable
     public SettingsText Text { get; }
 
     public MemoryPresentationSettingsStore Store { get; }
+
+    /// <summary>Applies the Appearance pane's theme to the windows this rig opens.</summary>
+    public ThemeService Theme { get; }
 
     public SettingsWindowFactory Factory { get; }
 
@@ -141,6 +148,7 @@ internal sealed class SettingsRig : IDisposable
     public void Dispose()
     {
         Host.Dispose();
+        Theme.Dispose();
         _client.Dispose();
         Tug.Settings.AnimationsEnabled = true;
     }

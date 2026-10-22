@@ -1,4 +1,5 @@
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Settings;
 
 namespace TimeTug.Presentation.Flyout;
 
@@ -16,7 +17,7 @@ public enum FlyoutBackdrop
 /// <param name="Backdrop">Material, or solid when transparency is reduced or a contrast theme is on.</param>
 /// <param name="Animate">False when Windows has animations off: the window then appears without its opening animation.</param>
 /// <param name="HighContrast">A contrast theme is on: the window uses the theme's own colours.</param>
-public sealed record FlyoutLook(FlyoutBackdrop Backdrop, bool Animate, bool HighContrast);
+public sealed record FlyoutLook(FlyoutBackdrop Backdrop, bool Animate, bool HighContrast, bool Dark = false);
 
 /// <summary>The flyout's window, as the host sees it. The WinUI window implements it; tests use a fake.</summary>
 public interface IFlyoutSurface
@@ -92,7 +93,9 @@ public sealed class FlyoutHost : IDisposable
     private readonly IUiDispatcher _ui;
     private readonly TimeProvider _time;
     private readonly IDiagnostics? _diagnostics;
+    private readonly IPresentationSettingsStore? _presentation;
     private IFlyoutSurface? _surface;
+    private FlyoutLook? _shownLook;
     private PixelRect? _anchorRect;
     // A monotonic timestamp, not a wall-clock instant: a clock set back must not leave the icon and the hotkey doing nothing.
     private long? _closedByDeactivation;
@@ -106,7 +109,8 @@ public sealed class FlyoutHost : IDisposable
         IMonitorService monitors,
         IUiDispatcher ui,
         TimeProvider time,
-        IDiagnostics? diagnostics = null)
+        IDiagnostics? diagnostics = null,
+        IPresentationSettingsStore? presentation = null)
     {
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(tug);
@@ -123,9 +127,14 @@ public sealed class FlyoutHost : IDisposable
         _ui = ui;
         _time = time;
         _diagnostics = diagnostics;
+        _presentation = presentation;
         _tug.Changed += OnTugChanged;
         _settings.Changed += OnSettingsChanged;
         _anchor.Changed += OnAnchorChanged;
+        if (presentation is not null)
+        {
+            presentation.Changed += OnPresentationChanged;
+        }
     }
 
     /// <summary>True while the flyout window is open.</summary>
@@ -207,6 +216,11 @@ public sealed class FlyoutHost : IDisposable
         _tug.Changed -= OnTugChanged;
         _settings.Changed -= OnSettingsChanged;
         _anchor.Changed -= OnAnchorChanged;
+        if (_presentation is not null)
+        {
+            _presentation.Changed -= OnPresentationChanged;
+        }
+
         if (_ui.HasThreadAccess)
         {
             Close();
@@ -276,10 +290,21 @@ public sealed class FlyoutHost : IDisposable
 
     private PixelRect Place(IFlyoutSurface surface) => FlyoutPlacement.Compute(_anchorRect, surface.MeasureContent(), _monitors.Monitors);
 
-    private FlyoutLook Look() => new(
-        _settings.HighContrast || !_settings.TransparencyEffectsEnabled ? FlyoutBackdrop.Solid : FlyoutBackdrop.Material,
-        _settings.AnimationsEnabled,
-        _settings.HighContrast);
+    /// <summary>
+    /// What the window should look like: the person's backdrop and theme (Appearance pane; the defaults without a store), with transparency
+    /// effects off and contrast themes always giving the solid backdrop, whatever was chosen.
+    /// </summary>
+    private FlyoutLook Look()
+    {
+        var chosen = _presentation?.Load() ?? PresentationSettings.Defaults;
+        var look = new FlyoutLook(
+            AppearanceResolver.Backdrop(chosen.Backdrop, _settings),
+            _settings.AnimationsEnabled,
+            _settings.HighContrast,
+            AppearanceResolver.IsDark(chosen.Theme, _settings));
+        _shownLook = look;
+        return look;
+    }
 
     private void OnDeactivated()
     {
@@ -340,6 +365,25 @@ public sealed class FlyoutHost : IDisposable
             _anchorRect = _anchor.Peek()?.Rect;
             surface.Update(Place(surface), Look());
             _anchor.Refresh();
+        }
+    });
+
+    /// <summary>
+    /// The Appearance pane saved a choice (or the Settings window saved its place, which comes through the same event): an open flyout is
+    /// restyled when what it shows differs, and left alone otherwise.
+    /// </summary>
+    private void OnPresentationChanged() => _ui.Post(() =>
+    {
+        if (_disposed || _surface is not { } surface)
+        {
+            return;
+        }
+
+        var before = _shownLook;
+        var after = Look();
+        if (after != before)
+        {
+            surface.Update(Place(surface), after);
         }
     });
 

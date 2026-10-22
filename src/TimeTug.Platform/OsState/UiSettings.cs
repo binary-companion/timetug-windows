@@ -5,11 +5,11 @@ using Windows.UI.ViewManagement;
 namespace TimeTug.Platform.OsState;
 
 /// <summary>The appearance settings the UI follows, as one comparable value.</summary>
-public readonly record struct UiSnapshot(bool AnimationsEnabled, bool TransparencyEffectsEnabled, bool HighContrast, bool TaskbarUsesLightTheme);
+public readonly record struct UiSnapshot(bool AnimationsEnabled, bool TransparencyEffectsEnabled, bool HighContrast, bool TaskbarUsesLightTheme, bool AppsUseDarkTheme = false);
 
 /// <summary>
-/// Animations ("Animation effects"), transparency effects, high contrast and the taskbar theme, read live from
-/// Windows. <see cref="Changed"/> is raised when one of the four values differs from the last notification.
+/// Animations ("Animation effects"), transparency effects, high contrast, the taskbar theme and the apps theme, read live from
+/// Windows. <see cref="Changed"/> is raised when one of the five values differs from the last notification.
 /// </summary>
 public sealed class UiSettings : IUiSettings, IDisposable
 {
@@ -63,6 +63,8 @@ public sealed class UiSettings : IUiSettings, IDisposable
 
     public bool TaskbarUsesLightTheme => _read().TaskbarUsesLightTheme;
 
+    public bool AppsUseDarkTheme => _read().AppsUseDarkTheme;
+
     public event Action? Changed;
 
     /// <summary>Re-reads the settings and raises <see cref="Changed"/> when they differ from the last notification.</summary>
@@ -115,7 +117,15 @@ public sealed class UiSettings : IUiSettings, IDisposable
         _uiSettings!.AnimationsEnabled,
         _uiSettings.AdvancedEffectsEnabled,
         _accessibility!.HighContrast,
-        ReadTaskbarUsesLightTheme());
+        ReadTaskbarUsesLightTheme(),
+        ReadAppsUseDarkTheme());
+
+    /// <summary>The registry value apps follow ("Choose your default app mode"); light when Windows has not written one.</summary>
+    private static bool ReadAppsUseDarkTheme()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(PersonalizeKey);
+        return key?.GetValue("AppsUseLightTheme") is int value && value == 0;
+    }
 
     /// <summary>The registry value the taskbar and tray follow; light when Windows has not written one.</summary>
     private static bool ReadTaskbarUsesLightTheme()

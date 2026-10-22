@@ -54,6 +54,9 @@ internal sealed class ScenarioRun
 
     public IReadOnlyList<SelfTestCheck> Checks => _checks;
 
+    /// <summary>The file of the screenshot taken last (null before the first), for a scenario that reads pixels from it.</summary>
+    public string? LastShotPath { get; private set; }
+
     public bool Failed => _checks.Exists(c => !c.Ok);
 
     /// <summary>Records a check. The name says what is expected, so a failure reads without the code.</summary>
@@ -78,6 +81,7 @@ internal sealed class ScenarioRun
         if (best is not null)
         {
             _shots.Add(best);
+            LastShotPath = Path.Combine(Folder, best.File);
         }
 
         return Check(best is not null, name + ".png is not blank");

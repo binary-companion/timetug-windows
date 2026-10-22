@@ -1,6 +1,7 @@
 using System.Globalization;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Settings;
 
 namespace TimeTug.Presentation.Tray;
 
@@ -38,11 +39,14 @@ public sealed record TrayIconPlan(TrayIconState State, int? Digit, string Toolti
         return seconds is >= 60 and < 600 ? (int)(seconds / 60) : null;
     }
 
-    /// <summary>The icon state, digit and tooltip for <paramref name="state"/> (null before the engine's first state) at <paramref name="now"/>.</summary>
-    public static TrayIconPlan Create(AppState? state, DateTimeOffset now, bool attention, ILocalizer text, CultureInfo culture) =>
-        Create(Measure(state, now), state, now, attention, text, culture);
+    /// <summary>
+    /// The icon state, digit and tooltip for <paramref name="state"/> (null before the engine's first state) at <paramref name="now"/>.
+    /// <paramref name="style"/> is the person's Appearance choice: with <see cref="TrayIconStyle.IconOnly"/> there is never a digit.
+    /// </summary>
+    public static TrayIconPlan Create(AppState? state, DateTimeOffset now, bool attention, ILocalizer text, CultureInfo culture, TrayIconStyle style = TrayIconStyle.IconWithMinuteDigit) =>
+        Create(Measure(state, now), state, now, attention, text, culture, style);
 
-    internal static TrayIconPlan Create(Nearness nearness, AppState? state, DateTimeOffset now, bool attention, ILocalizer text, CultureInfo culture)
+    internal static TrayIconPlan Create(Nearness nearness, AppState? state, DateTimeOffset now, bool attention, ILocalizer text, CultureInfo culture, TrayIconStyle style = TrayIconStyle.IconWithMinuteDigit)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(culture);
@@ -52,8 +56,10 @@ public sealed record TrayIconPlan(TrayIconState State, int? Digit, string Toolti
             return new TrayIconPlan(TrayIconState.Attention, null, tooltip);
         }
 
+        // Icon only keeps the colour icon (the state) and the tooltip; only the minute digit is left off.
+        var digit = nearness.AllDay || style == TrayIconStyle.IconOnly ? null : DigitFor(nearness.UntilStart);
         return nearness.Near
-            ? new TrayIconPlan(TrayIconState.Soon, nearness.AllDay ? null : DigitFor(nearness.UntilStart), tooltip)
+            ? new TrayIconPlan(TrayIconState.Soon, digit, tooltip)
             : new TrayIconPlan(TrayIconState.Idle, null, tooltip);
     }
 

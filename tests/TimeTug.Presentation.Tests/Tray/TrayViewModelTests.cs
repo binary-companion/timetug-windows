@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.Extensions.Time.Testing;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Tests.Tug;
 using TimeTug.Presentation.Tests.Welcome;
 using TimeTug.Presentation.Tray;
@@ -988,5 +989,103 @@ public sealed class TrayViewModelTests : IDisposable
     public void The_view_model_starts_one_ticker()
     {
         _ticker.Started.Should().Be(1);
+    }
+    // ---- the tray icon style (Appearance pane) ------------------------------------------------------------------
+
+    private TrayViewModel ModelWith(MemoryPresentationSettingsStore store) =>
+        new(_engine, _attention, _ui, new ReswLocalizer(), _host, _time, _ticker, CultureInfo.GetCultureInfo("en-US"), store);
+
+    [Fact]
+    public void Icon_only_keeps_the_colour_icon_and_the_tooltip_but_draws_no_digit()
+    {
+        var store = new MemoryPresentationSettingsStore(PresentationSettings.Defaults with { TrayStyle = TrayIconStyle.IconOnly });
+        using var model = ModelWith(store);
+        _engine.Push(State(next: Starting(300)));
+
+        model.Current.Icon.Should().Match<TrayIconView>(i => i.State == TrayIconState.Soon && i.Digit == null);
+        model.Current.Tooltip.Should().Contain("5 min");
+    }
+
+    [Fact]
+    public void The_minute_digit_style_draws_the_digit_in_the_last_ten_minutes()
+    {
+        var store = new MemoryPresentationSettingsStore(PresentationSettings.Defaults with { TrayStyle = TrayIconStyle.IconWithMinuteDigit });
+        using var model = ModelWith(store);
+        _engine.Push(State(next: Starting(300)));
+
+        model.Current.Icon.Digit.Should().Be(5);
+    }
+
+    [Fact]
+    public void Without_a_store_the_digit_is_drawn()
+    {
+        _engine.Push(State(next: Starting(300)));
+
+        _model.Current.Icon.Digit.Should().Be(5);
+    }
+
+    [Fact]
+    public void Changing_the_style_re_plans_the_icon_and_raises_changed()
+    {
+        var store = new MemoryPresentationSettingsStore();
+        using var model = ModelWith(store);
+        var changes = 0;
+        model.Changed += () => changes++;
+        _engine.Push(State(next: Starting(300)));
+        model.Current.Icon.Digit.Should().Be(5);
+        changes = 0;
+
+        store.Save(store.Load() with { TrayStyle = TrayIconStyle.IconOnly });
+
+        model.Current.Icon.Digit.Should().BeNull();
+        changes.Should().Be(1);
+
+        store.Save(store.Load() with { TrayStyle = TrayIconStyle.IconWithMinuteDigit });
+
+        model.Current.Icon.Digit.Should().Be(5);
+        changes.Should().Be(2);
+    }
+
+    [Fact]
+    public void A_save_that_leaves_the_style_alone_does_not_redraw_the_icon()
+    {
+        var store = new MemoryPresentationSettingsStore();
+        using var model = ModelWith(store);
+        _engine.Push(State(next: Starting(300)));
+        var changes = 0;
+        model.Changed += () => changes++;
+
+        store.Save(store.Load() with { SettingsWindow = new WindowGeometry(1, 2, 800, 600) });
+        store.Save(store.Load() with { Theme = AppTheme.Dark });
+
+        changes.Should().Be(0);
+    }
+
+    [Fact]
+    public void Disposing_stops_following_the_store()
+    {
+        var store = new MemoryPresentationSettingsStore();
+        var model = ModelWith(store);
+        _engine.Push(State(next: Starting(300)));
+        model.Dispose();
+        var changes = 0;
+        model.Changed += () => changes++;
+
+        store.Save(store.Load() with { TrayStyle = TrayIconStyle.IconOnly });
+
+        changes.Should().Be(0);
+    }
+
+    [Fact]
+    public void The_plan_omits_the_digit_when_the_style_is_icon_only()
+    {
+        var state = State(next: Starting(300));
+
+        TrayIconPlan.Create(state, Noon, false, new ReswLocalizer(), CultureInfo.GetCultureInfo("en-US"), TrayIconStyle.IconOnly)
+            .Should().Match<TrayIconPlan>(p => p.State == TrayIconState.Soon && p.Digit == null);
+        TrayIconPlan.Create(state, Noon, false, new ReswLocalizer(), CultureInfo.GetCultureInfo("en-US"), TrayIconStyle.IconWithMinuteDigit)
+            .Digit.Should().Be(5);
+        TrayIconPlan.Create(state, Noon, false, new ReswLocalizer(), CultureInfo.GetCultureInfo("en-US"))
+            .Digit.Should().Be(5, "the digit is the default");
     }
 }

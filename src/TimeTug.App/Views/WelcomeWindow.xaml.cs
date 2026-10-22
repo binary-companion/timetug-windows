@@ -3,6 +3,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using TimeTug.App.Theming;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Welcome;
 using Windows.Graphics;
@@ -18,13 +19,15 @@ public sealed partial class WelcomeWindow : Window
     private const int WidthInDips = 560;
     private const int HeightInDips = 700;
     private readonly AccountFormService _forms;
+    private readonly IDisposable? _theme;
     private bool _syncing;
 
-    public WelcomeWindow(WelcomeViewModel viewModel, AccountFormService forms, ILocalizer text)
+    public WelcomeWindow(WelcomeViewModel viewModel, AccountFormService forms, ILocalizer text, ThemeService? theme = null)
     {
         ViewModel = viewModel;
         _forms = forms;
         InitializeComponent();
+        _theme = theme?.Attach(this, Root);
         Title = text.GetString("WelcomeWindowTitle");
         ViewModel.CloseRequested += (_, _) => Close();
         ViewModel.PropertyChanged += OnViewModelChanged;
@@ -131,6 +134,7 @@ public sealed partial class WelcomeWindow : Window
     private void OnClosed(object sender, WindowEventArgs args)
     {
         _forms.XamlRoot = null;
+        _theme?.Dispose();
         // Closing the window mid sign-in cancels it, so the engine is not left waiting for a browser or a form.
         _ = ViewModel.Accounts.CancelAsync();
         ViewModel.Dispose();

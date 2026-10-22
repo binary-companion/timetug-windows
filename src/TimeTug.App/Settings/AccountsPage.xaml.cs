@@ -232,6 +232,7 @@ public sealed partial class AccountsPage : UserControl
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot,
             };
+            Theming.ThemeService.Match(dialog, XamlRoot);
             _dialog = dialog;
             var result = await dialog.ShowAsync();
             _dialog = null;

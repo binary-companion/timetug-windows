@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Dispatching;
 using TimeTug.App.Flyout;
 using TimeTug.App.Settings;
+using TimeTug.App.Theming;
 using TimeTug.App.Tray;
 using TimeTug.App.Tug;
 using TimeTug.Engine;
@@ -148,7 +149,7 @@ internal static class AppComposition
         services.AddSingleton(sp => new FlyoutHost(
             sp.GetRequiredService<IFlyoutSurfaceFactory>(), sp.GetRequiredService<ITugPresence>(), sp.GetRequiredService<IUiSettings>(),
             sp.GetRequiredService<ITrayAnchor>(), sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiDispatcher>(),
-            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IDiagnostics>()));
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IDiagnostics>(), sp.GetRequiredService<IPresentationSettingsStore>()));
         // ---- the Settings window (the tray's Settings row and the flyout's gear call SettingsHost.Show) ------------------------
         services.AddSingleton(sp => new SettingsPaneModels(
             tugRules: () => new TugRulesViewModel(
@@ -167,12 +168,19 @@ internal static class AppComposition
                 new HotkeyRecorderViewModel(sp.GetRequiredService<IHotkeyControl>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()),
                 new AboutViewModel(
                     AppVersion.Current(), AppVersion.BuildCommit(), IsDevelopmentBuild, sp.GetRequiredService<ISystemLauncher>(),
-                    sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()))));
+                    sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>())),
+            appearance: () => new AppearanceViewModel(
+                sp.GetRequiredService<IPresentationSettingsStore>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<IUiDispatcher>(),
+                sp.GetRequiredService<ILocalizer>())));
+        // The person's theme, applied to the Settings and welcome windows while they are open (the flyout takes it from its host's look).
+        services.AddSingleton(sp => new ThemeService(
+            sp.GetRequiredService<IPresentationSettingsStore>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton<IClipboardService>(sp => new ClipboardService(sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<IDiagnosticsReader>(_ => new DiagnosticsReader(RollingFileLog.DefaultDirectory()));
         services.AddSingleton(sp => new SettingsWindowFactory(
             sp.GetRequiredService<SettingsText>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<IPresentationSettingsStore>(),
-            sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<SettingsPaneModels>()));
+            sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<SettingsPaneModels>(),
+            sp.GetRequiredService<ThemeService>()));
         services.AddSingleton<ISettingsWindowFactory>(sp => sp.GetRequiredService<SettingsWindowFactory>());
         services.AddSingleton(sp => new SettingsHost(
             sp.GetRequiredService<ISettingsWindowFactory>(),
