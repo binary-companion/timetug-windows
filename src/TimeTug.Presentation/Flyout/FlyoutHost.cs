@@ -36,6 +36,9 @@ public interface IFlyoutSurface
     /// <summary>The person pressed the gear in the header.</summary>
     event Action? SettingsRequested;
 
+    /// <summary>The person pressed "Open Accounts" on a problem row; the argument is the engine's connection id of the account.</summary>
+    event Action<string>? AccountsRequested;
+
     /// <summary>The size the content wants at 360 DIP wide (its height is capped by the placement).</summary>
     SizeInDips MeasureContent();
 
@@ -134,6 +137,9 @@ public sealed class FlyoutHost : IDisposable
     /// <summary>Raised on the UI thread after the gear was pressed and the flyout closed: the person wants the Settings window.</summary>
     public event Action? SettingsRequested;
 
+    /// <summary>A problem row asked for the Accounts pane (the flyout has closed); the argument is the account's connection id.</summary>
+    public event Action<string>? AccountsRequested;
+
     /// <summary>Opens the flyout, or closes it when it is open. Returns true when it is open afterwards.</summary>
     public bool Toggle()
     {
@@ -230,6 +236,7 @@ public sealed class FlyoutHost : IDisposable
         surface.Closed += OnClosed;
         surface.ContentChanged += OnContentChanged;
         surface.SettingsRequested += OnSettingsRequested;
+        surface.AccountsRequested += OnAccountsRequested;
         // Never wait for Explorer here: use what is known now and let a background look move the window if it finds a better place.
         _anchorRect = _anchor.Peek()?.Rect;
         try
@@ -300,6 +307,13 @@ public sealed class FlyoutHost : IDisposable
         SettingsRequested?.Invoke();
     }
 
+    /// <summary>"Open Accounts" on a problem row: like the gear, the flyout gets out of the way and the host's owner opens the pane.</summary>
+    private void OnAccountsRequested(string connectionId)
+    {
+        Close(byDeactivation: false);
+        AccountsRequested?.Invoke(connectionId);
+    }
+
     private void OnContentChanged()
     {
         if (_surface is { } surface)
@@ -345,6 +359,7 @@ public sealed class FlyoutHost : IDisposable
         surface.Closed -= OnClosed;
         surface.ContentChanged -= OnContentChanged;
         surface.SettingsRequested -= OnSettingsRequested;
+        surface.AccountsRequested -= OnAccountsRequested;
     }
 
     private void TryClose(IFlyoutSurface surface)

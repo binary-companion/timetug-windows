@@ -257,10 +257,19 @@ public sealed partial class SettingsWindow : Window
     {
         SettingsPane.General => new GeneralPage(_shell, _text, _localizer, () => ApplyHighlight()),
         SettingsPane.Appearance => new AppearancePage(_text.PaneTitle(pane)),
-        SettingsPane.Accounts => new AccountsPage(_text.PaneTitle(pane)),
+        SettingsPane.Accounts => NewAccountsPage(),
         SettingsPane.Calendars => NewCalendarsPage(),
         _ => NewTugRulesPage(),
     };
+
+    private AccountsPage NewAccountsPage()
+    {
+        var accounts = _models.CreateAccounts();
+        var diagnostics = _models.CreateDiagnostics();
+        _ownedModels.Add(accounts);
+        _ownedModels.Add(diagnostics);
+        return new AccountsPage(accounts, diagnostics, _shell, _text, _localizer, _text.PaneTitle(SettingsPane.Accounts));
+    }
 
     private CalendarsPage NewCalendarsPage()
     {

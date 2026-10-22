@@ -8,8 +8,9 @@ using TimeTug.Presentation.Engine;
 namespace TimeTug.Presentation.Welcome;
 
 /// <summary>
-/// The accounts half of the welcome window, reusable by the Settings pane later: what can be connected, what is, and one
-/// sign-in at a time with its progress, cancel and failure. It only mirrors the engine's state and sends commands.
+/// The accounts half of the welcome window and the Settings window's Accounts pane: what can be connected, what is (with the engine's status in
+/// words, signing in again and removing with a question first), and one sign-in at a time with its progress, cancel and failure. It only
+/// mirrors the engine's state and sends commands; removing an account is the engine's (it also removes the account's stored credentials).
 /// </summary>
 public sealed class AccountsViewModel : ObservableObject, IDisposable
 {
@@ -20,6 +21,14 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     private readonly List<IDisposable> _subscriptions = [];
     private AppState? _state;
     private Attempt? _attempt;
+
+    /// <summary>The search catalog's ids for the Accounts pane (an account's highlight id is the prefix plus its connection id).</summary>
+    public static class Ids
+    {
+        public const string Accounts = "accounts";
+        public const string Diagnostics = "diagnostics";
+        public const string AccountPrefix = "account:";
+    }
 
     public AccountsViewModel(IEngineClient engine, IUiDispatcher ui, ILocalizer text, TimeProvider? clock = null)
     {
@@ -39,6 +48,67 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     public ObservableCollection<ProviderItem> Providers { get; } = [];
 
     public ObservableCollection<AccountRow> Accounts { get; } = [];
+
+    /// <summary>The connected accounts as the Settings pane lists them, in the engine's order.</summary>
+    public ObservableCollection<ConnectedAccount> ConnectedAccounts { get; } = [];
+
+    /// <summary>True once the engine has spoken and it lists no account (the pane shows its empty row).</summary>
+    public bool IsEmpty => HasState && ConnectedAccounts.Count == 0;
+
+    public string IntroText => _text.GetString("Accounts_Intro");
+
+    public string ConnectedTitle => _text.GetString("Accounts_ConnectedTitle");
+
+    public string AddTitle => _text.GetString("Accounts_AddTitle");
+
+    public string EmptyText => _text.GetString("Accounts_Empty");
+
+    public string SignInAgainText => _text.GetString("Accounts_SignInAgain");
+
+    public string RemoveText => _text.GetString("Accounts_Remove");
+
+    public string CancelText => _text.GetString("Accounts_Cancel");
+
+    public string CancelAutomationName => _text.GetString("Accounts_CancelAutomation");
+
+    public string AddButtonText => _text.GetString("Accounts_Add");
+
+    public string UnavailableBadgeText => _text.GetString("Accounts_Unavailable");
+
+    /// <summary>The Mac's warning under the tiles; null when every kind the engine lists can be added.</summary>
+    public string? UnavailableNotice
+    {
+        get;
+        private set => SetProperty(ref field, value);
+    }
+
+    /// <summary>The engine's own error text when no provider shows it beside itself (for example a failed "Sign in again"); null otherwise.</summary>
+    public string? ErrorText
+    {
+        get;
+        private set => SetProperty(ref field, value);
+    }
+
+    /// <summary>The account the person asked to remove and has not yet confirmed; null when no question is open.</summary>
+    public ConnectedAccount? PendingRemoval
+    {
+        get;
+        private set
+        {
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(RemovalTitle));
+            }
+        }
+    }
+
+    public string RemovalTitle => _text.Format("Accounts_RemoveTitle", PendingRemoval?.Name ?? "");
+
+    public string RemovalBody => _text.GetString("Accounts_RemoveBody");
+
+    public string RemovalConfirmText => _text.GetString("Accounts_RemoveConfirm");
+
+    public string RemovalCancelText => _text.GetString("Accounts_RemoveCancel");
 
     public IAsyncRelayCommand CancelCommand { get; }
 
@@ -111,6 +181,48 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         await _engine.CancelAuthorizationAsync();
     }
 
+    /// <summary>
+    /// "Sign in again": asks the engine to run its sign-in for the account. Only an account the pane shows as needing it is accepted (an expired
+    /// sign-in or a build failure), and not while another sign-in runs, so a stale click sends nothing.
+    /// </summary>
+    public async Task ReauthorizeAsync(string connectionId)
+    {
+        if (IsBusy || ConnectedAccounts.FirstOrDefault(a => a.ConnectionId == connectionId) is not { CanSignInAgain: true })
+        {
+            return;
+        }
+
+        await _engine.ReconnectAccountAsync(connectionId);
+    }
+
+    /// <summary>Opens the question "Remove this account?" for a listed account (not while a sign-in runs).</summary>
+    public void BeginRemove(string connectionId)
+    {
+        if (IsBusy || ConnectedAccounts.FirstOrDefault(a => a.ConnectionId == connectionId) is not { } account)
+        {
+            return;
+        }
+
+        PendingRemoval = account;
+    }
+
+    public void CancelRemove() => PendingRemoval = null;
+
+    /// <summary>Removes the account the question was about. The list changes when the engine says it did, not before.</summary>
+    public async Task ConfirmRemoveAsync()
+    {
+        if (PendingRemoval is not { } pending)
+        {
+            return;
+        }
+
+        PendingRemoval = null;
+        if (ConnectedAccounts.Any(a => a.ConnectionId == pending.ConnectionId))
+        {
+            await _engine.RemoveAccountAsync(pending.ConnectionId);
+        }
+    }
+
     public Task TestTugAsync() => _engine.TestTugAsync(_text.GetString("TestTugTitle"), _text.GetString("TestTugCalendar")).AsTask();
 
     /// <summary>Clears every provider's error (used when going back to the list).</summary>
@@ -151,6 +263,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasState));
         RebuildProviders(state);
         RebuildAccounts(state);
+        RebuildConnected(state);
         NextMeetingText = DescribeNextMeeting(state);
         Evaluate(state);
         Refresh();
@@ -234,6 +347,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         {
             provider.IsEnabled = provider.IsConfigured && !IsBusy;
         }
+
+        UnavailableNotice = Providers.Any(p => !p.IsConfigured) ? _text.GetString("Accounts_UnavailableNotice") : null;
+        var engineError = _state?.Activity?.ErrorMessage;
+        var shown = engineError is null || engineError == _attempt?.BaselineError || Providers.Any(p => p.ErrorDetail == engineError);
+        ErrorText = shown ? null : engineError;
     }
 
     private void RebuildProviders(AppState state)
@@ -254,7 +372,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             var hint = !kind.IsConfigured
                 ? _text.Format("ProviderUnavailable", name)
                 : opensBrowser ? _text.GetString("ProviderOpensBrowser") : _text.GetString("ProviderAsksDetails");
-            var item = new ProviderItem(kind.Id, name, kind.IsConfigured, opensBrowser, hint, _text.Format("ConnectProviderAutomation", name))
+            var automation = kind.IsConfigured ? _text.Format("ConnectProviderAutomation", name) : _text.Format("Accounts_UnavailableAutomation", name);
+            var item = new ProviderItem(kind.Id, name, kind.IsConfigured, opensBrowser, hint, automation)
             {
                 IsEnabled = kind.IsConfigured && !IsBusy,
             };
@@ -278,6 +397,50 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             var summary = _text.Format("AccountSummary", KindName(account.KindId, account.KindId), account.DisplayName, count);
             var problem = account.Status == "ok" ? null : _text.TryGetString("Status_" + account.Status);
             Accounts.Add(new AccountRow(account.ConnectionId, summary, problem));
+        }
+    }
+
+    private void RebuildConnected(AppState state)
+    {
+        var rows = new List<ConnectedAccount>();
+        foreach (var account in state.Accounts)
+        {
+            var kindName = KindName(account.KindId, state.AvailableKinds.FirstOrDefault(k => k.Id == account.KindId)?.DisplayName ?? account.KindId);
+            var needsAttention = account.BuildFailure || account.Status == "authExpired";
+            var statusText = account.BuildFailure ? _text.GetString("Status_buildFailure")
+                : !account.StatusKnown ? _text.GetString("Status_connecting")
+                : account.Status == "ok" ? _text.GetString("Status_ok")
+                : _text.TryGetString("Status_" + account.Status) ?? _text.GetString("Status_failing");
+            var notice = account.UnreadableRecurrences switch
+            {
+                <= 0 => null,
+                1 => _text.GetString("Accounts_NoticeOne"),
+                var n => _text.Format("Accounts_NoticeMany", n),
+            };
+            rows.Add(new ConnectedAccount(
+                account.ConnectionId, account.KindId, kindName, account.DisplayName, statusText, needsAttention, needsAttention, notice,
+                _text.Format("Accounts_RowAutomation", kindName, account.DisplayName, statusText),
+                _text.Format("Accounts_SignInAgainAutomation", account.DisplayName),
+                _text.Format("Accounts_ActionsAutomation", account.DisplayName),
+                _text.Format("Accounts_RemoveAutomation", account.DisplayName)));
+        }
+
+        // The engine publishes often; the list (and whoever shows it) only changes when an account's row does.
+        if (!rows.SequenceEqual(ConnectedAccounts))
+        {
+            ConnectedAccounts.Clear();
+            foreach (var row in rows)
+            {
+                ConnectedAccounts.Add(row);
+            }
+
+            OnPropertyChanged(nameof(ConnectedAccounts));
+        }
+
+        OnPropertyChanged(nameof(IsEmpty));
+        if (PendingRemoval is { } pending && rows.All(a => a.ConnectionId != pending.ConnectionId))
+        {
+            PendingRemoval = null;
         }
     }
 

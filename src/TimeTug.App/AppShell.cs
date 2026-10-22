@@ -17,6 +17,7 @@ using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tray;
 using TimeTug.Presentation.Tug;
+using TimeTug.Presentation.Welcome;
 
 namespace TimeTug.App;
 
@@ -106,6 +107,8 @@ internal sealed class AppShell
             _settingsHost = Services.GetRequiredService<SettingsHost>();
             // The gear in the flyout's header: the flyout has closed itself, and the Settings window comes forward.
             _flyoutHost.SettingsRequested += OpenSettings;
+            // "Open Accounts" on a problem row: the Accounts pane, with that account tinted.
+            _flyoutHost.AccountsRequested += OpenAccounts;
             _flyout = new FlyoutComposition(
                 _instance, Services.GetRequiredService<HotkeyService>(), _flyoutHost, Services.GetRequiredService<ITugPresence>(),
                 Services.GetRequiredService<IUiDispatcher>(), _diagnostics);
@@ -160,6 +163,8 @@ internal sealed class AppShell
 
     private void OpenSettings() => ShowSettings();
 
+    private void OpenAccounts(string connectionId) => ShowSettings(SettingsPane.Accounts, AccountsViewModel.Ids.AccountPrefix + connectionId);
+
     public void ShowWelcome()
     {
         if (_welcome is not null)
@@ -172,7 +177,9 @@ internal sealed class AppShell
             Services.GetRequiredService<IEngineClient>(),
             Services.GetRequiredService<AccountFormService>(),
             Services.GetRequiredService<ILocalizer>(),
-            Services.GetRequiredService<TimeProvider>());
+            Services.GetRequiredService<TimeProvider>(),
+            // "Add another" on the second step goes to the Accounts pane, where every kind can be added and every account managed.
+            () => ShowSettings(SettingsPane.Accounts));
         window.Closed += (_, _) => _welcome = null;
         _welcome = window;
         window.Activate();
@@ -202,6 +209,7 @@ internal sealed class AppShell
         if (_flyoutHost is { } flyout)
         {
             flyout.SettingsRequested -= OpenSettings;
+            flyout.AccountsRequested -= OpenAccounts;
         }
 
         _settingsHost?.Dispose();

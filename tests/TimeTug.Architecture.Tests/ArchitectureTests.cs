@@ -67,6 +67,45 @@ public partial class ArchitectureTests
         }
     }
 
+    [Fact]
+    public void The_apps_own_log_entries_never_name_a_link_a_token_or_a_title()
+    {
+        // Copy Diagnostics hands the log to the person to share, and says it holds no feed links or event titles. The reader also drops any
+        // such line as a safety net, but the app's own logger must not write one in the first place: what a log call interpolates or
+        // concatenates (not its fixed words) may not be a title, link, token, secret or the like. A host name is fine ("uri.Host").
+        var forbidden = ForbiddenInLog();
+        var calls = 0;
+        foreach (var file in SourceFiles("src").Where(f => !f.Contains($"{Path.DirectorySeparatorChar}SelfTest{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
+        {
+            var text = File.ReadAllText(file);
+            foreach (Match call in LogCall().Matches(text))
+            {
+                calls++;
+                var end = text.IndexOf(';', call.Index);
+                var statement = text[call.Index..(end < 0 ? text.Length : end)];
+                var holes = InterpolationHole().Matches(statement).Select(m => m.Groups[1].Value);
+                var operands = StringLiteral().Replace(statement, " ");
+                var expressions = string.Join(' ', holes.Append(operands)).Replace("uri.Host", string.Empty, StringComparison.Ordinal);
+                forbidden.IsMatch(expressions).Should().BeFalse($"{Path.GetRelativePath(Root, file)}: a log entry must not carry {forbidden.Match(expressions).Value}: {statement.Trim()}");
+            }
+        }
+
+        calls.Should().BeGreaterThan(30, "the scan found the app's log calls");
+    }
+
+    [GeneratedRegex(@"\b(Record|Note)\(")]
+    private static partial Regex LogCall();
+
+    [GeneratedRegex(@"\{([^{}]+)\}")]
+    private static partial Regex InterpolationHole();
+
+    // Fixed words: "a, b" or $"a {b} c" or @"..." (the app has no raw strings in log calls).
+    [GeneratedRegex("\\$?@?\"(?:[^\"\\\\]|\\\\.)*\"")]
+    private static partial Regex StringLiteral();
+
+    [GeneratedRegex(@"\b(title|titles|url|urls|uri|absoluteuri|query|token|tokens|secret|password|summary|description|attendee|attendees|location|body|content)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ForbiddenInLog();
+
     [GeneratedRegex(@"\b(DispatcherTimer|DispatcherQueueTimer|PeriodicTimer|System\.Timers|System\.Threading\.Timer|new\s+Timer\s*\(|CreateTimer\s*\()")]
     private static partial Regex TimerUse();
 

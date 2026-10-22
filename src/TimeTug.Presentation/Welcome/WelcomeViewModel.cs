@@ -18,8 +18,15 @@ public enum WelcomeStep
 /// <summary>The first-run window: connect a first account, then see what was found. Never shown when accounts exist.</summary>
 public sealed class WelcomeViewModel : ObservableObject, IDisposable
 {
-    public WelcomeViewModel(IEngineClient engine, IUiDispatcher ui, ILocalizer text, TimeProvider? clock = null)
+    private readonly Action? _openAccountsPane;
+
+    /// <param name="openAccountsPane">
+    /// Opens the Settings window on its Accounts pane. When the app gives one, "Add another" goes there (and this window closes) instead of
+    /// showing the list of places to connect again; without one, "Add another" shows that list.
+    /// </param>
+    public WelcomeViewModel(IEngineClient engine, IUiDispatcher ui, ILocalizer text, TimeProvider? clock = null, Action? openAccountsPane = null)
     {
+        _openAccountsPane = openAccountsPane;
         Accounts = new AccountsViewModel(engine, ui, text, clock);
         Accounts.Connected += (_, _) => Step = WelcomeStep.Connected;
         AddAnotherCommand = new RelayCommand(AddAnother);
@@ -66,7 +73,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     public Task ConnectAsync(string kindId) => Accounts.ConnectAsync(kindId);
 
-    /// <summary>Back to the list of places to connect.</summary>
+    /// <summary>Back to the list of places to connect, or to the Settings window's Accounts pane when the app provides one.</summary>
     public Task AddAnotherAsync()
     {
         AddAnother();
@@ -87,6 +94,13 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     private void AddAnother()
     {
+        if (_openAccountsPane is { } open)
+        {
+            open();
+            Done();
+            return;
+        }
+
         Accounts.ClearErrors();
         Step = WelcomeStep.Connect;
     }

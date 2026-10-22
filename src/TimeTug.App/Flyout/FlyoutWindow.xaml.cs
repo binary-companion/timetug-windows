@@ -85,6 +85,9 @@ internal sealed partial class FlyoutWindow : Window
     /// <summary>The gear in the header was pressed.</summary>
     public event Action? SettingsPressed;
 
+    /// <summary>"Open Accounts" on a problem row; the argument is the account's connection id.</summary>
+    public event Action<string>? AccountsPressed;
+
     /// <summary>True once the open animation was started (never when Windows has animations off).</summary>
     public bool Animated { get; private set; }
 
@@ -330,7 +333,16 @@ internal sealed partial class FlyoutWindow : Window
 
     private void OnProblemAction(ProblemRow row)
     {
-        if (row.ConnectionId is { } connection)
+        if (row.ConnectionId is not { } connection)
+        {
+            return;
+        }
+
+        if (row.OpensAccounts)
+        {
+            AccountsPressed?.Invoke(connection);
+        }
+        else
         {
             _ = _model.ReconnectAsync(connection).AsTask();
         }

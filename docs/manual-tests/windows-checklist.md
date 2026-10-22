@@ -348,6 +348,14 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Automated:** partly. `FlyoutHostTests` and `AppInstanceServiceTests` step the wall clock backwards and forwards while real time passes (the click grace and the launch coalescing now use a monotonic timer). Not automated: a real clock change reaching the engine.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
+### 5.14 The Accounts pane: remove an account, Credential Locker, Copy Diagnostics
+
+- **Build:** `msix-x64` (or `msix-arm64`), signed in to a real account you can add again.
+- **Do:** (a) Open Settings > Accounts from the tray. Read each account's status. Let a token expire if you can (revoke TimeTug's access in the provider's account page) and look for "Sign in again" on that account only. (b) From the menu (the three dots) choose Remove account, then Cancel; again, then Remove. Open Control Panel > Credential Manager > Windows Credentials and look for entries named `TimeTug` before and after. Remove the last account: the pane shows "No internet accounts yet. Add one below." (c) Add the account again from the Add an Account cards. Press Cancel while the browser sign-in waits. (d) Press Copy Diagnostics and paste into Notepad; press Clear and copy again. (e) With one account that cannot be reached (turn the network off), open the flyout and press "Open Accounts" on its row.
+- **Expect:** (a) "Sign in again" only on an expired account (or one that cannot start). (b) the question names the account and says its calendars no longer appear and their Tug and visibility choices are forgotten; Cancel changes nothing; after Remove the account's `TimeTug` credential entries are gone from Credential Manager and the list follows the engine. (c) no second sign-in can start while one waits; Cancel stops the wait without an error. (d) the pasted text starts with "TimeTug diagnostics", the app version and the Windows version, followed by recent log lines with no link that has a `?`, no token and no event or calendar name; after Clear the next copy holds only the header. (e) the flyout closes and the Accounts pane opens with that account tinted for a moment.
+- **Automated:** partly. `settings-accounts` drives every part of this on scripted data, and against the real engine it removes the account and asserts that the engine asked the host's credential store to remove it. Left for you: the real Credential Locker entries, the real clipboard and the real provider sign-in.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
 ---
 
 ## 6. Accessibility and appearance

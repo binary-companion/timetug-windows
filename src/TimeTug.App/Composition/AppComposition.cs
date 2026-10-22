@@ -8,6 +8,8 @@ using TimeTug.App.Tug;
 using TimeTug.Engine;
 using TimeTug.Platform;
 using TimeTug.Platform.Auth;
+using TimeTug.Platform.Clipboard;
+using TimeTug.Platform.Diagnostics;
 using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.OsState;
 using TimeTug.Platform.Settings;
@@ -15,11 +17,13 @@ using TimeTug.Platform.Tray;
 using TimeTug.Platform.Tug;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Accounts;
+using TimeTug.Presentation.Diagnostics;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
 using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tug;
+using TimeTug.Presentation.Welcome;
 using Pkg = TimeTug.Engine;
 
 namespace TimeTug.App.Composition;
@@ -145,7 +149,14 @@ internal static class AppComposition
             calendars: () => new CalendarsViewModel(
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<ISettingsClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(),
                 // Windows 1.0 registers no on-device text generator (WindowsEngineHost.TextGenerator is null); phase 8 changes this.
-                inferenceSupported: false)));
+                inferenceSupported: false),
+            accounts: () => new AccountsViewModel(
+                sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>()),
+            diagnostics: () => new DiagnosticsViewModel(
+                sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IDiagnosticsReader>(), sp.GetRequiredService<IClipboardService>(),
+                sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), AppVersion.Current(), AppVersion.WindowsVersion())));
+        services.AddSingleton<IClipboardService>(sp => new ClipboardService(sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton<IDiagnosticsReader>(_ => new DiagnosticsReader(RollingFileLog.DefaultDirectory()));
         services.AddSingleton(sp => new SettingsWindowFactory(
             sp.GetRequiredService<SettingsText>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<IPresentationSettingsStore>(),
             sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<SettingsPaneModels>()));

@@ -62,7 +62,10 @@ public sealed record FlyoutRow(
     public bool HasJoinFailed => JoinFailedUrl is not null;
 }
 
-/// <summary>A source the engine cannot read. <see cref="ActionText"/> is the button's label, or null when there is nothing the person can do here.</summary>
+/// <summary>
+/// A source the engine cannot read. <see cref="ActionText"/> is the button's label, or null when there is nothing the person can do here:
+/// "Sign in again" for an expired sign-in, "Open Accounts" for any other problem of a known account.
+/// </summary>
 public sealed record ProblemRow(
     string SourceId,
     ProblemKind Kind,
@@ -71,5 +74,8 @@ public sealed record ProblemRow(
     string? ActionAutomationName,
     string? ConnectionId)
 {
+    /// <summary>True when the action opens the Settings window's Accounts pane (a problem the person cannot fix from the flyout) instead of signing in again.</summary>
+    public bool OpensAccounts { get; init; }
+
     public bool HasAction => ActionText is not null;
 }

@@ -492,7 +492,7 @@ public sealed class FlyoutViewModelTests : IDisposable
     }
 
     [Fact]
-    public void Only_an_expired_sign_in_with_a_known_account_offers_to_sign_in_again()
+    public void An_expired_sign_in_offers_to_sign_in_again_and_any_other_problem_of_a_known_account_offers_the_Accounts_pane()
     {
         _engine.Push(State(problems:
         [
@@ -502,9 +502,11 @@ public sealed class FlyoutViewModelTests : IDisposable
             new SourceProblem("ms-1", "ms-1", ProblemKind.AuthExpired, null, null),
         ]));
 
-        _model.Problems.Select(p => p.ActionText).Should().Equal(null, null, "Sign in again", null);
-        _model.Problems.Single(p => p.HasAction).ActionAutomationName.Should().Be("Sign in to me@example.com again");
-        _model.Problems.Single(p => p.HasAction).ConnectionId.Should().Be("1");
+        _model.Problems.Select(p => p.ActionText).Should().Equal("Open Accounts", null, "Sign in again", null);
+        _model.Problems.Select(p => p.OpensAccounts).Should().Equal(true, false, false, false);
+        _model.Problems[0].ActionAutomationName.Should().Be("Open Accounts to look at Work CalDAV");
+        _model.Problems[2].ActionAutomationName.Should().Be("Sign in to me@example.com again");
+        _model.Problems.Where(p => p.HasAction).Select(p => p.ConnectionId).Should().Equal("2", "1");
     }
 
     [Fact]
@@ -515,6 +517,16 @@ public sealed class FlyoutViewModelTests : IDisposable
         await _model.ReconnectAsync("1");
 
         _engine.Sent.Should().Equal("reconnect:1");
+    }
+
+    [Fact]
+    public async Task A_row_that_opens_the_Accounts_pane_never_asks_the_engine_to_reconnect()
+    {
+        _engine.Push(State(problems: [new SourceProblem("caldav-2", "Work CalDAV", ProblemKind.Failing, "x", "2")]));
+
+        await _model.ReconnectAsync("2");
+
+        _engine.Sent.Should().BeEmpty();
     }
 
     [Fact]

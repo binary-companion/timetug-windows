@@ -4,7 +4,17 @@ using Pkg = global::TimeTug.Engine;
 namespace TimeTug.Presentation.Engine;
 
 /// <summary>A connected account. <see cref="Status"/> is <c>ok</c>, <c>needsPermission</c>, <c>authExpired</c> or <c>failing</c>.</summary>
-public sealed record AccountInfo(string ConnectionId, string KindId, string DisplayName, string Status, int CalendarCount);
+public sealed record AccountInfo(string ConnectionId, string KindId, string DisplayName, string Status, int CalendarCount)
+{
+    /// <summary>True when the engine could not even start this account (a build failure, reported as <c>failing</c> in <see cref="Status"/>).</summary>
+    public bool BuildFailure { get; init; }
+
+    /// <summary>False until the engine has reported a status for the account's source: the Mac shows "Connecting…" for that moment.</summary>
+    public bool StatusKnown { get; init; } = true;
+
+    /// <summary>How many repeating events from the account's source use a rule the engine cannot read (the Mac's warning icon).</summary>
+    public int UnreadableRecurrences { get; init; }
+}
 
 /// <summary>A kind of account the engine can add on this platform.</summary>
 /// <summary><see cref="Authorization"/> is <c>oauth</c> (the browser), <c>password</c> (a form in the app) or <c>system</c>; empty when unknown.</summary>
@@ -353,11 +363,19 @@ public static class EngineMapping
         var sourceId = state.SourceNames.ContainsKey($"{account.KindID}-{account.ConnectionID}")
             ? $"{account.KindID}-{account.ConnectionID}"
             : state.SourceNames.Where(p => p.Value == account.DisplayName).Select(p => p.Key).FirstOrDefault();
-        var status = state.AccountStatus.BuildFailures.ContainsKey(account.ConnectionID)
-            ? "failing"
-            : sourceId is not null && state.Statuses.TryGetValue(sourceId, out var s) ? s.Kind : "ok";
+        var buildFailure = state.AccountStatus.BuildFailures.ContainsKey(account.ConnectionID);
+        var reported = sourceId is not null && state.Statuses.TryGetValue(sourceId, out var s) ? s.Kind : null;
+        var status = buildFailure ? "failing" : reported ?? "ok";
         var calendars = sourceId is null ? 0 : state.Calendars.Count(c => c.SourceID == sourceId);
-        return new AccountInfo(account.ConnectionID, account.KindID, account.DisplayName, status, calendars);
+        var unreadable = sourceId is not null && state.Notices.TryGetValue(sourceId, out var notices)
+            ? notices.Where(n => n.Kind == "unreadableRecurrence").Sum(n => n.Count)
+            : 0;
+        return new AccountInfo(account.ConnectionID, account.KindID, account.DisplayName, status, calendars)
+        {
+            BuildFailure = buildFailure,
+            StatusKnown = buildFailure || reported is not null,
+            UnreadableRecurrences = unreadable,
+        };
     }
 
     private static TimeZoneInfo ZoneOf(string ianaId)

@@ -315,17 +315,9 @@ public sealed partial class CalendarsPage : UserControl
     /// <summary>The Mac's section icons: the calendar for the system source, the provider's for an account, a question mark for a source that is gone.</summary>
     private static string GlyphOf(CalendarSectionView section) => section.Icon switch
     {
-        CalendarSectionIcon.Calendar => "",
-        CalendarSectionIcon.Unknown => "",
-        _ => section.KindId switch
-        {
-            "google" => "",
-            "microsoft" => "",
-            "icloud" => "",
-            "caldav" => "",
-            "icalsub" => "",
-            _ => "",
-        },
+        CalendarSectionIcon.Calendar => ProviderGlyphs.Calendar,
+        CalendarSectionIcon.Unknown => ProviderGlyphs.Unknown,
+        _ => ProviderGlyphs.Of(section.KindId),
     };
 
     private Grid GroupRow(CalendarGroupView group)

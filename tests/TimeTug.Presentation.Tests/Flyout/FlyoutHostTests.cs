@@ -32,6 +32,8 @@ internal sealed class FakeSurface : IFlyoutSurface
 
     public event Action? SettingsRequested;
 
+    public event Action<string>? AccountsRequested;
+
     public SizeInDips MeasureContent() => Content;
 
     public void Show(PixelRect bounds, FlyoutLook look)
@@ -68,6 +70,8 @@ internal sealed class FakeSurface : IFlyoutSurface
     public void RaiseContentChanged() => ContentChanged?.Invoke();
 
     public void RaiseSettingsRequested() => SettingsRequested?.Invoke();
+
+    public void RaiseAccountsRequested(string connectionId) => AccountsRequested?.Invoke(connectionId);
 }
 
 internal sealed class FakeSurfaceFactory : IFlyoutSurfaceFactory
@@ -219,6 +223,33 @@ public sealed class FlyoutHostTests : IDisposable
         asked.Should().Equal(false);
         _host.IsOpen.Should().BeFalse("the flyout has gone by the time the Settings window opens");
         _factory.Last.Closes.Should().Be(1);
+    }
+
+    [Fact]
+    public void A_problem_row_that_opens_the_Accounts_pane_closes_the_flyout_and_names_the_account()
+    {
+        _host.Toggle();
+        var asked = new List<(string Id, bool Open)>();
+        _host.AccountsRequested += id => asked.Add((id, _host.IsOpen));
+
+        _factory.Last!.RaiseAccountsRequested("conn-2");
+
+        asked.Should().Equal(("conn-2", false));
+        _factory.Last.Closes.Should().Be(1);
+    }
+
+    [Fact]
+    public void An_Accounts_request_after_the_flyout_closed_asks_for_nothing()
+    {
+        _host.Toggle();
+        var surface = _factory.Last!;
+        _host.Toggle();
+        var asked = 0;
+        _host.AccountsRequested += _ => asked++;
+
+        surface.RaiseAccountsRequested("conn-2");
+
+        asked.Should().Be(0);
     }
 
     [Fact]
