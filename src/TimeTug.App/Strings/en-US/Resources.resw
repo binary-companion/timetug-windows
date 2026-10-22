@@ -354,4 +354,20 @@
   <data name="General_SectionShortcut" xml:space="preserve"><value>Shortcut</value></data>
   <data name="LaunchAtLoginCheck.Content" xml:space="preserve"><value>Start TimeTug when I sign in</value></data>
   <data name="LaunchAtLoginCheck.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Start TimeTug when I sign in</value></data>
+  <data name="HotkeyRecorder_Description" xml:space="preserve"><value>Press a shortcut to show or hide the popup from anywhere. Click ✕ to clear it.</value></data>
+  <data name="HotkeyRecorder_Record" xml:space="preserve"><value>Record shortcut</value></data>
+  <data name="HotkeyRecorder_Recording" xml:space="preserve"><value>Press a shortcut…</value></data>
+  <data name="HotkeyRecorder_ModifiersSoFar" xml:space="preserve"><value>{0}+…</value></data>
+  <data name="HotkeyRecorder_ButtonAutomation" xml:space="preserve"><value>Shortcut for Show today’s meetings: {0}</value></data>
+  <data name="HotkeyRecorder_ButtonRecordingAutomation" xml:space="preserve"><value>Recording a shortcut. Press the keys you want, or Escape to cancel.</value></data>
+  <data name="HotkeyRecorder_ClearAutomation" xml:space="preserve"><value>Clear shortcut</value></data>
+  <data name="HotkeyRecorder_ClearToolTip" xml:space="preserve"><value>Clear the shortcut</value></data>
+  <data name="HotkeyRecorder_Active" xml:space="preserve"><value>Shortcut is active.</value></data>
+  <data name="HotkeyRecorder_Cleared" xml:space="preserve"><value>Shortcut cleared.</value></data>
+  <data name="HotkeyRecorder_ConflictInactive" xml:space="preserve"><value>{0} is already used by another program, so it is inactive. Record a different shortcut.</value></data>
+  <data name="HotkeyRecorder_ConflictKept" xml:space="preserve"><value>{0} is already used by another program. {1} still works.</value></data>
+  <data name="HotkeyRecorder_ConflictNone" xml:space="preserve"><value>{0} is already used by another program. No shortcut is set.</value></data>
+  <data name="HotkeyRecorder_NoModifier" xml:space="preserve"><value>A shortcut needs Ctrl, Alt, Shift or the Windows key as well as another key.</value></data>
+  <data name="HotkeyRecorder_NoKey" xml:space="preserve"><value>Press a key together with Ctrl, Alt, Shift or the Windows key.</value></data>
+  <data name="HotkeyRecorder_Failed" xml:space="preserve"><value>Couldn’t set the shortcut: {0}</value></data>
 </root>

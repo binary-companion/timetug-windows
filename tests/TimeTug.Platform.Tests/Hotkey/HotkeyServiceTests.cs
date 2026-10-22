@@ -422,4 +422,231 @@ public sealed class HotkeyServiceTests : IAsyncDisposable
 
         _registrar.Active.Should().BeNull();
     }
+
+    // ---- suspending for the recorder ----------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task Suspending_releases_the_registration_without_touching_the_state_or_the_store()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        var saves = _store.Saves;
+        var state = service.State;
+
+        await service.SuspendForRecording();
+
+        _registrar.Active.Should().BeNull("the chord must reach the recorder, not Windows");
+        service.State.Should().Be(state);
+        _store.Saves.Should().Be(saves);
+    }
+
+    [Fact]
+    public async Task Resuming_registers_the_same_shortcut_again()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+        _registrar.Calls.Clear();
+
+        await service.Resume();
+
+        _registrar.Calls.Should().Equal("register Ctrl+Alt+T");
+        _registrar.Active.Should().Be(A);
+        service.State.BindingIsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Suspending_twice_releases_once_and_resuming_without_suspending_does_nothing()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.Resume();
+        _registrar.Calls.Clear();
+
+        await service.SuspendForRecording();
+        await service.SuspendForRecording();
+        await service.Resume();
+        await service.Resume();
+
+        _registrar.Calls.Should().Equal("unregister", "register Ctrl+Alt+T");
+    }
+
+    [Fact]
+    public async Task With_no_shortcut_suspending_and_resuming_touch_nothing()
+    {
+        var service = Create();
+        await service.StartAsync();
+
+        await service.SuspendForRecording();
+        await service.Resume();
+
+        _registrar.Calls.Should().BeEmpty();
+        service.State.Should().Be(HotkeyState.None);
+    }
+
+    [Fact]
+    public async Task Suspending_before_start_loads_the_stored_shortcut_and_releases_it()
+    {
+        _store.Current = new HotkeyState(A, HotkeyStatus.Registered, _time.GetUtcNow());
+        var service = Create();
+
+        await service.SuspendForRecording();
+
+        _registrar.Calls.Should().Equal("register Ctrl+Alt+T", "unregister");
+        await service.Resume();
+        _registrar.Active.Should().Be(A);
+    }
+
+    [Fact]
+    public async Task A_press_that_was_already_queued_when_the_registration_was_released_does_nothing()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+
+        _registrar.Press();
+
+        _presses.Should().Be(0);
+        await service.Resume();
+        _registrar.Press();
+        _presses.Should().Be(1, "after resuming the shortcut works again");
+    }
+
+    [Fact]
+    public async Task Recording_the_chord_that_is_already_registered_ends_with_it_registered_once()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+        _registrar.Calls.Clear();
+
+        var result = await service.SetAsync(A);
+
+        result.Should().Be(HotkeyResult.Registered);
+        _registrar.Active.Should().Be(A);
+        _registrar.Calls.Count(c => c.StartsWith("register ", StringComparison.Ordinal)).Should().Be(1, "the registrar is asked once, not twice");
+        await service.Resume();
+        _registrar.Calls.Count(c => c.StartsWith("register ", StringComparison.Ordinal)).Should().Be(1, "and resuming after the set is a no-op");
+    }
+
+    [Fact]
+    public async Task Recording_a_different_chord_replaces_the_suspended_one()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+
+        var result = await service.SetAsync(B);
+
+        result.Should().Be(HotkeyResult.Registered);
+        _registrar.Active.Should().Be(B);
+        _registrar.MostHeld.Should().Be(1);
+        service.State.Binding.Should().Be(B);
+        await service.Resume();
+        _registrar.Active.Should().Be(B, "a later Resume does not bring the old one back");
+    }
+
+    [Fact]
+    public async Task A_conflict_while_suspended_takes_the_earlier_shortcut_back()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+        _registrar.HeldElsewhere.Add(B);
+
+        var result = await service.SetAsync(B);
+
+        result.Should().Be(HotkeyResult.Conflict);
+        _registrar.Active.Should().Be(A, "the shortcut the person had works again");
+        service.State.Refused.Should().Be(B);
+        service.State.Binding.Should().Be(A);
+    }
+
+    [Fact]
+    public async Task Clearing_while_suspended_leaves_nothing_registered()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+
+        var result = await service.SetAsync(null);
+
+        result.Should().Be(HotkeyResult.Cleared);
+        _registrar.Active.Should().BeNull();
+        await service.Resume();
+        _registrar.Active.Should().BeNull("there is nothing left to resume");
+        service.State.Binding.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Resuming_when_another_program_took_the_chord_meanwhile_stores_a_conflict()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+        _registrar.HeldElsewhere.Add(A);
+
+        await service.Resume();
+
+        _registrar.Active.Should().BeNull();
+        service.State.Binding.Should().Be(A);
+        service.State.Refused.Should().Be(A);
+        service.State.LastResult.Should().Be(HotkeyStatus.Conflict);
+        _store.Current.Should().Be(service.State, "the conflict is written down, and Settings shows it after a restart");
+        _log.Entries.Should().Contain(e => e.Level == "warning" && e.Category == "hotkey" && e.Message.Contains("another program", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Resuming_when_the_window_is_gone_does_not_throw_and_stores_a_conflict()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+        _registrar.RegisterThrows = new ObjectDisposedException("window");
+
+        await service.Resume();
+
+        service.State.HasConflict.Should().BeTrue();
+        _log.Entries.Should().Contain(e => e.Level == "error" && e.Category == "hotkey");
+    }
+
+    [Fact]
+    public async Task Suspending_and_resuming_after_disposal_are_quiet()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+        await service.DisposeAsync();
+        _registrar.Calls.Clear();
+
+        await service.SuspendForRecording();
+        await service.Resume();
+
+        _registrar.Calls.Should().BeEmpty();
+        _registrar.Active.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Disposing_while_suspended_leaves_nothing_registered()
+    {
+        var service = Create();
+        await service.StartAsync();
+        await service.SetAsync(A);
+        await service.SuspendForRecording();
+
+        await service.DisposeAsync();
+
+        _registrar.Active.Should().BeNull();
+    }
 }

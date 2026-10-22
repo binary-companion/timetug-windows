@@ -8,8 +8,8 @@ using TimeTug.Presentation.Settings;
 namespace TimeTug.App.Settings;
 
 /// <summary>
-/// The General pane: a hub with a row for each sub-page (About, Software Update) and, on a sub-page, a back button and the page's
-/// title, as on the Mac. The hub's controls (launch at login, the shortcut) and the sub-pages' contents come in later steps.
+/// The General pane: a hub with a row for each sub-page (About, Software Update), then the App section (launch at login) and the Shortcut
+/// section (the recorder), in the Mac's order; on a sub-page, a back button and the page's title, as on the Mac. The sub-pages' contents come in a later step.
 /// </summary>
 public sealed partial class GeneralPage : UserControl
 {
@@ -35,6 +35,15 @@ public sealed partial class GeneralPage : UserControl
         LaunchLink.Content = model.LaunchAtLogin.SettingsLinkText;
         AutomationProperties.SetName(LaunchLink, model.LaunchAtLogin.SettingsLinkAutomationName);
         SettingsHighlight.SetId(LaunchHost, GeneralViewModel.Ids.LaunchAtLogin);
+
+        var recorder = model.Recorder;
+        ShortcutHeader.Text = localizer.GetString("General_SectionShortcut");
+        ShortcutCard.Header = recorder.Label;
+        ShortcutCard.Description = recorder.Description;
+        AutomationProperties.SetName(ShortcutCard, recorder.Label);
+        RecorderControl = new HotkeyRecorder(recorder);
+        RecorderHost.Content = RecorderControl;
+        SettingsHighlight.SetId(ShortcutHost, GeneralViewModel.Ids.PopupShortcut);
         BackText.Text = localizer.GetString("Settings_Back");
         AutomationProperties.SetName(BackButton, localizer.GetString("Settings_BackAutomation"));
         AboutCard.Header = localizer.GetString("Settings_Destination_About");
@@ -46,17 +55,45 @@ public sealed partial class GeneralPage : UserControl
         {
             shell.PropertyChanged += OnShellChanged;
             model.LaunchAtLogin.PropertyChanged += OnLaunchChanged;
+            model.Recorder.PropertyChanged += OnRecorderChanged;
             Rebuild();
             SyncLaunch();
+            SyncShortcut();
             Refresh();
         };
         Unloaded += (_, _) =>
         {
             shell.PropertyChanged -= OnShellChanged;
             model.LaunchAtLogin.PropertyChanged -= OnLaunchChanged;
+            model.Recorder.PropertyChanged -= OnRecorderChanged;
         };
         Rebuild();
         SyncLaunch();
+        SyncShortcut();
+    }
+
+    /// <summary>The shortcut recorder (for the self-test).</summary>
+    internal HotkeyRecorder RecorderControl { get; }
+
+    internal TextBlock ShortcutStatusText => ShortcutStatus;
+
+    internal FontIcon ShortcutIcon => ShortcutStatusIcon;
+
+    internal StackPanel ShortcutStatusRow => ShortcutStatusHost;
+
+    /// <summary>Ends a recording in progress (the window lost the keyboard) so the shortcut is registered again.</summary>
+    public void CancelRecording() => _ = _model.Recorder.CancelRecordingAsync();
+
+    private void OnRecorderChanged(object? sender, PropertyChangedEventArgs e) => SyncShortcut();
+
+    /// <summary>The line under the shortcut row: active, a conflict (also one found at the last start), or what was wrong with the keys.</summary>
+    private void SyncShortcut()
+    {
+        var recorder = _model.Recorder;
+        ShortcutStatus.Text = recorder.StatusText ?? string.Empty;
+        ShortcutStatusHost.Visibility = recorder.HasStatus ? Visibility.Visible : Visibility.Collapsed;
+        ShortcutStatusIcon.Visibility = recorder.IsProblem ? Visibility.Visible : Visibility.Collapsed;
+        ShortcutStatus.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[recorder.IsProblem ? "TextFillColorPrimaryBrush" : "TextFillColorSecondaryBrush"];
     }
 
     /// <summary>The launch-at-login switch and its note and link (for the self-test).</summary>

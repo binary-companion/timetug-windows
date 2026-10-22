@@ -192,12 +192,41 @@ public sealed partial class SettingsWindow : Window
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)
     {
-        // Back from Windows Settings (Startup apps) or Task Manager: launch at login may have been changed there.
-        if (!_closed && args.WindowActivationState != WindowActivationState.Deactivated && PaneHost.Content is GeneralPage general)
+#if SELFTEST
+        if (IgnoreSystemDeactivation)
         {
+            return;
+        }
+#endif
+        HandleActivation(args.WindowActivationState == WindowActivationState.Deactivated);
+    }
+
+    private void HandleActivation(bool deactivated)
+    {
+        if (_closed || PaneHost.Content is not GeneralPage general)
+        {
+            return;
+        }
+
+        if (deactivated)
+        {
+            // The keyboard went elsewhere: a shortcut being recorded is not recorded any more, and the registered one works again.
+            general.CancelRecording();
+        }
+        else
+        {
+            // Back from Windows Settings (Startup apps) or Task Manager: launch at login may have been changed there.
             general.Refresh();
         }
     }
+
+#if SELFTEST
+    /// <summary>Self-test only: real losses of the active state are ignored (on the VM a helper takes the keyboard whenever a script runs a command); <see cref="LoseActivation"/> stands for one.</summary>
+    public bool IgnoreSystemDeactivation { get; set; }
+
+    /// <summary>Self-test only: does what losing the active state does.</summary>
+    public void LoseActivation() => HandleActivation(deactivated: true);
+#endif
 
     private void OnClosed(object sender, WindowEventArgs args)
     {

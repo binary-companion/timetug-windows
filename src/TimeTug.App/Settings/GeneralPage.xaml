@@ -44,6 +44,23 @@
         <TextBlock x:Name="LaunchError" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="14,2,0,2"
                    Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed"
                    AutomationProperties.LiveSetting="Assertive" />
+
+        <!-- Shortcut: the popup's global shortcut -->
+        <TextBlock x:Name="ShortcutHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,14,0,2" AutomationProperties.HeadingLevel="Level2" />
+        <Grid x:Name="ShortcutHost">
+          <toolkit:SettingsCard x:Name="ShortcutCard">
+            <toolkit:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE765;" />
+            </toolkit:SettingsCard.HeaderIcon>
+            <ContentControl x:Name="RecorderHost" IsTabStop="False" />
+          </toolkit:SettingsCard>
+        </Grid>
+        <StackPanel x:Name="ShortcutStatusHost" Orientation="Horizontal" Spacing="8" Margin="14,2,0,2" Visibility="Collapsed">
+          <FontIcon x:Name="ShortcutStatusIcon" Glyph="&#xE7BA;" FontSize="14" Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                    VerticalAlignment="Top" Margin="0,2,0,0" AutomationProperties.AccessibilityView="Raw" />
+          <TextBlock x:Name="ShortcutStatus" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+        </StackPanel>
       </StackPanel>
     </StackPanel>
   </ScrollViewer>

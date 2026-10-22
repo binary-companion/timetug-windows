@@ -108,7 +108,7 @@ internal static class AppComposition
         {
             IHotkeyStore store = LocalSettingsHotkeyStore.ForCurrentPackage(sp.GetRequiredService<IDiagnostics>());
 #if SELFTEST
-            // Development and CI builds only: dev-hotkey.txt stands in for the recorder that slice 3 adds.
+            // Development and CI builds only: dev-hotkey.txt sets a shortcut without the Settings recorder (the VM scripts and the checklist use it).
             store = new DevHotkeyStore(
                 store, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TimeTug", DevHotkeyStore.FileName), sp.GetRequiredService<TimeProvider>());
 #endif
@@ -116,6 +116,7 @@ internal static class AppComposition
         });
         services.AddSingleton(sp => new HotkeyRegistrar(sp.GetRequiredService<MessageWindow>(), sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<IHotkeyRegistrar>(sp => sp.GetRequiredService<HotkeyRegistrar>());
+        services.AddSingleton<IHotkeyControl>(sp => sp.GetRequiredService<HotkeyService>());
         services.AddSingleton(sp => new HotkeyService(
             sp.GetRequiredService<IHotkeyRegistrar>(), sp.GetRequiredService<IHotkeyStore>(), sp.GetRequiredService<ITugPresence>(),
             sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IDiagnostics>()));
@@ -161,7 +162,9 @@ internal static class AppComposition
             diagnostics: () => new DiagnosticsViewModel(
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IDiagnosticsReader>(), sp.GetRequiredService<IClipboardService>(),
                 sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), AppVersion.Current(), AppVersion.WindowsVersion()),
-            general: () => new GeneralViewModel(sp.GetRequiredService<LaunchAtLoginViewModel>())));
+            general: () => new GeneralViewModel(
+                sp.GetRequiredService<LaunchAtLoginViewModel>(),
+                new HotkeyRecorderViewModel(sp.GetRequiredService<IHotkeyControl>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>())))));
         services.AddSingleton<IClipboardService>(sp => new ClipboardService(sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<IDiagnosticsReader>(_ => new DiagnosticsReader(RollingFileLog.DefaultDirectory()));
         services.AddSingleton(sp => new SettingsWindowFactory(
