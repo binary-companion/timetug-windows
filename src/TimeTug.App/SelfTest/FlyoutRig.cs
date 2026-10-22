@@ -142,6 +142,34 @@ internal sealed class FlyoutRig : IDisposable
         },
     ];
 
+    /// <summary>A day with a merged card (calendars and members) and a pair of look-alike events that can be merged by hand.</summary>
+    public IReadOnlyList<AgendaItem> MergeDay()
+    {
+        var work = new MergeCalendar("g/work", "Work", "me@example.com");
+        var team = new MergeCalendar("g/team", "Team Sync", "me@example.com");
+        MergeMember Member(string id, int start, int length, MergeCalendar calendar) =>
+            new(id, Now.AddMinutes(start), Now.AddMinutes(start + length), new ValueList<MergeCalendar>([calendar]));
+        return
+        [
+            Item("review", "Design review", -10, 50, AgendaPhase.Current, join: "https://zoom.us/j/123456789"),
+            Item("budget", "Budget sync", 60, 40, AgendaPhase.Upcoming, color: "#0B8043", next: true) with
+            {
+                IsMerged = true,
+                MergedEventCount = 2,
+                MergeKind = "userConfirmed",
+                Members = [Member("budget sync|1|2", 60, 30, work), Member("budget sync|1|3", 60, 40, team)],
+            },
+            Item("offsite", "Offsite prep", 120, 45, AgendaPhase.Upcoming, color: "#E8710A") with
+            {
+                Candidates = [new MergeCandidate("travel", "Travel planning", Now.AddMinutes(135), Now.AddMinutes(150), false, "Team Sync")],
+            },
+            Item("travel", "Travel planning", 135, 15, AgendaPhase.Upcoming, calendar: "Team Sync", color: "#0B8043") with
+            {
+                Candidates = [new MergeCandidate("offsite", "Offsite prep", Now.AddMinutes(120), Now.AddMinutes(165), false, "Work")],
+            },
+        ];
+    }
+
     /// <summary>A long day: enough cards that the list has to scroll.</summary>
     public IReadOnlyList<AgendaItem> LongDay() =>
     [

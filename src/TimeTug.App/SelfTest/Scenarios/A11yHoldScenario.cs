@@ -24,7 +24,7 @@ internal static class A11yHoldScenario
     public const string Name = "a11y-hold";
 
     /// <summary>How many rounds the scanner is told to expect (<c>scripts/ci/run-a11y.ps1</c> passes the same number).</summary>
-    public const int Rounds = 11;
+    public const int Rounds = 12;
 
     private static readonly TimeSpan WaitForScanner = TimeSpan.FromSeconds(120);
 
@@ -146,6 +146,27 @@ internal static class A11yHoldScenario
             run.Check(await HoldForScannerAsync(rig, 11, "the Appearance pane, dark theme, with the backdrop notice", cancellation), "the scanner finished round 11");
             rig.Settings.TransparencyEffectsEnabled = true;
             settings.Host.Close();
+        }
+
+        // Round 12: the flyout with a merged card and a pair that can be merged by hand, the merge menu open with its submenu.
+        rig.Engine.Push(flyout.State(flyout.MergeDay()));
+        flyoutWindow = await flyout.OpenAsync();
+        run.Check(flyoutWindow is not null, "the flyout opens on the merge day");
+        if (flyoutWindow is not null)
+        {
+            var mergedCard = flyoutWindow.EventCards.FirstOrDefault(c => c.Row.Merge is not null);
+            run.Check(mergedCard is not null && ScenarioUi.Invoke(mergedCard.MenuButton), "the merged card's menu button is pressed");
+            run.Check(await rig.WaitFor(() => mergedCard?.Menu is { IsOpen: true }), "the merge menu is open");
+            if (mergedCard?.Menu?.Items.OfType<MenuFlyoutSubItem>().FirstOrDefault() is { } submenu
+                && Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(submenu)?.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.ExpandCollapse) is Microsoft.UI.Xaml.Automation.Provider.IExpandCollapseProvider expand)
+            {
+                expand.Expand();
+            }
+
+            await rig.Settle();
+            run.Check(await HoldForScannerAsync(rig, 12, "the flyout with the merge menu and its submenu open", cancellation), "the scanner finished round 12");
+            mergedCard?.Menu?.Hide();
+            flyout.Host.Close();
         }
 
         return rig.Finish();

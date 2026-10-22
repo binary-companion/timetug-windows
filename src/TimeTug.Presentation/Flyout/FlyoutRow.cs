@@ -49,6 +49,15 @@ public sealed record FlyoutRow(
     string? JoinFailedUrl = null,
     string? JoinFailedMessage = null)
 {
+    /// <summary>The merge this card stands for, with its provenance, calendars and the events "Not the same meeting" can split off; null when it is not a merge.</summary>
+    public MergeInfo? Merge { get; init; }
+
+    /// <summary>Events the engine says this one may duplicate, for "Merge with…"; empty when there are none.</summary>
+    public ValueList<CandidateRow> Candidates { get; init; }
+
+    /// <summary>True when the card has a menu: it is a merge, or it has events it can be merged with.</summary>
+    public bool HasMergeActions => Merge is not null || Candidates.Count > 0;
+
     public bool HasJoin => JoinUrl is not null;
 
     public bool IsPast => Kind == FlyoutRowKind.Past;

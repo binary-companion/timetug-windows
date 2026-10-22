@@ -83,7 +83,28 @@ public sealed record AgendaItem(
 
     /// <summary>The name of the model that proposed an <c>inference</c> merge.</summary>
     public string? MergeEngineName { get; init; }
+
+    /// <summary>
+    /// The distinct events a merged item stands for, in the engine's order (identical copies on several calendars are one member, as on the
+    /// Mac). Empty when the item is not a merge.
+    /// </summary>
+    public ValueList<MergeMember> Members { get; init; }
+
+    /// <summary>The engine's pending look-alike events for this item: events it may duplicate that were kept separate, offered for "Merge with…".</summary>
+    public ValueList<MergeCandidate> Candidates { get; init; }
 }
+
+/// <summary>A calendar a merged event has a copy on. <see cref="Title"/> falls back to the calendar's id when the engine does not list it.</summary>
+public sealed record MergeCalendar(string Key, string Title, string? AccountName);
+
+/// <summary>
+/// One distinct event inside a merged item. <see cref="MemberId"/> is the engine's key for it (what <c>dedup.separate</c> takes: its
+/// content key). <see cref="Calendars"/> are the calendars that hold a copy of it, in the engine's order.
+/// </summary>
+public sealed record MergeMember(string MemberId, DateTimeOffset Start, DateTimeOffset End, ValueList<MergeCalendar> Calendars);
+
+/// <summary>An event the engine says may be a duplicate of an agenda item; it can be merged by hand.</summary>
+public sealed record MergeCandidate(string EventId, string Title, DateTimeOffset Start, DateTimeOffset End, bool IsAllDay, string? CalendarTitle);
 
 public enum ProblemKind
 {
@@ -263,14 +284,21 @@ public static class EngineMapping
             if (events.TryGetValue(entry.EventID, out var e))
             {
                 calendars.TryGetValue(e.CalendarKey, out var calendar);
-                items.Add(ToAgendaItem(e, ToPhase(entry.State), calendar, entry.EventID == state.Agenda.NextEventID));
+                items.Add(ToAgendaItem(e, ToPhase(entry.State), calendar, entry.EventID == state.Agenda.NextEventID, state.Candidates, events, calendars));
             }
         }
 
         return items;
     }
 
-    private static AgendaItem ToAgendaItem(Pkg.CalendarEvent e, AgendaPhase phase, Pkg.CalendarInfo? calendar, bool isNext)
+    private static AgendaItem ToAgendaItem(
+        Pkg.CalendarEvent e,
+        AgendaPhase phase,
+        Pkg.CalendarInfo? calendar,
+        bool isNext,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> candidates,
+        Dictionary<string, Pkg.CalendarEvent> events,
+        Dictionary<string, Pkg.CalendarInfo> calendars)
     {
         var summary = ToSummary(e);
         var distinct = e.Members.Select(m => m.MemberID).Distinct(StringComparer.Ordinal).Count();
@@ -297,7 +325,76 @@ public static class EngineMapping
             MergedEventCount = distinct,
             MergeKind = merged ? e.MergeProvenance?.Kind : null,
             MergeEngineName = merged ? e.MergeProvenance?.EngineName : null,
+            Members = merged ? ToMembers(e, calendars) : default,
+            Candidates = ToCandidates(e.Id, candidates, events, calendars),
         };
+    }
+
+    /// <summary>
+    /// The distinct events behind a merge, in first-appearance order. The wire's <c>memberID</c> is the engine's content key, the same key the
+    /// Mac groups identical copies by, so copies of one event on several calendars are one member listing each calendar.
+    /// </summary>
+    private static ValueList<MergeMember> ToMembers(Pkg.CalendarEvent e, Dictionary<string, Pkg.CalendarInfo> calendars)
+    {
+        var order = new List<string>();
+        var groups = new Dictionary<string, List<Pkg.EventMember>>(StringComparer.Ordinal);
+        foreach (var member in e.Members)
+        {
+            if (!groups.TryGetValue(member.MemberID, out var copies))
+            {
+                order.Add(member.MemberID);
+                groups[member.MemberID] = copies = [];
+            }
+
+            copies.Add(member);
+        }
+
+        return new ValueList<MergeMember>(order.Select(id =>
+        {
+            var copies = groups[id];
+            var held = copies.Select(c => c.CalendarKey).Distinct(StringComparer.Ordinal).Select(key => ToMergeCalendar(key, calendars));
+            return new MergeMember(id, copies[0].Start, copies[0].End, new ValueList<MergeCalendar>(held));
+        }));
+    }
+
+    /// <summary>A calendar the engine does not list is named by the part of its key after the source, as on the Mac.</summary>
+    private static MergeCalendar ToMergeCalendar(string key, Dictionary<string, Pkg.CalendarInfo> calendars)
+    {
+        if (calendars.TryGetValue(key, out var info) && !string.IsNullOrWhiteSpace(info.Title))
+        {
+            return new MergeCalendar(key, info.Title, NullIfBlank(info.AccountName)?.Trim());
+        }
+
+        var slash = key.IndexOf('/', StringComparison.Ordinal);
+        return new MergeCalendar(key, slash >= 0 ? key[(slash + 1)..] : key, null);
+    }
+
+    /// <summary>The events the engine lists as possible duplicates of <paramref name="eventId"/>; an id the engine no longer lists is left out.</summary>
+    private static ValueList<MergeCandidate> ToCandidates(
+        string eventId,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> candidates,
+        Dictionary<string, Pkg.CalendarEvent> events,
+        Dictionary<string, Pkg.CalendarInfo> calendars)
+    {
+        if (!candidates.TryGetValue(eventId, out var ids))
+        {
+            return default;
+        }
+
+        var found = new List<MergeCandidate>();
+        foreach (var id in ids)
+        {
+            if (!events.TryGetValue(id, out var other) || other.Id == eventId)
+            {
+                continue;
+            }
+
+            var summary = ToSummary(other);
+            calendars.TryGetValue(other.CalendarKey, out var calendar);
+            found.Add(new MergeCandidate(other.Id, other.Title, summary.Start, summary.End, summary.IsAllDay, NullIfBlank(calendar?.Title)));
+        }
+
+        return new ValueList<MergeCandidate>(found);
     }
 
     /// <summary>The engine's words for a phase; a word a later engine adds is shown as upcoming rather than hiding the row.</summary>

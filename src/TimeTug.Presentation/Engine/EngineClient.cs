@@ -88,6 +88,18 @@ public sealed class EngineClient : IEngineClient, IAsyncDisposable
 
     public ValueTask ForgetCorrectionsAsync() => _engine.SendAsync(new Pkg.EngineCommand.ForgetCorrections());
 
+    public ValueTask MergeEventsAsync(string eventId, string otherEventId, string? commandId = null) =>
+        _engine.SendAsync(new Pkg.EngineCommand.Merge([eventId, otherEventId]), commandId);
+
+    public ValueTask UnmergeEventAsync(string eventId, string? commandId = null) =>
+        _engine.SendAsync(new Pkg.EngineCommand.Unmerge(eventId), commandId);
+
+    public ValueTask SeparateMembersAsync(string eventId, IReadOnlyList<string> memberIds, string? commandId = null)
+    {
+        ArgumentNullException.ThrowIfNull(memberIds);
+        return _engine.SendAsync(new Pkg.EngineCommand.Separate(eventId, memberIds), commandId);
+    }
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) =>
         _engine.SendAsync(new Pkg.EngineCommand.SystemEvent(kind, timeZone));
 

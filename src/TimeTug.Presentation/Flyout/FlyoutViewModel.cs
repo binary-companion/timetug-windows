@@ -25,10 +25,20 @@ public sealed class FlyoutViewModel : IDisposable
     private readonly object _gate = new();
     private readonly Dictionary<string, string> _joinFailed = new(StringComparer.Ordinal);
     private readonly IDisposable _stateSubscription;
+    private readonly IDisposable _diagnosticSubscription;
+    private readonly List<string> _pending = [];
     private readonly IDisposable _ticker;
     private AppState? _state;
     private FlyoutView _view;
     private bool _disposed;
+    private string? _notice;
+    private int _noticeVersion;
+    private int _commandCounter;
+
+    /// <summary>How long the message about a merge that did not go through stays.</summary>
+    public static readonly TimeSpan NoticeDuration = TimeSpan.FromSeconds(8);
+
+    private const int MaxPendingCommands = 32;
 
     public FlyoutViewModel(IEngineClient engine, IUrlLauncher launcher, TimeProvider time, IMinuteTicker ticker, ILocalizer text, CultureInfo? culture = null)
     {
@@ -45,6 +55,7 @@ public sealed class FlyoutViewModel : IDisposable
         _words = new FlyoutText(text, _culture);
         _view = Build();
         _stateSubscription = engine.State.Subscribe(new StateObserver(OnState));
+        _diagnosticSubscription = engine.Diagnostics.Subscribe(new DiagnosticObserver(OnDiagnostic));
         _ticker = ticker.Start(Refresh);
     }
 
@@ -149,6 +160,152 @@ public sealed class FlyoutViewModel : IDisposable
         }
     }
 
+    /// <summary>A short sentence about the last merge, unmerge or split that did not go through; null when there is none.</summary>
+    public string? Notice => View.Notice;
+
+    /// <summary>
+    /// "Merge with…": merges the card with another event the engine listed for it (<c>dedup.merge</c>, two ids). The engine republishes its
+    /// state, so there is nothing to refresh; a card that has gone stale shows <see cref="Notice"/> instead. Never throws.
+    /// </summary>
+    public ValueTask MergeAsync(string eventId, string otherEventId) => ActAsync(
+        view => view.Rows.FirstOrDefault(r => IsEvent(r, eventId)) is { } row && row.Candidates.Any(c => string.Equals(c.EventId, otherEventId, StringComparison.Ordinal)),
+        id => _engine.MergeEventsAsync(eventId, otherEventId, id));
+
+    /// <summary>"Unmerge": splits the merged card into its events (<c>dedup.unmerge</c>). Never throws.</summary>
+    public ValueTask UnmergeAsync(string eventId) => ActAsync(
+        view => view.Rows.FirstOrDefault(r => IsEvent(r, eventId))?.Merge is not null,
+        id => _engine.UnmergeEventAsync(eventId, id));
+
+    /// <summary>"Not the same meeting": shows one member of the merged card as an event of its own (<c>dedup.separate</c>). Never throws.</summary>
+    public ValueTask SeparateAsync(string eventId, string memberId) => SeparateAsync(eventId, [memberId]);
+
+    public ValueTask SeparateAsync(string eventId, IReadOnlyList<string> memberIds)
+    {
+        ArgumentNullException.ThrowIfNull(memberIds);
+        var wanted = memberIds.ToArray();
+        return ActAsync(
+            view => wanted.Length > 0 && view.Rows.FirstOrDefault(r => IsEvent(r, eventId))?.Merge is { } merge
+                && wanted.All(m => merge.Members.Any(x => string.Equals(x.MemberId, m, StringComparison.Ordinal))),
+            id => _engine.SeparateMembersAsync(eventId, wanted, id));
+    }
+
+    /// <summary>Hides the message.</summary>
+    public void DismissNotice()
+    {
+        lock (_gate)
+        {
+            if (_notice is null)
+            {
+                return;
+            }
+
+            _notice = null;
+            _noticeVersion++;
+        }
+
+        Refresh();
+    }
+
+    private static bool IsEvent(FlyoutRow row, string eventId) => string.Equals(row.EventId, eventId, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Runs a merge, unmerge or split. The card is checked against what the flyout shows now: an event that left the list, a merge that is
+    /// no longer one, a member or a candidate the engine stopped offering all end in a short message and a fresh look at the engine's state,
+    /// and nothing is sent. What is sent carries ids only (the engine resolves them from its latest state) and a command id, so a refusal
+    /// from the engine comes back to <see cref="OnDiagnostic"/> as the same message.
+    /// </summary>
+    private async ValueTask ActAsync(Func<FlyoutView, bool> stillThere, Func<string, ValueTask> send)
+    {
+        string? id = null;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _notice = null;
+            _noticeVersion++;
+            if (stillThere(_view))
+            {
+                id = "flyout-merge-" + (++_commandCounter).ToString(CultureInfo.InvariantCulture);
+                _pending.Add(id);
+                if (_pending.Count > MaxPendingCommands)
+                {
+                    _pending.RemoveAt(0);
+                }
+            }
+            else
+            {
+                SetNoticeLocked("Flyout_Merge_Stale");
+            }
+        }
+
+        if (id is not null)
+        {
+            try
+            {
+                await send(id);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // The engine is gone or refused to take the command.
+                lock (_gate)
+                {
+                    _pending.Remove(id);
+                    SetNoticeLocked("Flyout_Merge_Failed");
+                }
+            }
+        }
+
+        Refresh();
+    }
+
+    /// <summary>Shows a message and starts the timer that takes it away; a newer message is not taken away by an older timer.</summary>
+    private void SetNoticeLocked(string key)
+    {
+        _notice = _text.GetString(key);
+        var version = ++_noticeVersion;
+        _ = ClearNoticeLaterAsync(version);
+    }
+
+    private async Task ClearNoticeLaterAsync(int version)
+    {
+        await Task.Delay(NoticeDuration, _time).ConfigureAwait(false);
+        lock (_gate)
+        {
+            if (_disposed || _noticeVersion != version)
+            {
+                return;
+            }
+
+            _notice = null;
+        }
+
+        Refresh();
+    }
+
+    /// <summary>The engine refused a merge command of ours: the same message as for a card that went stale.</summary>
+    private void OnDiagnostic(EngineDiagnosticInfo info)
+    {
+        if (info.CommandId is null)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_disposed || !_pending.Remove(info.CommandId))
+            {
+                return;
+            }
+
+            SetNoticeLocked("Flyout_Merge_Stale");
+        }
+
+        Refresh();
+    }
+
     public void Dispose()
     {
         lock (_gate)
@@ -162,6 +319,7 @@ public sealed class FlyoutViewModel : IDisposable
         }
 
         _stateSubscription.Dispose();
+        _diagnosticSubscription.Dispose();
         _ticker.Dispose();
     }
 
@@ -223,7 +381,8 @@ public sealed class FlyoutViewModel : IDisposable
             _state?.Problems.Select(BuildProblem).ToArray() ?? [],
             _words.TugFooter(_state?.Settings.LeadTime ?? TimeSpan.Zero),
             hasState && rows.Length == 0,
-            hasState && rows.Length > 0 && left == 0);
+            hasState && rows.Length > 0 && left == 0,
+            _notice);
     }
 
     private FlyoutRow BuildRow(AgendaItem item, DateTimeOffset now, TimeZoneInfo zone)
@@ -268,7 +427,64 @@ public sealed class FlyoutViewModel : IDisposable
             mergeSummary,
             SpokenDescription(item, kind, mergeSummary, now, zone),
             failedUrl,
-            failedUrl is null ? null : _text.GetString("Flyout_JoinFailed"));
+            failedUrl is null ? null : _text.GetString("Flyout_JoinFailed"))
+        {
+            Merge = mergeSummary is null ? null : BuildMerge(item, mergeSummary, zone),
+            Candidates = new ValueList<CandidateRow>(item.Candidates.Select(c => BuildCandidate(c, zone))),
+        };
+    }
+
+    private MergeInfo BuildMerge(AgendaItem item, string summary, TimeZoneInfo zone)
+    {
+        var all = item.Members.SelectMany(m => m.Calendars).ToList();
+        var members = item.Members.Select(m => new MergeMemberRow(
+            m.MemberId,
+            string.Join(_text.GetString("Flyout_MetaSeparator"), CalendarLabel(m.Calendars, all), _words.Range(m.Start, m.End, zone)),
+            Format("Flyout_NotSameMeetingAutomation", string.Join(", ", m.Calendars.Select(c => c.Title)), _words.SpokenRange(m.Start, m.End, zone))));
+        return new MergeInfo(
+            summary,
+            MergeBadge.Text(item.MergeKind, item.MergeEngineName, _text, _culture),
+            CalendarLabel(all, all),
+            new ValueList<MergeMemberRow>(members));
+    }
+
+    private CandidateRow BuildCandidate(MergeCandidate candidate, TimeZoneInfo zone)
+    {
+        var when = candidate.IsAllDay ? _text.GetString("Flyout_AllDay") : _words.Clock(candidate.Start, zone);
+        var automation = candidate.IsAllDay
+            ? Format("Flyout_MergeWithAutomationAllDay", candidate.Title)
+            : Format(
+                "Flyout_MergeWithAutomation",
+                candidate.Title,
+                string.Join(_text.GetString("Flyout_Spoken_Separator"), new[] { candidate.CalendarTitle is null ? null : Format("Flyout_Spoken_Calendar", candidate.CalendarTitle), when }.OfType<string>()));
+        return new CandidateRow(candidate.EventId, Format("Flyout_MergeWithItem", candidate.Title, when), automation);
+    }
+
+    /// <summary>
+    /// Calendar titles in first-appearance order: "Work, Team". The flyout is narrow, so the account is added only to a title that more than
+    /// one calendar of the card shares ("Calendar · Acme, Calendar · Home"); the Mac always writes it (<c>MergedMemberRow.label</c>).
+    /// </summary>
+    private string CalendarLabel(IEnumerable<MergeCalendar> calendars, IReadOnlyCollection<MergeCalendar> all)
+    {
+        var shared = all.GroupBy(c => c.Title, StringComparer.Ordinal).Where(g => g.Select(c => c.Key).Distinct(StringComparer.Ordinal).Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
+        var titles = new List<string>();
+        var accounts = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        foreach (var calendar in calendars)
+        {
+            if (!accounts.TryGetValue(calendar.Title, out var list))
+            {
+                titles.Add(calendar.Title);
+                accounts[calendar.Title] = list = [];
+            }
+
+            if (shared.Contains(calendar.Title) && !string.IsNullOrWhiteSpace(calendar.AccountName) && !list.Contains(calendar.AccountName, StringComparer.Ordinal))
+            {
+                list.Add(calendar.AccountName);
+            }
+        }
+
+        var separator = _text.GetString("Flyout_MetaSeparator");
+        return string.Join(", ", titles.Select(t => accounts[t].Count == 0 ? t : t + separator + string.Join(", ", accounts[t])));
     }
 
     private string? AttendeeText(int others) => others switch
@@ -287,12 +503,7 @@ public sealed class FlyoutViewModel : IDisposable
         }
 
         // A rule merge is silent (no label); a model or manual merge says who did it.
-        var label = item.MergeKind switch
-        {
-            "inference" when !string.IsNullOrWhiteSpace(item.MergeEngineName) => Format("Flyout_MergedWith", item.MergeEngineName),
-            "userConfirmed" => _text.GetString("Flyout_MergedManually"),
-            _ => null,
-        };
+        var label = MergeBadge.Text(item.MergeKind, item.MergeEngineName, _text, _culture);
         return label is null ? Format("Flyout_MergeSummary_Plain", item.MergedEventCount) : Format("Flyout_MergeSummary_Labelled", label, item.MergedEventCount);
     }
 
@@ -365,11 +576,25 @@ public sealed class FlyoutViewModel : IDisposable
         IReadOnlyList<ProblemRow> Problems,
         string Footer,
         bool IsEmpty,
-        bool NoMoreMeetings)
+        bool NoMoreMeetings,
+        string? Notice)
     {
         public bool SameAs(FlyoutView other) =>
             Weekday == other.Weekday && Summary == other.Summary && Footer == other.Footer && IsEmpty == other.IsEmpty
-            && NoMoreMeetings == other.NoMoreMeetings && Rows.SequenceEqual(other.Rows) && Problems.SequenceEqual(other.Problems);
+            && NoMoreMeetings == other.NoMoreMeetings && Notice == other.Notice && Rows.SequenceEqual(other.Rows) && Problems.SequenceEqual(other.Problems);
+    }
+
+    private sealed class DiagnosticObserver(Action<EngineDiagnosticInfo> onNext) : IObserver<EngineDiagnosticInfo>
+    {
+        public void OnCompleted()
+        {
+        }
+
+        public void OnError(Exception error)
+        {
+        }
+
+        public void OnNext(EngineDiagnosticInfo value) => onNext(value);
     }
 
     private sealed class StateObserver(Action<AppState> onNext) : IObserver<AppState>

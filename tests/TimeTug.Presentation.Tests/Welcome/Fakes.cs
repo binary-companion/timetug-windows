@@ -69,6 +69,26 @@ internal sealed class FakeEngineClient : IEngineClient
 
     public ValueTask ForgetCorrectionsAsync() => Record("forget");
 
+    /// <summary>Every duplicate-management command sent, as "merge:a+b", "unmerge:a" or "separate:a:m1,m2", with the command id it carried.</summary>
+    public List<(string Command, string? Id)> Dedup { get; } = [];
+
+    /// <summary>Runs after a duplicate-management command is recorded (a test publishes the engine's answer from here).</summary>
+    public Action<string, string?>? OnDedup { get; set; }
+
+    public ValueTask MergeEventsAsync(string eventId, string otherEventId, string? commandId = null) => RecordDedup($"merge:{eventId}+{otherEventId}", commandId);
+
+    public ValueTask UnmergeEventAsync(string eventId, string? commandId = null) => RecordDedup("unmerge:" + eventId, commandId);
+
+    public ValueTask SeparateMembersAsync(string eventId, IReadOnlyList<string> memberIds, string? commandId = null) =>
+        RecordDedup($"separate:{eventId}:{string.Join(",", memberIds)}", commandId);
+
+    private ValueTask RecordDedup(string command, string? commandId)
+    {
+        Dedup.Add((command, commandId));
+        OnDedup?.Invoke(command, commandId);
+        return Record(command);
+    }
+
     public ValueTask SystemEventAsync(string kind, string? timeZone = null) => Record("system:" + kind);
 
     private ValueTask Record(string command)

@@ -1,4 +1,11 @@
 {
-  "comment": "Errors axe-windows reports that are accepted, each with the reason. Prefer fixing the XAML: an entry here is a decision, not a convenience. A rule id and an element name (both exact) must match; \"name\" may be omitted to accept the rule for every element, which needs an especially good reason.",
-  "suppressions": []
+  "comment": "Errors axe-windows reports that are accepted, each with the reason. Prefer fixing the XAML: an entry here is a decision, not a convenience. A rule id and an element name (both exact) must match; \"name\" may be omitted to accept the rule for every element, which needs an especially good reason; \"round\" limits an entry to one round of the scenario.",
+  "suppressions": [
+    {
+      "rule": "BoundingRectangleCompletelyObscuresContainer",
+      "name": "",
+      "round": 12,
+      "reason": "Round 12 holds the flyout with a card's merge menu and its submenu open. While a MenuFlyout is open WinUI adds an unnamed Pane the size of the window (the popup layer that positions the menu and catches the light dismiss); it holds the menu and is not a control. The same flyout without a menu (round 3) has no such pane, and the menu's own popups are named and pass every other rule."
+    }
+  ]
 }

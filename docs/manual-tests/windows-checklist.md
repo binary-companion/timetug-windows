@@ -392,6 +392,14 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Automated:** partly. `settings-appearance` (a fake system theme, scripted settings: each choice applied to the open windows, caption colours read from the window and from a screenshot, overrides), `tray-states`, `AppearanceViewModelTests`, `AppearanceResolverTests`, axe rounds 10 and 11. Not automated: a real change of the Windows theme, a real contrast theme, and the look of Mica and acrylic (PrintWindow cannot capture them).
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
+### 5.19 Merge actions on a real duplicate meeting
+
+- **Build:** `msix-x64` (or `msix-arm64`), with a Google, Microsoft or CalDAV account that has the same meeting on two calendars (for example a shared invitation that also sits on your own calendar), and a second pair of meetings that overlap but are not copies.
+- **Do:** (a) Open the flyout from the tray. The doubled meeting shows once with "N events merged" (or "Merged with ..." when on-device intelligence merged it) and the calendars it is on. (b) Press the "..." button on it (or right-click it, or Tab to the button and press Enter) and open "Not the same meeting": pick one calendar's copy. (c) On the overlapping pair press "..." > "Merge with..." and pick the other meeting. (d) On the merged card press "..." > "Unmerge". (e) With the menu open, click another window, then reopen the flyout and open a menu again. (f) Open the menu on a card, then let the minute change (or wait for the clock to tick) before choosing.
+- **Expect:** (b) the picked copy becomes its own card and the rest stay merged (or all separate when only two); (c) one card, "Merged manually · 2 events"; (d) the copies are separate again and stay separate; (e) opening a menu does not close the flyout; clicking another window closes the flyout and the menu together; (f) the menu stays open until it is closed, then the list refreshes. Every item reads sensibly with Narrator (the button says "Merge actions for <title>"; items name the calendars and times). When a meeting changed on another device while the menu was open, choosing it shows "That meeting has changed. The list is up to date." and nothing else happens.
+- **Automated:** partly. `MergeManagementTests` (members, candidates, badge text, commands with ids only, a stale card, the engine's refusal), `flyout-merge` (the real engine merging, splitting and re-merging; the stale message; the engine's refusals) and axe round 12 with the menu open. Not automated: a real mouse (hover opening the submenu, click choosing an item, Esc), a real click-away with a menu open, and Narrator.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
 ---
 
 ## 6. Accessibility and appearance

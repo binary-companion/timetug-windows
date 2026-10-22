@@ -146,6 +146,27 @@ public class EngineClientTests
     }
 
     [Fact]
+    public async Task Duplicate_management_sends_dedup_commands_with_ids_only_and_the_command_id()
+    {
+        var (engine, client) = await StartedAsync();
+        await using (client)
+        {
+            await client.MergeEventsAsync("evt-1", "evt-2", "flyout-merge-1");
+            await client.UnmergeEventAsync("evt-3", "flyout-merge-2");
+            await client.SeparateMembersAsync("evt-4", ["design review|1|2", "design review|1|3"], "flyout-merge-3");
+
+            var sent = engine.Commands.Skip(1).ToList();
+            sent.Should().HaveCount(3);
+            sent[0].Should().BeOfType<Pkg.EngineCommand.Merge>().Which.EventIDs.Should().Equal("evt-1", "evt-2");
+            sent[1].Should().Be(new Pkg.EngineCommand.Unmerge("evt-3"));
+            var separate = sent[2].Should().BeOfType<Pkg.EngineCommand.Separate>().Subject;
+            separate.EventID.Should().Be("evt-4");
+            separate.MemberIDs.Should().Equal("design review|1|2", "design review|1|3");
+            engine.Ids.Skip(1).Should().Equal("flyout-merge-1", "flyout-merge-2", "flyout-merge-3");
+        }
+    }
+
+    [Fact]
     public async Task A_diagnostic_carries_the_id_of_the_command_it_answers()
     {
         var (engine, client) = await StartedAsync();

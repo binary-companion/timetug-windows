@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "id": "evt-budget-copy",
+      "iCalUID": "evt-budget-copy@google.com",
+      "status": "confirmed",
+      "summary": "Budget sync",
+      "start": { "dateTime": "2026-10-16T14:00:00Z", "timeZone": "America/Chicago" },
+      "end": { "dateTime": "2026-10-16T14:40:00Z", "timeZone": "America/Chicago" }
+    },
+    {
+      "id": "evt-travel",
+      "iCalUID": "evt-travel@google.com",
+      "status": "confirmed",
+      "summary": "Travel planning",
+      "start": { "dateTime": "2026-10-16T15:15:00Z", "timeZone": "America/Chicago" },
+      "end": { "dateTime": "2026-10-16T15:30:00Z", "timeZone": "America/Chicago" }
+    }
+  ],
+  "nextSyncToken": "sync-token-2"
+}
