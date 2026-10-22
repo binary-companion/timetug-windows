@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 
 namespace TimeTug.App.SelfTest;
@@ -38,6 +39,24 @@ internal static class ScenarioUi
         return true;
     }
 
+    /// <summary>Toggles a switch or check box through its UI Automation peer. False when it has no toggle pattern or is disabled.</summary>
+    public static bool Toggle(FrameworkElement element)
+    {
+        if (element is not Control { IsEnabled: true } || element.Visibility != Visibility.Visible)
+        {
+            return false;
+        }
+
+        var peer = FrameworkElementAutomationPeer.CreatePeerForElement(element);
+        if (peer?.GetPattern(PatternInterface.Toggle) is not IToggleProvider toggle)
+        {
+            return false;
+        }
+
+        toggle.Toggle();
+        return true;
+    }
+
     public static bool HasButton(Window window, string automationName) =>
         FindButton((FrameworkElement)window.Content, automationName) is { Visibility: Visibility.Visible };
 
@@ -64,11 +83,12 @@ internal static class ScenarioUi
         return null;
     }
 
-    private static Button? FindButton(DependencyObject node, string automationName)
+    // A button or a link, not any ButtonBase: a SettingsCard is one too, and it often carries the same name as the control inside it.
+    private static ButtonBase? FindButton(DependencyObject node, string automationName)
     {
-        if (node is Button button && AutomationProperties.GetName(node) == automationName)
+        if (node is Button or HyperlinkButton && AutomationProperties.GetName(node) == automationName)
         {
-            return button;
+            return (ButtonBase)node;
         }
 
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)

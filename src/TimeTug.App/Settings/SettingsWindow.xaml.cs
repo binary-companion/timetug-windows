@@ -68,6 +68,7 @@ public sealed partial class SettingsWindow : Window
         shell.PropertyChanged += OnShellChanged;
         shell.HighlightRequested += OnHighlightRequested;
         AppWindow.Changed += OnAppWindowChanged;
+        Activated += OnActivated;
         Closed += OnClosed;
     }
 
@@ -189,6 +190,15 @@ public sealed partial class SettingsWindow : Window
         }
     }
 
+    private void OnActivated(object sender, WindowActivatedEventArgs args)
+    {
+        // Back from Windows Settings (Startup apps) or Task Manager: launch at login may have been changed there.
+        if (!_closed && args.WindowActivationState != WindowActivationState.Deactivated && PaneHost.Content is GeneralPage general)
+        {
+            general.Refresh();
+        }
+    }
+
     private void OnClosed(object sender, WindowEventArgs args)
     {
         _closed = true;
@@ -255,12 +265,19 @@ public sealed partial class SettingsWindow : Window
 
     private FrameworkElement CreatePage(SettingsPane pane) => pane switch
     {
-        SettingsPane.General => new GeneralPage(_shell, _text, _localizer, () => ApplyHighlight()),
+        SettingsPane.General => NewGeneralPage(),
         SettingsPane.Appearance => new AppearancePage(_text.PaneTitle(pane)),
         SettingsPane.Accounts => NewAccountsPage(),
         SettingsPane.Calendars => NewCalendarsPage(),
         _ => NewTugRulesPage(),
     };
+
+    private GeneralPage NewGeneralPage()
+    {
+        var model = _models.CreateGeneral();
+        _ownedModels.Add(model);
+        return new GeneralPage(_shell, _text, _localizer, model, () => ApplyHighlight());
+    }
 
     private AccountsPage NewAccountsPage()
     {

@@ -7,6 +7,8 @@ using Microsoft.UI.Xaml.Automation.Provider;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Settings;
+using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Welcome;
 
 namespace TimeTug.App.SelfTest.Scenarios;
@@ -32,7 +34,10 @@ internal static class WelcomeScenario
         using var forms = new AccountFormService(queue, text);
         using var engine = new ScriptedEngineClient(forms) { ShowFormFor = "icloud" };
         engine.Push(Scenes.Empty());
-        var window = WelcomeWindowFactory.Create(engine, forms, text, new FixedClock(Noon));
+        var startup = new ScriptedStartupTask();
+        var links = new RecordingSystemLauncher();
+        var launch = new LaunchAtLoginViewModel(startup, links, new DispatcherQueueDispatcher(queue), text);
+        var window = WelcomeWindowFactory.Create(engine, forms, text, new FixedClock(Noon), launchAtLogin: launch);
         var model = window.ViewModel;
         window.Activate();
         await SelfTestRunner.WaitForFrameAsync(window, cancellation);
@@ -43,6 +48,7 @@ internal static class WelcomeScenario
 
         // Step 1: the list of places to connect.
         Check(model.Step == WelcomeStep.Connect, "starts on the Connect step");
+        Check(!model.ShowLaunchAtLogin && ((FrameworkElement)window.LaunchCheckBox.Parent).Visibility == Visibility.Collapsed, "the launch-at-login checkbox is not offered on the first step");
         Check(model.Providers.Select(p => p.Id).SequenceEqual(["google", "microsoft", "icloud", "caldav"]), "providers are listed in the engine's order");
         Check(!model.Providers[1].IsEnabled && model.Providers[1].Hint.Contains("isn’t set up", StringComparison.Ordinal), "an unconfigured kind is disabled with the reason");
         Check(Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", Unnamed(window)));
@@ -88,6 +94,28 @@ internal static class WelcomeScenario
         Check(model.Accounts.Accounts.Count == 1 && model.Accounts.Accounts[0].Summary.StartsWith("Google · you@example.com · 3 calendars", StringComparison.Ordinal), "the account is summarised");
         Check(Unnamed(window).Count == 0, "every control on the Connected step has an automation name: " + string.Join(", ", Unnamed(window)));
         await Shot("connected");
+
+        // Launch at login: unchecked until the person ticks it, and shown as Windows says after the tick.
+        await Settle(400);
+        Check(model.ShowLaunchAtLogin && ((FrameworkElement)window.LaunchCheckBox.Parent).Visibility == Visibility.Visible, "the second step offers the launch-at-login checkbox");
+        Check(window.LaunchCheckBox.IsChecked == false && window.LaunchCheckBox.IsEnabled, "it starts unchecked");
+        Check(AutomationProperties.GetName(window.LaunchCheckBox) == "Start TimeTug when I sign in" && window.LaunchCheckBox.Content is "Start TimeTug when I sign in", "and is named: " + AutomationProperties.GetName(window.LaunchCheckBox));
+        Check(startup.Calls.SequenceEqual(["get"]) && startup.State == StartupState.Disabled, "Windows was only asked for the state; nothing was enabled");
+        Check(ScenarioUi.Toggle(window.LaunchCheckBox), "the checkbox can be ticked through UI Automation");
+        await Settle(500);
+        Check(startup.Calls.SequenceEqual(["get", "enable"]) && window.LaunchCheckBox.IsChecked == true, "a tick requests enabling and the box stays ticked because Windows enabled it");
+        await Shot("connected-launch-ticked");
+        Check(ScenarioUi.Toggle(window.LaunchCheckBox), "unticking");
+        await Settle(500);
+        Check(startup.Calls.Last() == "disable" && window.LaunchCheckBox.IsChecked == false, "turns it off again");
+        // The person has switched the task off in Windows: the tick is refused and the box says so, with the link.
+        startup.StateAfterRequest = StartupState.DisabledByUser;
+        Check(ScenarioUi.Toggle(window.LaunchCheckBox), "ticking while Windows is set to refuse");
+        await Settle(500);
+        Check(window.LaunchCheckBox.IsChecked == false && !window.LaunchCheckBox.IsEnabled, "the box goes back to unchecked and is disabled: Windows decides");
+        Check(window.LaunchSettingsLink.Visibility == Visibility.Visible && window.LaunchNoteText.Text.Contains("Startup apps", StringComparison.Ordinal), "with the reason and the link: " + window.LaunchNoteText.Text);
+        await Shot("connected-launch-blocked");
+        Check(ScenarioUi.Invoke(window, "Open Startup apps in Windows Settings") && links.Opened.SequenceEqual(["ms-settings:startupapps"]), "the link opens the Startup apps page");
         Check(Invoke(window, "Show a test tug screen") && engine.Sent.Contains("testTug"), "Test tug sends the test takeover");
 
         // The window is left open: closing the only window would end the app before the result is written.

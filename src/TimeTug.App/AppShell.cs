@@ -179,7 +179,9 @@ internal sealed class AppShell
             Services.GetRequiredService<ILocalizer>(),
             Services.GetRequiredService<TimeProvider>(),
             // "Add another" on the second step goes to the Accounts pane, where every kind can be added and every account managed.
-            () => ShowSettings(SettingsPane.Accounts));
+            () => ShowSettings(SettingsPane.Accounts),
+            // The checkbox on the second step: unchecked until the person ticks it; Windows decides what comes of the tick.
+            Services.GetRequiredService<LaunchAtLoginViewModel>());
         window.Closed += (_, _) => _welcome = null;
         _welcome = window;
         window.Activate();

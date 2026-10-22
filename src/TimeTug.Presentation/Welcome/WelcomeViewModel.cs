@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Settings;
 
 namespace TimeTug.Presentation.Welcome;
 
@@ -24,9 +25,15 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     /// Opens the Settings window on its Accounts pane. When the app gives one, "Add another" goes there (and this window closes) instead of
     /// showing the list of places to connect again; without one, "Add another" shows that list.
     /// </param>
-    public WelcomeViewModel(IEngineClient engine, IUiDispatcher ui, ILocalizer text, TimeProvider? clock = null, Action? openAccountsPane = null)
+    /// <param name="launchAtLogin">
+    /// Launch at login, for the "Start TimeTug when I sign in" checkbox on the second step. Without one the step has no checkbox.
+    /// </param>
+    public WelcomeViewModel(
+        IEngineClient engine, IUiDispatcher ui, ILocalizer text, TimeProvider? clock = null, Action? openAccountsPane = null,
+        LaunchAtLoginViewModel? launchAtLogin = null)
     {
         _openAccountsPane = openAccountsPane;
+        LaunchAtLogin = launchAtLogin;
         Accounts = new AccountsViewModel(engine, ui, text, clock);
         Accounts.Connected += (_, _) => Step = WelcomeStep.Connected;
         AddAnotherCommand = new RelayCommand(AddAnother);
@@ -41,6 +48,15 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<ProviderItem> Providers => Accounts.Providers;
 
+    /// <summary>Launch at login, shown as a checkbox on the second step; null when the app gives none.</summary>
+    public LaunchAtLoginViewModel? LaunchAtLogin { get; }
+
+    /// <summary>The checkbox is on screen: the second step, with a launch-at-login model.</summary>
+    public bool ShowLaunchAtLogin => LaunchAtLogin is not null && IsConnectedStep;
+
+    /// <summary>The person ticked or unticked the checkbox. A tick asks Windows to enable the startup task; the checkbox then shows what Windows says.</summary>
+    public Task SetLaunchAtLoginAsync(bool on) => LaunchAtLogin?.SetAsync(on) ?? Task.CompletedTask;
+
     public WelcomeStep Step
     {
         get;
@@ -50,6 +66,12 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(IsConnectStep));
                 OnPropertyChanged(nameof(IsConnectedStep));
+                OnPropertyChanged(nameof(ShowLaunchAtLogin));
+                if (value == WelcomeStep.Connected && LaunchAtLogin is { } launch)
+                {
+                    // What Windows has right now, which is "off" on a first run: the checkbox is read here, not assumed.
+                    _ = launch.RefreshAsync();
+                }
             }
         }
     } = WelcomeStep.Connect;

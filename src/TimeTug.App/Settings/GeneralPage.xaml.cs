@@ -16,15 +16,25 @@ public sealed partial class GeneralPage : UserControl
     private readonly SettingsShellViewModel _shell;
     private readonly SettingsText _text;
     private readonly ILocalizer _localizer;
+    private readonly GeneralViewModel _model;
     private readonly Action _highlightAgain;
+    private bool _syncing;
 
-    public GeneralPage(SettingsShellViewModel shell, SettingsText text, ILocalizer localizer, Action highlightAgain)
+    public GeneralPage(SettingsShellViewModel shell, SettingsText text, ILocalizer localizer, GeneralViewModel model, Action highlightAgain)
     {
         _shell = shell;
         _text = text;
         _localizer = localizer;
+        _model = model;
         _highlightAgain = highlightAgain;
         InitializeComponent();
+        AppHeader.Text = localizer.GetString("General_SectionApp");
+        LaunchCard.Header = text.ControlTitle(GeneralViewModel.Ids.LaunchAtLogin);
+        AutomationProperties.SetName(LaunchCard, text.ControlTitle(GeneralViewModel.Ids.LaunchAtLogin));
+        AutomationProperties.SetName(LaunchSwitch, text.ControlTitle(GeneralViewModel.Ids.LaunchAtLogin));
+        LaunchLink.Content = model.LaunchAtLogin.SettingsLinkText;
+        AutomationProperties.SetName(LaunchLink, model.LaunchAtLogin.SettingsLinkAutomationName);
+        SettingsHighlight.SetId(LaunchHost, GeneralViewModel.Ids.LaunchAtLogin);
         BackText.Text = localizer.GetString("Settings_Back");
         AutomationProperties.SetName(BackButton, localizer.GetString("Settings_BackAutomation"));
         AboutCard.Header = localizer.GetString("Settings_Destination_About");
@@ -35,11 +45,68 @@ public sealed partial class GeneralPage : UserControl
         Loaded += (_, _) =>
         {
             shell.PropertyChanged += OnShellChanged;
+            model.LaunchAtLogin.PropertyChanged += OnLaunchChanged;
             Rebuild();
+            SyncLaunch();
+            Refresh();
         };
-        Unloaded += (_, _) => shell.PropertyChanged -= OnShellChanged;
+        Unloaded += (_, _) =>
+        {
+            shell.PropertyChanged -= OnShellChanged;
+            model.LaunchAtLogin.PropertyChanged -= OnLaunchChanged;
+        };
         Rebuild();
+        SyncLaunch();
     }
+
+    /// <summary>The launch-at-login switch and its note and link (for the self-test).</summary>
+    internal ToggleSwitch LaunchToggle => LaunchSwitch;
+
+    internal TextBlock LaunchNoteText => LaunchNote;
+
+    internal HyperlinkButton LaunchSettingsLink => LaunchLink;
+
+    internal TextBlock LaunchErrorText => LaunchError;
+
+    /// <summary>Reads what Windows says about launch at login again. Called when the page appears and whenever the window becomes active, since the person may have changed it in Windows Settings meanwhile.</summary>
+    public void Refresh() => _ = _model.LaunchAtLogin.RefreshAsync();
+
+    private void OnLaunchChanged(object? sender, PropertyChangedEventArgs e) => SyncLaunch();
+
+    /// <summary>Puts the switch, the note, the link and the error to the view model's values without raising the person's-change handler.</summary>
+    private void SyncLaunch()
+    {
+        var launch = _model.LaunchAtLogin;
+        _syncing = true;
+        try
+        {
+            LaunchSwitch.IsOn = launch.IsOn;
+            LaunchSwitch.IsEnabled = launch.CanChange;
+            LaunchNote.Text = launch.Note ?? string.Empty;
+            LaunchLink.Visibility = launch.ShowSettingsLink ? Visibility.Visible : Visibility.Collapsed;
+            LaunchNoteHost.Visibility = launch.HasNote ? Visibility.Visible : Visibility.Collapsed;
+            LaunchError.Text = launch.Error ?? string.Empty;
+            LaunchError.Visibility = launch.HasError ? Visibility.Visible : Visibility.Collapsed;
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
+    private async void OnLaunchToggled(object sender, RoutedEventArgs e)
+    {
+        if (_syncing)
+        {
+            return;
+        }
+
+        await _model.LaunchAtLogin.SetAsync(LaunchSwitch.IsOn);
+        // The switch shows what Windows says, which can differ from what the person asked for.
+        SyncLaunch();
+    }
+
+    private async void OnLaunchLink(object sender, RoutedEventArgs e) => await _model.LaunchAtLogin.OpenStartupSettingsAsync();
 
     /// <summary>The back button, shown on a sub-page (for the self-test).</summary>
     public Button Back => BackButton;

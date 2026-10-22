@@ -31,12 +31,15 @@ internal sealed class SettingsRig : IDisposable
         LogFolder = Path.Combine(tug.Run.Folder, "logs");
         Log = new RollingFileLog(LogFolder);
         Clipboard = new RecordingClipboard();
+        Startup = new ScriptedStartupTask();
+        Links = new RecordingSystemLauncher();
         Factory = new SettingsWindowFactory(Text, tug.Text, Store, new StaticMonitors(MonitorService.Enumerate()), tug.Settings,
             new SettingsPaneModels(
                 () => new TugRulesViewModel(tug.Engine, _client, dispatcher, tug.Text),
                 () => new CalendarsViewModel(tug.Engine, _client, dispatcher, tug.Text, inferenceSupported: false),
                 () => new AccountsViewModel(tug.Engine, dispatcher, tug.Text, TimeProvider.System),
-                () => new DiagnosticsViewModel(tug.Engine, new DiagnosticsReader(LogFolder), Clipboard, dispatcher, tug.Text, TimeProvider.System, "1.0.0.0", "10.0.26100.0 (Test)")));
+                () => new DiagnosticsViewModel(tug.Engine, new DiagnosticsReader(LogFolder), Clipboard, dispatcher, tug.Text, TimeProvider.System, "1.0.0.0", "10.0.26100.0 (Test)"),
+                () => new GeneralViewModel(new LaunchAtLoginViewModel(Startup, Links, dispatcher, tug.Text))));
         Host = new SettingsHost(
             Factory, () => new SettingsShellViewModel(tug.Engine, Text, tug.Settings, dispatcher, TimeProvider.System), dispatcher, tug.Diagnostics);
     }
@@ -58,6 +61,12 @@ internal sealed class SettingsRig : IDisposable
 
     /// <summary>Takes what Copy Diagnostics copies (and tries the real clipboard too, to note whether it works on this machine).</summary>
     public RecordingClipboard Clipboard { get; }
+
+    /// <summary>The startup task the General pane shows (scripted: the machine's real task is not touched).</summary>
+    public ScriptedStartupTask Startup { get; }
+
+    /// <summary>Takes the links the General pane opens (Windows Settings and so on).</summary>
+    public RecordingSystemLauncher Links { get; }
 
     /// <summary>The Settings window while it is open.</summary>
     public SettingsWindow? Window => Host.IsOpen ? Factory.Last?.Window : null;

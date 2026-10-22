@@ -8,8 +8,11 @@ namespace TimeTug.Presentation.Settings;
 /// so a closed window leaves no subscription to the engine behind.
 /// </summary>
 public sealed class SettingsPaneModels(
-    Func<TugRulesViewModel> tugRules, Func<CalendarsViewModel> calendars, Func<AccountsViewModel> accounts, Func<DiagnosticsViewModel> diagnostics)
+    Func<TugRulesViewModel> tugRules, Func<CalendarsViewModel> calendars, Func<AccountsViewModel> accounts, Func<DiagnosticsViewModel> diagnostics,
+    Func<GeneralViewModel> general)
 {
+    public GeneralViewModel CreateGeneral() => general();
+
     public TugRulesViewModel CreateTugRules() => tugRules();
 
     public CalendarsViewModel CreateCalendars() => calendars();

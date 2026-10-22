@@ -18,6 +18,7 @@ public sealed partial class WelcomeWindow : Window
     private const int WidthInDips = 560;
     private const int HeightInDips = 700;
     private readonly AccountFormService _forms;
+    private bool _syncing;
 
     public WelcomeWindow(WelcomeViewModel viewModel, AccountFormService forms, ILocalizer text)
     {
@@ -29,6 +30,67 @@ public sealed partial class WelcomeWindow : Window
         ViewModel.PropertyChanged += OnViewModelChanged;
         Closed += OnClosed;
         Root.Loaded += OnLoaded;
+        if (viewModel.LaunchAtLogin is { } launch)
+        {
+            LaunchLink.Content = launch.SettingsLinkText;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(LaunchLink, launch.SettingsLinkAutomationName);
+            launch.PropertyChanged += (_, _) => SyncLaunch();
+            SyncLaunch();
+        }
+    }
+
+    /// <summary>The launch-at-login checkbox, its note, link and error (for the self-test).</summary>
+    internal CheckBox LaunchCheckBox => LaunchCheck;
+
+    internal TextBlock LaunchNoteText => LaunchNote;
+
+    internal HyperlinkButton LaunchSettingsLink => LaunchLink;
+
+    internal TextBlock LaunchErrorText => LaunchError;
+
+    /// <summary>Puts the checkbox, its note, link and error to the view model's values (what Windows says) without raising the person's-change handler.</summary>
+    private void SyncLaunch()
+    {
+        if (ViewModel.LaunchAtLogin is not { } launch)
+        {
+            return;
+        }
+
+        _syncing = true;
+        try
+        {
+            LaunchCheck.IsChecked = launch.IsOn;
+            LaunchCheck.IsEnabled = launch.CanChange;
+            LaunchNote.Text = launch.Note ?? string.Empty;
+            LaunchNote.Visibility = launch.HasNote ? Visibility.Visible : Visibility.Collapsed;
+            LaunchLink.Visibility = launch.ShowSettingsLink ? Visibility.Visible : Visibility.Collapsed;
+            LaunchError.Text = launch.Error ?? string.Empty;
+            LaunchError.Visibility = launch.HasError ? Visibility.Visible : Visibility.Collapsed;
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
+    private async void OnLaunchChecked(object sender, RoutedEventArgs e)
+    {
+        if (_syncing)
+        {
+            return;
+        }
+
+        await ViewModel.SetLaunchAtLoginAsync(LaunchCheck.IsChecked == true);
+        // The box shows what Windows says, which can differ from what the person asked for.
+        SyncLaunch();
+    }
+
+    private async void OnLaunchLink(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.LaunchAtLogin is { } launch)
+        {
+            await launch.OpenStartupSettingsAsync();
+        }
     }
 
     public WelcomeViewModel ViewModel { get; }

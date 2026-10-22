@@ -13,6 +13,7 @@ using TimeTug.Platform.Diagnostics;
 using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.OsState;
 using TimeTug.Platform.Settings;
+using TimeTug.Platform.Startup;
 using TimeTug.Platform.Tray;
 using TimeTug.Platform.Tug;
 using TimeTug.Presentation.Abstractions;
@@ -96,6 +97,11 @@ internal static class AppComposition
         services.AddSingleton<INotificationState>(sp => new NotificationState(
             sp.GetRequiredService<TimeProvider>(), toastsEnabled: () => sp.GetRequiredService<ToastService>().IsEnabled));
         services.AddSingleton<IUrlLauncher>(_ => new UrlLauncher());
+        // The links the app chooses itself (Windows Settings, the Store, the website): not the meeting-link launcher above.
+        services.AddSingleton<ISystemLauncher>(_ => new AppLinkLauncher());
+        services.AddSingleton<IStartupTaskService>(_ => new StartupTaskService());
+        services.AddTransient(sp => new LaunchAtLoginViewModel(
+            sp.GetRequiredService<IStartupTaskService>(), sp.GetRequiredService<ISystemLauncher>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()));
 
         // ---- the popup shortcut (nothing starts it yet: the shell calls HotkeyService.StartAsync once the engine's first state is in) ----
         services.AddSingleton<IHotkeyStore>(sp =>
@@ -154,7 +160,8 @@ internal static class AppComposition
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>()),
             diagnostics: () => new DiagnosticsViewModel(
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IDiagnosticsReader>(), sp.GetRequiredService<IClipboardService>(),
-                sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), AppVersion.Current(), AppVersion.WindowsVersion())));
+                sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), AppVersion.Current(), AppVersion.WindowsVersion()),
+            general: () => new GeneralViewModel(sp.GetRequiredService<LaunchAtLoginViewModel>())));
         services.AddSingleton<IClipboardService>(sp => new ClipboardService(sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<IDiagnosticsReader>(_ => new DiagnosticsReader(RollingFileLog.DefaultDirectory()));
         services.AddSingleton(sp => new SettingsWindowFactory(

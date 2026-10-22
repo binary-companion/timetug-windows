@@ -339,4 +339,19 @@
   <data name="Diagnostics_Cleared" xml:space="preserve"><value>The log was cleared.</value></data>
   <data name="Diagnostics_ClearFailed" xml:space="preserve"><value>Couldn’t clear the log.</value></data>
   <data name="Diagnostics_LogTitle" xml:space="preserve"><value>Recent activity log</value></data>
+  <data name="LaunchAtLogin_Automation" xml:space="preserve"><value>Launch at login</value></data>
+  <data name="LaunchAtLogin_DisabledByUser" xml:space="preserve"><value>Windows is blocking TimeTug from starting when you sign in. Turn it on in Windows Settings under Startup apps.</value></data>
+  <data name="LaunchAtLogin_DisabledByPolicy" xml:space="preserve"><value>A policy on this PC (set by your organization) stops TimeTug from starting when you sign in.</value></data>
+  <data name="LaunchAtLogin_EnabledByPolicy" xml:space="preserve"><value>A policy on this PC (set by your organization) starts TimeTug when you sign in.</value></data>
+  <data name="LaunchAtLogin_OpenStartupApps" xml:space="preserve"><value>Open Startup apps</value></data>
+  <data name="LaunchAtLogin_OpenStartupAppsAutomation" xml:space="preserve"><value>Open Startup apps in Windows Settings</value></data>
+  <data name="LaunchAtLogin_LinkFailed" xml:space="preserve"><value>Couldn’t open Windows Settings. Open Settings, then Apps, then Startup.</value></data>
+  <data name="LaunchAtLogin_Failed" xml:space="preserve"><value>Couldn’t change launch at login: {0}</value></data>
+  <data name="LaunchAtLogin_Unreadable" xml:space="preserve"><value>Couldn’t read launch at login: {0}</value></data>
+  <data name="LaunchAtLogin_NotTurnedOn" xml:space="preserve"><value>Windows didn’t turn on launch at login.</value></data>
+  <data name="LaunchAtLogin_NotTurnedOff" xml:space="preserve"><value>Windows didn’t turn off launch at login.</value></data>
+  <data name="General_SectionApp" xml:space="preserve"><value>App</value></data>
+  <data name="General_SectionShortcut" xml:space="preserve"><value>Shortcut</value></data>
+  <data name="LaunchAtLoginCheck.Content" xml:space="preserve"><value>Start TimeTug when I sign in</value></data>
+  <data name="LaunchAtLoginCheck.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Start TimeTug when I sign in</value></data>
 </root>
