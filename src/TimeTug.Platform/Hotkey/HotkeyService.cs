@@ -17,7 +17,7 @@ namespace TimeTug.Platform.Hotkey;
 /// </list>
 /// The diagnostics never name another program or its keys; they name only this app's own shortcut.
 /// </summary>
-public sealed class HotkeyService : IAsyncDisposable, IDisposable
+public sealed class HotkeyService : IHotkeyControl, IAsyncDisposable, IDisposable
 {
     private const string Category = "hotkey";
 
@@ -31,6 +31,7 @@ public sealed class HotkeyService : IAsyncDisposable, IDisposable
     private HotkeyBinding? _active;
     private HotkeyState _state = HotkeyState.None;
     private bool _started;
+    private bool _suspended;
     private volatile bool _disposed;
 
     public HotkeyService(IHotkeyRegistrar registrar, IHotkeyStore store, ITugPresence tug, IUiDispatcher ui, TimeProvider time, IDiagnostics? diagnostics = null)
@@ -90,6 +91,83 @@ public sealed class HotkeyService : IAsyncDisposable, IDisposable
 
             await StartLockedAsync().ConfigureAwait(false);
             return binding is { } wanted ? await ReplaceAsync(wanted).ConfigureAwait(false) : await ClearAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Releases the registered shortcut with Windows while the Settings recorder listens for a chord, so that pressing the chord that is
+    /// already registered reaches the recorder instead of firing <c>WM_HOTKEY</c>. The shortcut is only paused: the state and the store are
+    /// untouched. The caller must follow with <see cref="Resume"/> or <see cref="SetAsync"/> (a set ends the suspension, whether it registers, conflicts or clears; a shortcut that is
+    /// refused as invalid is not registered, so the suspension stays and the caller resumes).
+    /// Nothing happens when no shortcut is registered, when already suspended, or after disposal.
+    /// </summary>
+    public async Task SuspendForRecording()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            await StartLockedAsync().ConfigureAwait(false);
+            if (_suspended || _active is null)
+            {
+                return;
+            }
+
+            _suspended = true;
+            await UnregisterAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Registers again the shortcut <see cref="SuspendForRecording"/> released. When another program took the chord meanwhile the shortcut is
+    /// stored as a conflict, like one that cannot be registered at start. Nothing happens when not suspended.
+    /// </summary>
+    public async Task Resume()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        await _gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_disposed || !_suspended)
+            {
+                return;
+            }
+
+            _suspended = false;
+            if (_active is not { } paused)
+            {
+                return;
+            }
+
+            if (await TryRegisterAsync(paused).ConfigureAwait(false))
+            {
+                return;
+            }
+
+            Note("warning", $"the shortcut {paused.ToText()} is used by another program, so it is inactive");
+            _active = null;
+            Commit(new HotkeyState(paused, HotkeyStatus.Conflict, _time.GetUtcNow(), paused));
         }
         finally
         {
@@ -164,6 +242,7 @@ public sealed class HotkeyService : IAsyncDisposable, IDisposable
 
     private async Task<HotkeyResult> ClearAsync()
     {
+        _suspended = false;
         if (_active is not null)
         {
             _active = null;
@@ -183,7 +262,11 @@ public sealed class HotkeyService : IAsyncDisposable, IDisposable
             return HotkeyResult.Invalid(reason);
         }
 
-        if (_active == wanted)
+        // A suspension ends here, whatever the set comes to: the registrar holds nothing now, and this method leaves it holding the new
+        // shortcut or, when that is refused, the earlier one.
+        var wasSuspended = _suspended;
+        _suspended = false;
+        if (_active == wanted && !wasSuspended)
         {
             // Registering what this app already holds would fail against itself.
             Commit(new HotkeyState(wanted, HotkeyStatus.Registered, _time.GetUtcNow()));
@@ -261,7 +344,7 @@ public sealed class HotkeyService : IAsyncDisposable, IDisposable
 
     private void OnRegistrarPressed() => _ui.Post(() =>
     {
-        if (_disposed || _active is null)
+        if (_disposed || _active is null || _suspended)
         {
             return;
         }

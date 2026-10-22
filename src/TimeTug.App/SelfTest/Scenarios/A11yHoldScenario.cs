@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using TimeTug.App.Settings;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Settings;
+using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Welcome;
 
 namespace TimeTug.App.SelfTest.Scenarios;
@@ -15,7 +16,7 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// the accessibility scanner (<c>tests/TimeTug.App.A11y</c>, axe-windows) reads them. Round 0 is a canary: a window with a button that
 /// has no name, which the scanner must flag (a scan that finds nothing there is not seeing the app, and fails). Then three rounds: the
 /// welcome window's Connect step with the tug as it first appears, then its Connected step with the tug showing the link to copy after a
-/// failed Join, then the flyout (a problem row and a long day), then the Settings window (its search results, then the Tug Rules, Calendars and Accounts panes). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
+/// failed Join, then the flyout (a problem row and a long day), then the Settings window (its search results, then the Tug Rules, Calendars, Accounts and General panes and the About page). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
 /// <c>done-N.txt</c>; without it the scenario gives up after <see cref="WaitForScanner"/>.
 /// </summary>
 internal static class A11yHoldScenario
@@ -23,7 +24,7 @@ internal static class A11yHoldScenario
     public const string Name = "a11y-hold";
 
     /// <summary>How many rounds the scanner is told to expect (<c>scripts/ci/run-a11y.ps1</c> passes the same number).</summary>
-    public const int Rounds = 7;
+    public const int Rounds = 9;
 
     private static readonly TimeSpan WaitForScanner = TimeSpan.FromSeconds(120);
 
@@ -40,7 +41,11 @@ internal static class A11yHoldScenario
         canary.Close();
 
         rig.Engine.Push(Scenes.Empty());
-        var welcome = WelcomeWindowFactory.Create(rig.Engine, rig.Forms, rig.Text, rig.Time);
+        // The Connected step carries the launch-at-login checkbox: scanned while Windows blocks it (the checkbox disabled with its note and link).
+        var welcomeStartup = new ScriptedStartupTask { State = StartupState.DisabledByUser };
+        var welcomeLaunch = new LaunchAtLoginViewModel(
+            welcomeStartup, new RecordingSystemLauncher(), new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()), rig.Text);
+        var welcome = WelcomeWindowFactory.Create(rig.Engine, rig.Forms, rig.Text, rig.Time, launchAtLogin: welcomeLaunch);
         welcome.Activate();
         await SelfTestRunner.WaitForFrameAsync(welcome, cancellation);
         run.Check(welcome.ViewModel.Step == WelcomeStep.Connect, "the welcome window shows the Connect step");
@@ -110,6 +115,20 @@ internal static class A11yHoldScenario
             await rig.Settle();
             run.Check(settingsWindow.CurrentPage is AccountsPage { AccountCards.Count: 7 }, "the Accounts pane is showing the accounts");
             run.Check(await HoldForScannerAsync(rig, 7, "the Accounts pane with an account in every status", cancellation), "the scanner finished round 7");
+
+            // Round 8: the General pane (launch at login turned off by the person, the shortcut recorder reporting a conflict).
+            settings.Startup.State = StartupState.DisabledByUser;
+            ((ScriptedHotkeys)settings.Hotkeys).Show(new HotkeyState(new HotkeyBinding(HotkeyModifiers.Control | HotkeyModifiers.Alt, 'T'), HotkeyStatus.Conflict, rig.Time.GetUtcNow(), new HotkeyBinding(HotkeyModifiers.Control | HotkeyModifiers.Alt, 'T')));
+            settingsWindow.Shell.SelectedPane = SettingsPane.General;
+            await rig.Settle();
+            run.Check(settingsWindow.CurrentPage is GeneralPage { LaunchToggle.IsEnabled: false }, "the General pane is showing launch at login as blocked");
+            run.Check(await HoldForScannerAsync(rig, 8, "the General pane with a blocked launch at login and a shortcut conflict", cancellation), "the scanner finished round 8");
+
+            // Round 9: the About page (the hero picture, the lockup, the links).
+            settingsWindow.Shell.OpenDestination(GeneralDestination.About);
+            await rig.Settle();
+            run.Check(settingsWindow.CurrentPage is GeneralPage { AboutContent.Visibility: Visibility.Visible }, "the About page is showing");
+            run.Check(await HoldForScannerAsync(rig, 9, "the About page", cancellation), "the scanner finished round 9");
             settings.Host.Close();
         }
 

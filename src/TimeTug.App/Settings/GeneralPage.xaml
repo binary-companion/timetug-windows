@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:toolkit="using:CommunityToolkit.WinUI.Controls">
   <ScrollViewer VerticalScrollBarVisibility="Auto" IsTabStop="False">
-    <StackPanel Padding="36,24" Spacing="12">
+    <StackPanel Padding="24,24" Spacing="6" MaxWidth="760" HorizontalAlignment="Stretch">
       <Button x:Name="BackButton" Click="OnBack" Visibility="Collapsed" HorizontalAlignment="Left" Padding="8,4">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <FontIcon Glyph="&#xE76B;" FontSize="12" AutomationProperties.AccessibilityView="Raw" />
@@ -14,6 +14,9 @@
       <Grid x:Name="HeadingHost">
         <TextBlock x:Name="Heading" Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.HeadingLevel="Level1" />
       </Grid>
+      <!-- The About and Software Update pages the hub's first two rows open. -->
+      <ContentControl x:Name="AboutHost" IsTabStop="False" HorizontalContentAlignment="Stretch" Visibility="Collapsed" />
+      <ContentControl x:Name="UpdateHost" IsTabStop="False" HorizontalContentAlignment="Stretch" Visibility="Collapsed" />
       <StackPanel x:Name="Hub" Spacing="4">
         <toolkit:SettingsCard x:Name="AboutCard" IsClickEnabled="True" Click="OnAbout">
           <toolkit:SettingsCard.HeaderIcon>
@@ -25,6 +28,42 @@
             <FontIcon Glyph="&#xE895;" />
           </toolkit:SettingsCard.HeaderIcon>
         </toolkit:SettingsCard>
+
+        <!-- App: launch at login -->
+        <TextBlock x:Name="AppHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,14,0,2" AutomationProperties.HeadingLevel="Level2" />
+        <Grid x:Name="LaunchHost">
+          <toolkit:SettingsCard x:Name="LaunchCard">
+            <toolkit:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7E8;" />
+            </toolkit:SettingsCard.HeaderIcon>
+            <ToggleSwitch x:Name="LaunchSwitch" MinWidth="0" OnContent="" OffContent="" Toggled="OnLaunchToggled" />
+          </toolkit:SettingsCard>
+        </Grid>
+        <StackPanel x:Name="LaunchNoteHost" Spacing="2" Margin="14,2,0,2" Visibility="Collapsed">
+          <TextBlock x:Name="LaunchNote" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          <HyperlinkButton x:Name="LaunchLink" Padding="0" Click="OnLaunchLink" Visibility="Collapsed" />
+        </StackPanel>
+        <TextBlock x:Name="LaunchError" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="14,2,0,2"
+                   Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed"
+                   AutomationProperties.LiveSetting="Assertive" />
+
+        <!-- Shortcut: the popup's global shortcut -->
+        <TextBlock x:Name="ShortcutHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,14,0,2" AutomationProperties.HeadingLevel="Level2" />
+        <Grid x:Name="ShortcutHost">
+          <toolkit:SettingsCard x:Name="ShortcutCard">
+            <toolkit:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE765;" />
+            </toolkit:SettingsCard.HeaderIcon>
+            <ContentControl x:Name="RecorderHost" IsTabStop="False" />
+          </toolkit:SettingsCard>
+        </Grid>
+        <StackPanel x:Name="ShortcutStatusHost" Orientation="Horizontal" Spacing="8" Margin="14,2,0,2" Visibility="Collapsed">
+          <FontIcon x:Name="ShortcutStatusIcon" Glyph="&#xE7BA;" FontSize="14" Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                    VerticalAlignment="Top" Margin="0,2,0,0" AutomationProperties.AccessibilityView="Raw" />
+          <TextBlock x:Name="ShortcutStatus" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+        </StackPanel>
       </StackPanel>
     </StackPanel>
   </ScrollViewer>

@@ -20,9 +20,10 @@ internal sealed class SettingsRig : IDisposable
 {
     private readonly SettingsClient _client;
 
-    private SettingsRig(TugRig tug)
+    private SettingsRig(TugRig tug, IHotkeyControl? hotkeys)
     {
         Tug = tug;
+        Hotkeys = hotkeys ?? new ScriptedHotkeys();
         var queue = DispatcherQueue.GetForCurrentThread();
         Text = new SettingsText(tug.Text);
         Store = new MemoryPresentationSettingsStore();
@@ -31,12 +32,17 @@ internal sealed class SettingsRig : IDisposable
         LogFolder = Path.Combine(tug.Run.Folder, "logs");
         Log = new RollingFileLog(LogFolder);
         Clipboard = new RecordingClipboard();
+        Startup = new ScriptedStartupTask();
+        Links = new RecordingSystemLauncher();
         Factory = new SettingsWindowFactory(Text, tug.Text, Store, new StaticMonitors(MonitorService.Enumerate()), tug.Settings,
             new SettingsPaneModels(
                 () => new TugRulesViewModel(tug.Engine, _client, dispatcher, tug.Text),
                 () => new CalendarsViewModel(tug.Engine, _client, dispatcher, tug.Text, inferenceSupported: false),
                 () => new AccountsViewModel(tug.Engine, dispatcher, tug.Text, TimeProvider.System),
-                () => new DiagnosticsViewModel(tug.Engine, new DiagnosticsReader(LogFolder), Clipboard, dispatcher, tug.Text, TimeProvider.System, "1.0.0.0", "10.0.26100.0 (Test)")));
+                () => new DiagnosticsViewModel(tug.Engine, new DiagnosticsReader(LogFolder), Clipboard, dispatcher, tug.Text, TimeProvider.System, "1.0.0.0", "10.0.26100.0 (Test)"),
+                () => new GeneralViewModel(
+                    new LaunchAtLoginViewModel(Startup, Links, dispatcher, tug.Text), new HotkeyRecorderViewModel(Hotkeys, dispatcher, tug.Text),
+                    new AboutViewModel("1.0.0.0", "8060ec0a1", isDevelopmentBuild: false, Links, dispatcher, tug.Text))));
         Host = new SettingsHost(
             Factory, () => new SettingsShellViewModel(tug.Engine, Text, tug.Settings, dispatcher, TimeProvider.System), dispatcher, tug.Diagnostics);
     }
@@ -59,13 +65,22 @@ internal sealed class SettingsRig : IDisposable
     /// <summary>Takes what Copy Diagnostics copies (and tries the real clipboard too, to note whether it works on this machine).</summary>
     public RecordingClipboard Clipboard { get; }
 
+    /// <summary>The startup task the General pane shows (scripted: the machine's real task is not touched).</summary>
+    public ScriptedStartupTask Startup { get; }
+
+    /// <summary>Takes the links the General pane opens (Windows Settings and so on).</summary>
+    public RecordingSystemLauncher Links { get; }
+
     /// <summary>The Settings window while it is open.</summary>
     public SettingsWindow? Window => Host.IsOpen ? Factory.Last?.Window : null;
 
-    public static SettingsRig Over(TugRig tug) => new(tug);
+    /// <summary>The shortcut the General pane's recorder works on: scripted unless the scenario gives the real service.</summary>
+    public IHotkeyControl Hotkeys { get; }
 
-    /// <summary>Opens the Settings window and waits for it to be laid out; null when it did not open. <paramref name="large"/> sizes it to most of the work area.</summary>
-    public async Task<SettingsWindow?> OpenAsync(SettingsPane? pane = null, string? highlightId = null, bool large = false)
+    public static SettingsRig Over(TugRig tug, IHotkeyControl? hotkeys = null) => new(tug, hotkeys);
+
+    /// <summary>Opens the Settings window and waits for it to be laid out; null when it did not open. <paramref name="large"/> sizes it to most of the work area, <paramref name="size"/> to this many pixels.</summary>
+    public async Task<SettingsWindow?> OpenAsync(SettingsPane? pane = null, string? highlightId = null, bool large = false, (int Width, int Height)? size = null)
     {
         Host.Show(pane, highlightId);
         if (Window is not { } window)
@@ -73,12 +88,20 @@ internal sealed class SettingsRig : IDisposable
             return null;
         }
 
-        if (large)
+        if (size is { } wanted)
+        {
+            var area = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
+            window.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(area.X + 20, area.Y + 20, Math.Min(wanted.Width, area.Width - 40), Math.Min(wanted.Height, area.Height - 40)));
+        }
+        else if (large)
         {
             var work = Microsoft.UI.Windowing.DisplayArea.Primary.WorkArea;
             window.AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(work.X + 20, work.Y + 20, Math.Min(1700, work.Width - 40), Math.Min(1500, work.Height - 40)));
         }
 
+        // A helper in the VM takes the keyboard whenever a script runs a command, which would end a recording under the scenario: real losses of the
+        // active state are ignored here, and the scenario presses the "lost the active state" path itself (SettingsWindow.LoseActivation).
+        window.IgnoreSystemDeactivation = true;
         await SelfTestRunner.WaitForFrameAsync(window, CancellationToken.None, 900).WaitAsync(TimeSpan.FromSeconds(10));
         return window;
     }

@@ -85,6 +85,16 @@
             <Button x:Name="AddAnotherButton" x:Uid="AddAnother" Command="{x:Bind ViewModel.AddAnotherCommand}" />
             <Button x:Uid="TestTug" Command="{x:Bind ViewModel.Accounts.TestTugCommand}" />
           </StackPanel>
+          <!-- Launch at login: unchecked until the person ticks it. Windows decides what comes of the tick. -->
+          <StackPanel x:Name="LaunchPanel" Spacing="2" Visibility="{x:Bind ViewModel.ShowLaunchAtLogin, Mode=OneWay}">
+            <CheckBox x:Name="LaunchCheck" x:Uid="LaunchAtLoginCheck" Checked="OnLaunchChecked" Unchecked="OnLaunchChecked" />
+            <TextBlock x:Name="LaunchNote" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="28,0,0,0"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+            <HyperlinkButton x:Name="LaunchLink" Margin="28,0,0,0" Padding="0" Click="OnLaunchLink" Visibility="Collapsed" />
+            <TextBlock x:Name="LaunchError" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="28,0,0,0"
+                       Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed"
+                       AutomationProperties.LiveSetting="Assertive" />
+          </StackPanel>
           <Border x:Uid="TrayNoteCard" Padding="16,12" CornerRadius="6" BorderThickness="1"
                   Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                   BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">

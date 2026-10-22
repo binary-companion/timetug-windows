@@ -1,0 +1,12 @@
+<UserControl
+    x:Class="TimeTug.App.Settings.HotkeyRecorder"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <StackPanel Orientation="Horizontal" Spacing="4">
+    <!-- Click (or Enter or Space) starts recording; from then on the page takes every key until a chord, Escape, Backspace or leaving the button. -->
+    <Button x:Name="RecordButton" MinWidth="150" Click="OnRecordClick" LostFocus="OnRecordLostFocus" PreviewKeyDown="OnPreviewKeyDown" />
+    <Button x:Name="ClearButton" Click="OnClearClick" Padding="8,5" VerticalAlignment="Center">
+      <FontIcon Glyph="&#xE711;" FontSize="12" AutomationProperties.AccessibilityView="Raw" />
+    </Button>
+  </StackPanel>
+</UserControl>

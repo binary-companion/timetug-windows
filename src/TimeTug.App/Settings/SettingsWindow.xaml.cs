@@ -68,6 +68,7 @@ public sealed partial class SettingsWindow : Window
         shell.PropertyChanged += OnShellChanged;
         shell.HighlightRequested += OnHighlightRequested;
         AppWindow.Changed += OnAppWindowChanged;
+        Activated += OnActivated;
         Closed += OnClosed;
     }
 
@@ -189,6 +190,44 @@ public sealed partial class SettingsWindow : Window
         }
     }
 
+    private void OnActivated(object sender, WindowActivatedEventArgs args)
+    {
+#if SELFTEST
+        if (IgnoreSystemDeactivation)
+        {
+            return;
+        }
+#endif
+        HandleActivation(args.WindowActivationState == WindowActivationState.Deactivated);
+    }
+
+    private void HandleActivation(bool deactivated)
+    {
+        if (_closed || PaneHost.Content is not GeneralPage general)
+        {
+            return;
+        }
+
+        if (deactivated)
+        {
+            // The keyboard went elsewhere: a shortcut being recorded is not recorded any more, and the registered one works again.
+            general.CancelRecording();
+        }
+        else
+        {
+            // Back from Windows Settings (Startup apps) or Task Manager: launch at login may have been changed there.
+            general.Refresh();
+        }
+    }
+
+#if SELFTEST
+    /// <summary>Self-test only: real losses of the active state are ignored (on the VM a helper takes the keyboard whenever a script runs a command); <see cref="LoseActivation"/> stands for one.</summary>
+    public bool IgnoreSystemDeactivation { get; set; }
+
+    /// <summary>Self-test only: does what losing the active state does.</summary>
+    public void LoseActivation() => HandleActivation(deactivated: true);
+#endif
+
     private void OnClosed(object sender, WindowEventArgs args)
     {
         _closed = true;
@@ -255,12 +294,19 @@ public sealed partial class SettingsWindow : Window
 
     private FrameworkElement CreatePage(SettingsPane pane) => pane switch
     {
-        SettingsPane.General => new GeneralPage(_shell, _text, _localizer, () => ApplyHighlight()),
+        SettingsPane.General => NewGeneralPage(),
         SettingsPane.Appearance => new AppearancePage(_text.PaneTitle(pane)),
         SettingsPane.Accounts => NewAccountsPage(),
         SettingsPane.Calendars => NewCalendarsPage(),
         _ => NewTugRulesPage(),
     };
+
+    private GeneralPage NewGeneralPage()
+    {
+        var model = _models.CreateGeneral();
+        _ownedModels.Add(model);
+        return new GeneralPage(_shell, _text, _localizer, model, () => ApplyHighlight());
+    }
 
     private AccountsPage NewAccountsPage()
     {

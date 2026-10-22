@@ -49,6 +49,11 @@
             </com:ExeServer>
           </com:ComServer>
         </com:Extension>
+        <!-- Launch at login. Off until the person turns it on (the welcome window's checkbox or Settings, General); Windows keeps the state and
+             the person can change it in Settings, Startup apps. The id is StartupTaskService.TaskId. -->
+        <desktop:Extension Category="windows.startupTask" Executable="TimeTug.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="TimeTugStartup" Enabled="false" DisplayName="TimeTug" />
+        </desktop:Extension>
         <!-- Development builds only: lets the CI and VM scripts launch the app with a command line while keeping package identity.
              Release and Store manifests must not carry this alias. -->
         <uap5:Extension Category="windows.appExecutionAlias" EntryPoint="Windows.FullTrustApplication" Executable="TimeTug.exe">

@@ -13,7 +13,8 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// <c>WM_HOTKEY</c> reaches the window (posted to the real window, as the system does) and closes it on the next press; a press is
 /// ignored while a tug shows. A second service asking for a shortcut the first one holds gets a real conflict, which is stored and
 /// still reported by a service started afterwards (a restart). Changing or clearing the shortcut releases the old one; disposing the
-/// service releases it too.
+/// service releases it too. Pausing the shortcut for the Settings recorder (<c>SuspendForRecording</c>) lets a second registrar take the chord until
+/// <c>Resume</c> takes it back, and a press while it is paused does nothing.
 /// A runner without a desktop can refuse <c>RegisterHotKey</c> altogether; the scenario then asserts the conflict path instead (nothing
 /// registered, the conflict stored, presses ignored) and records which path it took.
 /// </summary>
@@ -60,6 +61,9 @@ internal static class HotkeyScenario
         var store = new LocalSettingsHotkeyStore(values, KeyOne, tug.Diagnostics);
         var service = new HotkeyService(registrar, store, rig.Presence, ui, TimeProvider.System, tug.Diagnostics);
         using var trigger = FlyoutTriggers.ToggleOnHotkey(service, rig.Host);
+        // A second registrar stands for "another program": it can take a chord only while this app does not hold it.
+        using var probeWindow = new MessageWindow();
+        using var probe = new HotkeyRegistrar(probeWindow, tug.Diagnostics);
 
         // ---- nothing until a shortcut is stored ---------------------------------------------------------------------
         await service.StartAsync();
@@ -101,6 +105,29 @@ internal static class HotkeyScenario
             registrar.SimulatePress();
             run.Check(await tug.WaitFor(() => rig.Host.IsOpen), "with the tug gone the press opens the flyout again");
             rig.Host.Close();
+            await tug.Settle(FlyoutHostGrace);
+
+            // ---- the Settings recorder pauses the shortcut so the same chord reaches it ---------------------------------
+            await service.SuspendForRecording();
+            run.Check(await probe.RegisterAsync(Chord), "while the recorder listens, Windows no longer holds the shortcut (a second registrar can take it)");
+            await probe.UnregisterAsync();
+            registrar.SimulatePress();
+            await tug.Settle(600);
+            run.Check(!rig.Host.IsOpen, "a press that was already on its way does nothing while the shortcut is paused");
+            run.Check(service.State.BindingIsActive && service.State.Binding == Chord, "the state still says the shortcut is Ctrl+Alt+Shift+F23");
+            await service.Resume();
+            run.Check(!await probe.RegisterAsync(Chord), "resuming takes the shortcut back (a second registrar is refused again)");
+            registrar.SimulatePress();
+            run.Check(await tug.WaitFor(() => rig.Host.IsOpen), "and a press opens the flyout again");
+            rig.Host.Close();
+            await tug.Settle(FlyoutHostGrace);
+
+            // Recording the chord that is already registered: pause, record it, and it is held once.
+            await service.SuspendForRecording();
+            var again = await service.SetAsync(Chord);
+            run.Check(again.Status == HotkeyStatus.Registered && !await probe.RegisterAsync(Chord), "recording the same chord while paused ends registered and held");
+            await service.Resume();
+            run.Check(!await probe.RegisterAsync(Chord), "and a later Resume changes nothing");
         }
         else
         {
@@ -133,8 +160,6 @@ internal static class HotkeyScenario
         run.Check(tug.Diagnostics.Entries.Any(e => e.Category == "hotkey" && e.Message.Contains("another program", StringComparison.Ordinal)), "the conflict is in the log");
 
         // ---- changing, clearing and disposing release the shortcut ---------------------------------------------------
-        using var probeWindow = new MessageWindow();
-        using var probe = new HotkeyRegistrar(probeWindow, tug.Diagnostics);
         if (registered)
         {
             var changed = await service.SetAsync(Other);
