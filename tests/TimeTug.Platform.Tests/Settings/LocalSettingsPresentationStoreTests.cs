@@ -51,6 +51,24 @@ public class LocalSettingsPresentationStoreTests
         loaded.Should().Be(Custom with { Backdrop = FlyoutBackdrop.Material, SettingsWindow = null });
     }
 
+    [Theory]
+    [InlineData("-2147483648,0,800,600")]
+    [InlineData("0,-2147483648,800,600")]
+    [InlineData("2147483647,0,800,600")]
+    [InlineData("0,0,-800,-600")]
+    [InlineData("0,0,2147483647,2147483647")]
+    [InlineData("not a geometry")]
+    public void A_hostile_window_geometry_loads_as_no_geometry_and_the_other_fields_are_kept(string hostile)
+    {
+        var values = new Dictionary<string, object>();
+        new LocalSettingsPresentationStore(values).Save(Custom);
+        values[PresentationSettingsCodec.SettingsWindowKey] = hostile;
+
+        var loaded = new LocalSettingsPresentationStore(values).Load();
+
+        loaded.Should().Be(Custom with { SettingsWindow = null });
+    }
+
     [Fact]
     public void A_value_of_the_wrong_type_is_the_default()
     {

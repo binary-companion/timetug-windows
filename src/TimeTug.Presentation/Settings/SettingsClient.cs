@@ -6,8 +6,10 @@ namespace TimeTug.Presentation.Settings;
 
 /// <summary>
 /// Sends settings patches to the engine one at a time and reports how each came out. The engine answers a patch it takes with a newer
-/// state, and one it refuses with a diagnostic that carries the id of the command; a patch the engine never answers is given up after
-/// <c>answerTimeout</c>. Taking edits one at a time is what keeps two quick edits to the same list (the tug calendars) from losing the first:
+/// state that contains the change (<see cref="EngineSettingsPatch.IsReflectedBy"/>: the engine gives no other positive acknowledgement, and
+/// a state published for some other reason must not answer a patch the engine has not read yet), and one it refuses with a diagnostic that
+/// carries the id of the command; a patch the engine never answers, or answers with states that lack the change, is given up after
+/// <c>answerTimeout</c>. A send that throws is a rejection too. Taking edits one at a time is what keeps two quick edits to the same list (the tug calendars) from losing the first:
 /// the second edit runs against the state that already includes the first.
 /// </summary>
 public sealed class SettingsClient : ISettingsClient, IDisposable
@@ -57,7 +59,7 @@ public sealed class SettingsClient : ISettingsClient, IDisposable
                 return SettingsResult.Applied;
             }
 
-            var inFlight = new InFlight("settings-" + Interlocked.Increment(ref _counter).ToString(CultureInfo.InvariantCulture));
+            var inFlight = new InFlight("settings-" + Interlocked.Increment(ref _counter).ToString(CultureInfo.InvariantCulture), patch);
             lock (_sync)
             {
                 inFlight.Baseline = _latest?.Revision ?? 0;
@@ -68,6 +70,12 @@ public sealed class SettingsClient : ISettingsClient, IDisposable
             {
                 await _engine.ApplySettingsAsync(patch, inFlight.Id).ConfigureAwait(false);
                 return await WaitForAnswerAsync(inFlight).ConfigureAwait(false);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // The engine could not be reached (its process is gone, the pipe is closed). The caller's handlers are async void,
+                // so an exception here would take the window down: the pane reverts and says "not saved" instead.
+                return SettingsResult.Rejected("The engine could not be reached.");
             }
             finally
             {
@@ -114,13 +122,13 @@ public sealed class SettingsClient : ISettingsClient, IDisposable
         return SettingsResult.Rejected("The engine did not answer in time.");
     }
 
-    /// <summary>A newer state is the engine's answer that it took the patch.</summary>
+    /// <summary>A newer state that carries the patched values is the engine's answer that it took the patch; any other state is not.</summary>
     private void OnState(AppState state)
     {
         lock (_sync)
         {
             _latest = state;
-            if (_inFlight is { } inFlight && state.Revision > inFlight.Baseline)
+            if (_inFlight is { } inFlight && state.Revision > inFlight.Baseline && inFlight.Patch.IsReflectedBy(state.Settings))
             {
                 inFlight.Answer.TrySetResult(SettingsResult.Applied);
             }
@@ -139,9 +147,11 @@ public sealed class SettingsClient : ISettingsClient, IDisposable
         }
     }
 
-    private sealed class InFlight(string id)
+    private sealed class InFlight(string id, EngineSettingsPatch patch)
     {
         public string Id { get; } = id;
+
+        public EngineSettingsPatch Patch { get; } = patch;
 
         /// <summary>The revision of the newest state when the patch went out; the answer is a state newer than this.</summary>
         public ulong Baseline { get; set; }

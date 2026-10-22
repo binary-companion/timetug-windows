@@ -180,6 +180,20 @@ public class TugRulesViewModelTests
     }
 
     [Fact]
+    public async Task An_engine_that_cannot_be_reached_puts_the_control_back_and_says_so_instead_of_throwing()
+    {
+        using var rig = new SettingsPaneRig { Mode = SettingsPaneRig.AnswerMode.Ignore };
+        rig.Engine.ApplySettingsFailure = new InvalidOperationException("the engine process has exited");
+        using var model = Model(rig);
+
+        var change = async () => await model.SetEnabledAsync(false);
+
+        await change.Should().NotThrowAsync();
+        model.Enabled.Should().BeTrue();
+        model.HasMessage.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task A_patch_the_engine_never_answers_is_given_up_and_the_control_goes_back()
     {
         using var rig = new SettingsPaneRig { Mode = SettingsPaneRig.AnswerMode.Ignore };

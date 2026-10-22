@@ -95,6 +95,17 @@ public class PresentationSettingsTests
     [InlineData("1,2,x,500")]
     [InlineData("1,2,300,4.5")]
     [InlineData("999999999,2,300,500")]
+    [InlineData("-999999999,2,300,500")]
+    [InlineData("-2147483648,2,300,500")]
+    [InlineData("1,-2147483648,300,500")]
+    [InlineData("2147483647,2,300,500")]
+    [InlineData("1,2147483647,300,500")]
+    [InlineData("1,2,-2147483648,500")]
+    [InlineData("1,2,300,-2147483648")]
+    [InlineData("1,2,2147483647,500")]
+    [InlineData("1,2,300,2147483647")]
+    [InlineData("1,2,-300,500")]
+    [InlineData("-2147483648,-2147483648,-2147483648,-2147483648")]
     [InlineData("")]
     public void A_corrupt_window_geometry_is_no_geometry(string corrupt)
     {

@@ -60,10 +60,18 @@ internal sealed class FakeEngineClient : IEngineClient
     /// <summary>Runs after a patch is recorded (a test publishes the engine's answer from here).</summary>
     public Action<TimeTug.Presentation.Settings.EngineSettingsPatch, string?>? OnApplySettings { get; set; }
 
+    /// <summary>When set, sending a settings patch fails with this exception (the engine process is gone, the pipe is closed).</summary>
+    public Exception? ApplySettingsFailure { get; set; }
+
     public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null)
     {
         Patches.Add((patch, commandId));
         OnApplySettings?.Invoke(patch, commandId);
+        if (ApplySettingsFailure is { } failure)
+        {
+            return ValueTask.FromException(failure);
+        }
+
         return Record("settings");
     }
 

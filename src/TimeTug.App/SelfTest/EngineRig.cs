@@ -113,14 +113,16 @@ internal sealed class EngineRig : IAsyncDisposable
 
     public async Task<bool> WaitFor(Func<bool> condition, int milliseconds = 10000)
     {
-        for (var waited = 0; waited < milliseconds; waited += 100)
+        // Wall-clock bound (not a count of polls), so a stalled UI thread on a slow runner lengthens the wait instead of ending it early.
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (clock.ElapsedMilliseconds < milliseconds)
         {
             if (condition())
             {
                 return true;
             }
 
-            await Task.Delay(100, _cancellation);
+            await Task.Delay(50, _cancellation);
         }
 
         return condition();

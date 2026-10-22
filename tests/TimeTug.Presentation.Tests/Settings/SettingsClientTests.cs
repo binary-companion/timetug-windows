@@ -273,6 +273,132 @@ public class SettingsClientTests
         result.Should().Be(SettingsResult.Applied);
     }
 
+    // ---- a state answers a patch only when it contains the change ------------------------------------------------
+
+    [Fact]
+    public async Task An_unrelated_newer_state_does_not_answer_and_a_later_rejection_still_counts()
+    {
+        using var rig = new Rig(answerAtOnce: false);
+        var task = rig.Client.ApplyAsync(p => p with { LeadTime = TimeSpan.FromMinutes(5) }).AsTask();
+        var (_, id) = await rig.NextPendingAsync();
+
+        rig.PublishUnrelated();
+        task.IsCompleted.Should().BeFalse("a state without the patched value is not the engine's answer to the patch");
+        rig.Reject(id, "lead time out of range");
+        var result = await task;
+
+        result.IsApplied.Should().BeFalse();
+        result.Reason.Should().Be("lead time out of range");
+    }
+
+    [Fact]
+    public async Task An_unrelated_newer_state_then_the_state_with_the_change_is_applied()
+    {
+        using var rig = new Rig(answerAtOnce: false);
+        var task = rig.Client.ApplyAsync(p => p with { RequireConferenceLink = true }).AsTask();
+
+        rig.PublishUnrelated();
+        rig.PublishUnrelated();
+        task.IsCompleted.Should().BeFalse();
+        await rig.AcceptNextAsync();
+
+        (await task).Should().Be(SettingsResult.Applied);
+        rig.Settings.RequireConferenceLink.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Two_rapid_edits_with_unrelated_states_between_them_are_each_answered_by_their_own_state()
+    {
+        using var rig = new Rig(answerAtOnce: false);
+        var first = rig.Client.ApplyAsync(p => p with { LeadTime = TimeSpan.FromMinutes(3) }).AsTask();
+        var second = rig.Client.ApplyAsync(p => p with { RequireOtherAttendees = true }).AsTask();
+
+        rig.PublishUnrelated();
+        first.IsCompleted.Should().BeFalse();
+        await rig.AcceptNextAsync();
+        (await first).Should().Be(SettingsResult.Applied);
+
+        var (_, secondId) = await rig.NextPendingAsync();
+        rig.PublishUnrelated();
+        second.IsCompleted.Should().BeFalse("the first edit's state does not answer the second edit");
+        rig.Reject(secondId, "no");
+
+        (await second).IsApplied.Should().BeFalse();
+        rig.Settings.LeadTime.Should().Be(TimeSpan.FromMinutes(3));
+        rig.Settings.RequireOtherAttendees.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_newer_state_without_the_change_is_rejected_at_the_timeout()
+    {
+        using var rig = new Rig(answerAtOnce: false);
+        var task = rig.Client.ApplyAsync(p => p with { Enabled = false }).AsTask();
+        rig.PublishUnrelated();
+
+        rig.Time.Advance(TimeSpan.FromSeconds(6));
+        var result = await task;
+
+        result.IsApplied.Should().BeFalse();
+        result.Reason.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task A_key_list_the_engine_normalised_still_counts_as_taken()
+    {
+        using var rig = new Rig(answerAtOnce: false);
+        var task = rig.Client.ApplyAsync(p => p with
+        {
+            TakeoverCalendarKeys = new HashSet<string> { "me", "cafe" },
+            HiddenCalendarKeys = new HashSet<string> { "cafe", "team" },
+        }).AsTask();
+        var (patch, _) = await rig.NextPendingAsync();
+
+        // The engine lets hidden win: the tug list it stores loses the hidden key.
+        rig.Accept(patch with { TakeoverCalendarKeys = new HashSet<string> { "me" } });
+
+        (await task).Should().Be(SettingsResult.Applied);
+    }
+
+    [Fact]
+    public async Task A_patch_the_engine_took_is_applied_whatever_else_changed_in_the_same_state()
+    {
+        using var rig = new Rig(answerAtOnce: false);
+        var task = rig.Client.ApplyAsync(p => p with { SkipAllDayEvents = false }).AsTask();
+        var (patch, _) = await rig.NextPendingAsync();
+
+        rig.Accept(patch with { LeadTime = TimeSpan.FromMinutes(7) });
+
+        (await task).Should().Be(SettingsResult.Applied);
+    }
+
+    // ---- the engine cannot be reached ----------------------------------------------------------------------------
+
+    [Fact]
+    public async Task A_send_that_throws_comes_back_rejected_and_does_not_block_the_next_edit()
+    {
+        using var rig = new Rig();
+        rig.Engine.OnApplySettings = (_, _) => throw new InvalidOperationException("the engine process has exited");
+
+        var result = await rig.Client.ApplyAsync(p => p with { Enabled = false });
+
+        result.IsApplied.Should().BeFalse();
+        result.Reason.Should().NotBeNullOrWhiteSpace();
+        result.Reason.Should().NotContain("exited", "the message is for the person, not the exception text");
+        rig.Engine.OnApplySettings = (patch, _) => rig.Accept(patch);
+        (await rig.Client.ApplyAsync(p => p with { Enabled = false })).Should().Be(SettingsResult.Applied);
+    }
+
+    [Fact]
+    public async Task A_send_that_fails_asynchronously_is_rejected_too()
+    {
+        using var rig = new Rig();
+        rig.Engine.ApplySettingsFailure = new IOException("pipe closed");
+
+        var result = await rig.Client.ApplyAsync(p => p with { LeadTime = TimeSpan.FromMinutes(2) });
+
+        result.IsApplied.Should().BeFalse();
+    }
+
     [Fact]
     public async Task A_patch_that_changes_nothing_is_not_sent()
     {
@@ -315,7 +441,7 @@ public class SettingsClientTests
         var time = new FakeTimeProvider();
         using var client = new SettingsClient(engine, time, TimeSpan.FromSeconds(5));
         EngineSettingsPatch? seen = null;
-        engine.OnApplySettings = (_, _) => engine.Push(new AppState([], [], [], null, null, false, false) { Revision = 1 });
+        engine.OnApplySettings = (_, _) => engine.Push(new AppState([], [], [], null, null, false, false) { Revision = 1, Settings = EngineSettingsView.Defaults with { Enabled = false } });
 
         var result = await client.ApplyAsync(p =>
         {

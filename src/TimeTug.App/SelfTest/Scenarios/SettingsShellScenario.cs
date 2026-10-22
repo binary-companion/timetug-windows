@@ -38,16 +38,19 @@ internal static class SettingsShellScenario
         var run = new ScenarioRun(options);
         FlyoutWindow.IgnoreSystemDeactivation = true;
 
+        // Polls until the condition holds or the time (wall clock, not a count of polls) is up: a stalled UI thread on a slow
+        // runner makes the wait longer, never the check flakier.
         async Task<bool> WaitFor(Func<bool> condition, int milliseconds = 8000)
         {
-            for (var waited = 0; waited < milliseconds; waited += 50)
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            while (clock.ElapsedMilliseconds < milliseconds)
             {
                 if (condition())
                 {
                     return true;
                 }
 
-                await Task.Delay(50, cancellation);
+                await Task.Delay(25, cancellation);
             }
 
             return condition();
@@ -112,9 +115,10 @@ internal static class SettingsShellScenario
         foreach (var pane in Enum.GetValues<SettingsPane>())
         {
             window.Shell.SelectedPane = pane;
-            await Task.Delay(500, cancellation);
+            await WaitFor(() => ReferenceEquals(window.Navigation.SelectedItem, items[(int)pane]) && HeadingOf(window.CurrentPage) == panes.PaneTitle(pane), 4000);
             var heading = HeadingOf(window.CurrentPage);
             run.Check(ReferenceEquals(window.Navigation.SelectedItem, items[(int)pane]) && heading == panes.PaneTitle(pane), $"{pane} opens its page with its title: {heading}");
+            await Task.Delay(300, cancellation);
             await run.ShotAsync(window, "pane-" + pane.ToString().ToLowerInvariant());
         }
 
@@ -122,7 +126,8 @@ internal static class SettingsShellScenario
         window.Navigation.SelectedItem = items[(int)SettingsPane.Calendars];
         run.Check(await WaitFor(() => window.Shell.SelectedPane == SettingsPane.Calendars), "choosing a pane in the navigation opens it");
         window.Shell.SelectedPane = SettingsPane.General;
-        await Task.Delay(400, cancellation);
+        await WaitFor(() => window.CurrentPage is GeneralPage, 4000);
+        await Task.Delay(300, cancellation);
 
         // ---- 3. General's hub drills into About and back ---------------------------------------------------------------------
         var general = window.CurrentPage as GeneralPage;
@@ -141,13 +146,12 @@ internal static class SettingsShellScenario
             }
 
             run.Check(await WaitFor(() => window.Shell.Destination == GeneralDestination.About), "choosing About drills into it");
-            await Task.Delay(300, cancellation);
+            await WaitFor(() => general.Back.Visibility == Visibility.Visible && general.Title.Text == "About" && general.HubPanel.Visibility == Visibility.Collapsed, 4000);
             run.Check(general.Back.Visibility == Visibility.Visible && general.Title.Text == "About" && general.HubPanel.Visibility == Visibility.Collapsed, "About shows its title and a back button");
             await run.ShotAsync(window, "about");
             run.Check(ScenarioUi.Invoke(window, "Back to General"), "the back button is named and can be pressed");
             run.Check(await WaitFor(() => window.Shell.Destination is null), "back returns to the hub");
-            await Task.Delay(300, cancellation);
-            run.Check(general.HubPanel.Visibility == Visibility.Visible, "the hub shows again");
+            run.Check(await WaitFor(() => general.HubPanel.Visibility == Visibility.Visible, 4000), "the hub shows again");
         }
 
         // ---- 4. search ----------------------------------------------------------------------------------------------------
@@ -179,20 +183,27 @@ internal static class SettingsShellScenario
         await run.ShotAsync(window, "search-results");
 
         // The About entry opens the About page and tints its title for about a second and a half.
+        var revealed = System.Diagnostics.Stopwatch.StartNew();
         window.Choose(((IReadOnlyList<SettingsSearchResult>)window.SearchBox.ItemsSource!).First(r => r.Item.Id == "about"));
         run.Check(window.Shell.SelectedPane == SettingsPane.General && window.Shell.Destination == GeneralDestination.About, "the About entry drills into About");
-        var overlay = await FirstOverlayAsync(window, WaitFor);
-        run.Check(overlay is not null, "the revealed control is tinted");
-        await Task.Delay(500, cancellation);
-        run.Check(overlay is { Opacity: > 0.01 }, "the tint is still there half a second later: " + overlay?.Opacity);
+        // The tint is a timed effect (it fades in over a quarter of a second, stays until 1.5 s after the reveal, fades out), so it is
+        // watched: the opacity is sampled every 20 ms for up to 5 s, each sample stamped with the time since the reveal, and the three
+        // statements below are read off those samples. A slow runner delays the samples; it does not move a one-shot read past the end
+        // of the tint.
+        var samples = await SampleTintAsync(window, revealed, 5000, cancellation);
+        var overlay = samples.Overlay;
+        run.Check(overlay is not null && samples.Points.Any(p => p.Opacity > 0.01), "the revealed control is tinted");
+        var mid = samples.Points.Where(p => p.Elapsed >= 450 && p.Elapsed <= 1250).ToList();
+        run.Check(mid.Count > 0 && mid.All(p => p.Opacity > 0.01), $"the tint is still there half a second later ({mid.Count} samples between 0.45 s and 1.25 s, lowest {(mid.Count == 0 ? double.NaN : mid.Min(p => p.Opacity)):0.000})");
         await run.ShotAsync(window, "highlight");
         run.Check(await WaitFor(() => window.Shell.HighlightedId is null, 3000), "the highlight ends by itself");
-        run.Check(await WaitFor(() => overlay is { Opacity: < 0.01 }, 2000), "the tint is gone after about 1.5 seconds: " + overlay?.Opacity);
+        run.Check(await WaitFor(() => overlay is { Opacity: < 0.01 }, 3000), "the tint is gone after about 1.5 seconds: " + overlay?.Opacity);
 
         // Reduced motion: the tint appears at full strength at once.
         ui.AnimationsEnabled = false;
         window.Shell.Open(SettingsPane.General, "about", GeneralDestination.About);
         overlay = await FirstOverlayAsync(window, WaitFor);
+        await WaitFor(() => overlay is { } o && Math.Abs(o.Opacity - SettingsHighlight.Strength) < 0.0001 || window.Shell.HighlightedId is null, 1400);
         run.Check(overlay is { } o && Math.Abs(o.Opacity - SettingsHighlight.Strength) < 0.0001, "with reduced motion the tint is at full strength at once: " + overlay?.Opacity);
         run.Check(await WaitFor(() => window.Shell.HighlightedId is null, 3000), "and it ends the same way");
         ui.AnimationsEnabled = true;
@@ -215,12 +226,49 @@ internal static class SettingsShellScenario
             flyoutWindow = null;
         }
 
+        // ---- 5b. the other doors into Settings: a problem row on the flyout, and "Add another" on the welcome window ---------------
+        // Each goes through the app shell's own wiring to the one Settings window, which moves to the Accounts pane (once, no second window).
+        window = factory.Last!.Window;
+        settings.Show(SettingsPane.TugRules);
+        run.Check(await WaitFor(() => window.Shell.SelectedPane == SettingsPane.TugRules), "the open Settings window is on Tug Rules");
+        engine.Push(SettingsRig.State(DateTimeOffset.UtcNow) with
+        {
+            Problems = [new SourceProblem("google-conn-1", "you@example.com", ProblemKind.Failing, "the server did not answer", "conn-1")],
+        });
+        tray.PrimaryClick();
+        run.Check(await WaitFor(() => flyout.IsOpen), "the flyout opens with a problem row");
+        flyoutWindow = factoryFlyout?.Last?.Window;
+        if (flyoutWindow is not null)
+        {
+            await SelfTestRunner.WaitForFrameAsync(flyoutWindow, cancellation, 700);
+            await WaitFor(() => flyoutWindow.ProblemRows.Count == 1, 4000);
+            run.Check(ScenarioUi.Invoke(flyoutWindow, "Open Accounts to look at you@example.com"), "Open Accounts is pressed on the problem row");
+            run.Check(
+                await WaitFor(() => !flyout.IsOpen && window.Shell.SelectedPane == SettingsPane.Accounts && window.Shell.HighlightedId == TimeTug.Presentation.Welcome.AccountsViewModel.Ids.AccountPrefix + "conn-1"),
+                $"the flyout closes and the same Settings window is on Accounts with that account tinted: {window.Shell.SelectedPane}, {window.Shell.HighlightedId}");
+            run.Check(factory.Created == 2 && settings.IsOpen, "no second Settings window was made: " + factory.Created);
+            flyoutWindow = null;
+        }
+
+        settings.Show(SettingsPane.TugRules);
+        run.Check(await WaitFor(() => window.Shell.SelectedPane == SettingsPane.TugRules), "the Settings window is on Tug Rules again");
+        shell.ShowWelcome();
+        run.Check(await WaitFor(() => shell.Welcome is not null), "the welcome window opens");
+        if (shell.Welcome is { } welcome)
+        {
+            await welcome.ViewModel.AddAnotherAsync();
+            run.Check(await WaitFor(() => window.Shell.SelectedPane == SettingsPane.Accounts && shell.Welcome is null), "Add another closes the welcome window and opens Settings on Accounts");
+            run.Check(factory.Created == 2 && settings.IsOpen, "still one Settings window: " + factory.Created);
+        }
+
+        engine.Push(SettingsRig.State(DateTimeOffset.UtcNow));
+
         // ---- 6. where the window was left ---------------------------------------------------------------------------------------
         window = factory.Last!.Window;
         await SelfTestRunner.WaitForFrameAsync(window, cancellation, 600);
         var target = new RectInt32(bounds.X + 40, bounds.Y + 30, Math.Max(window.AppWindow.Size.Width - 60, 800), Math.Max(window.AppWindow.Size.Height - 40, 560));
         window.AppWindow.MoveAndResize(target);
-        await Task.Delay(1500, cancellation);
+        await WaitFor(() => store.Load().SettingsWindow is { } now && Near(now.X, target.X) && Near(now.Y, target.Y) && Near(now.Width, target.Width) && Near(now.Height, target.Height), 6000);
         var saved = store.Load().SettingsWindow;
         run.Check(saved is { } s && Near(s.X, target.X) && Near(s.Y, target.Y) && Near(s.Width, target.Width) && Near(s.Height, target.Height), $"the place the person left it is kept: {saved} for {target.X},{target.Y},{target.Width},{target.Height}");
         settings.Close();
@@ -243,7 +291,8 @@ internal static class SettingsShellScenario
 
         // ---- 7. every control is named; the Mica window has no unnamed control -------------------------------------------------
         window.Shell.SelectedPane = SettingsPane.General;
-        await Task.Delay(400, cancellation);
+        await WaitFor(() => window.CurrentPage is GeneralPage, 4000);
+        await Task.Delay(300, cancellation);
         run.Check(ScenarioUi.Unnamed(window).Count == 0, "every control has a name: " + string.Join(", ", ScenarioUi.Unnamed(window)));
 
         // ---- 8. the toolkit's settings controls under this Windows App SDK -------------------------------------------------------
@@ -285,11 +334,12 @@ internal static class SettingsShellScenario
         run.Info("SettingsCard automation name with only a Header set: '" + unnamed + "'");
         AutomationProperties.SetName(card, "Probe card");
         run.Check(FrameworkElementAutomationPeer.CreatePeerForElement(card)?.GetName() == "Probe card", "SettingsCard takes an explicit automation name");
+        var expandedHeight = expander.ActualHeight;
         expander.IsExpanded = false;
-        await Task.Delay(500, cancellation);
+        await PollAsync(() => expander.ActualHeight < expandedHeight, 4000, cancellation);
         var collapsed = expander.ActualHeight;
         expander.IsExpanded = true;
-        await Task.Delay(500, cancellation);
+        await PollAsync(() => expander.ActualHeight > collapsed, 4000, cancellation);
         run.Check(expander.ActualHeight > collapsed, $"SettingsExpander collapses and expands: {collapsed:0} -> {expander.ActualHeight:0}");
         var peer = FrameworkElementAutomationPeer.CreatePeerForElement(expander);
         run.Info("SettingsExpander name with only a Header set: '" + peer?.GetName() + "'");
@@ -335,6 +385,51 @@ internal static class SettingsShellScenario
             return found is not null;
         }, 2000);
         return found;
+    }
+
+    /// <summary>Polls until the condition holds or the wall-clock time is up.</summary>
+    private static async Task<bool> PollAsync(Func<bool> condition, int milliseconds, CancellationToken cancellation)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (clock.ElapsedMilliseconds < milliseconds)
+        {
+            if (condition())
+            {
+                return true;
+            }
+
+            await Task.Delay(25, cancellation);
+        }
+
+        return condition();
+    }
+
+    /// <summary>The tint's opacity over time since the reveal: the halo that was found and every sample taken (time in ms, opacity).</summary>
+    private sealed record TintSamples(Border? Overlay, IReadOnlyList<(long Elapsed, double Opacity)> Points);
+
+    private static async Task<TintSamples> SampleTintAsync(SettingsWindow window, System.Diagnostics.Stopwatch sinceReveal, int milliseconds, CancellationToken cancellation)
+    {
+        Border? found = null;
+        var points = new List<(long Elapsed, double Opacity)>();
+        var stop = sinceReveal.ElapsedMilliseconds + milliseconds;
+        while (sinceReveal.ElapsedMilliseconds < stop)
+        {
+            found ??= window.CurrentPage is { } page
+                ? SettingsHighlight.Hosts(page).Select(SettingsHighlight.OverlayOf).FirstOrDefault(o => o is { Opacity: > 0 })
+                : null;
+            if (found is not null)
+            {
+                points.Add((sinceReveal.ElapsedMilliseconds, found.Opacity));
+                if (sinceReveal.ElapsedMilliseconds > 1800 && found.Opacity < 0.01)
+                {
+                    break;
+                }
+            }
+
+            await Task.Delay(20, cancellation);
+        }
+
+        return new TintSamples(found, points);
     }
 
     /// <summary>A real mouse click in the middle of the card (a settings card has no UI Automation Invoke pattern).</summary>
