@@ -17,7 +17,7 @@ public enum OAuthProvider
 public interface IOAuthIdProvider
 {
     /// <summary>The client for <paramref name="provider"/>, or null when this build has none. Google's carries its secret (not confidential for an installed app).</summary>
-    Pkg.OAuthClient? Get(OAuthProvider provider);
+    Pkg.OAuthClient? ClientFor(OAuthProvider provider);
 }
 
 /// <summary>The values the release script wrote into the generated <see cref="ReleaseOAuthIds"/> class; all null in every other build.</summary>
@@ -29,7 +29,7 @@ public sealed class DevFileOAuthIdProvider(string path, IDiagnostics diagnostics
 {
     private IReadOnlyDictionary<string, Pkg.OAuthClient>? _clients;
 
-    public Pkg.OAuthClient? Get(OAuthProvider provider)
+    public Pkg.OAuthClient? ClientFor(OAuthProvider provider)
     {
         _clients ??= DevOAuthFile.Load(path, diagnostics);
         return _clients.GetValueOrDefault(OAuthIdProviders.Family(provider));
@@ -73,7 +73,7 @@ public sealed class EmbeddedOAuthIdProvider : IOAuthIdProvider
         }
     }
 
-    public Pkg.OAuthClient? Get(OAuthProvider provider) => _clients.GetValueOrDefault(provider);
+    public Pkg.OAuthClient? ClientFor(OAuthProvider provider) => _clients.GetValueOrDefault(provider);
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
