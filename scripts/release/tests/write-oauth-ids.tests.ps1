@@ -25,11 +25,13 @@ function Invoke-Script([hashtable]$Environment, [string[]]$Arguments) {
         $saved[$name] = [Environment]::GetEnvironmentVariable($name)
         [Environment]::SetEnvironmentVariable($name, $Environment[$name])
     }
+    $previous = $ErrorActionPreference
     try {
+        $ErrorActionPreference = 'Continue'   # a child's stderr must not become a terminating error here
         $output = & $shell -NoProfile -ExecutionPolicy Bypass -File $scriptPath @Arguments 2>&1 | Out-String
         return @{ Output = $output; Exit = $LASTEXITCODE }
     }
-    finally { foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) } }
+    finally { $ErrorActionPreference = $previous; foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) } }
 }
 
 $sentinelGoogle = 'sentinel-google.apps.example'
