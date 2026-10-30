@@ -28,7 +28,7 @@ function Test-OnDefaultBranch([string]$CompareStatus) {
 
 # A full commit id: 40 lowercase hex digits.
 function Test-CommitSha([string]$Text) {
-    return $Text -match '\A[0-9a-f]{40}\z'
+    return $Text -cmatch '\A[0-9a-f]{40}\z'
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
