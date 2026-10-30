@@ -45,8 +45,8 @@ function Get-WackFailures($Report) {
 if ($MyInvocation.InvocationName -ne '.') {
     $Folder = (Resolve-Path -LiteralPath $Folder).Path
     $arch = $Platform.ToLowerInvariant()
-    $msix = @(Get-ChildItem -LiteralPath $Folder -Filter "TimeTug_*_$arch.msix" -File | Select-Object -First 1)[0]
-    if (-not $msix) { throw "no TimeTug_*_$arch.msix in $Folder" }
+    $msix = @(Get-ChildItem -LiteralPath $Folder -Filter "TimeTug_*_$arch*.msix" -File | Select-Object -First 1)[0]
+    if (-not $msix) { throw "no TimeTug_*_$arch*.msix in $Folder" }
     $cer = Join-Path $Folder 'dryrun.cer'
     if (-not (Test-Path -LiteralPath $cer)) { throw "dryrun.cer is missing from $Folder" }
     $dependencies = @(Get-ChildItem -LiteralPath (Join-Path $Folder 'layout') -Recurse -Filter '*.msix' -File -ErrorAction SilentlyContinue |
@@ -84,16 +84,19 @@ if ($MyInvocation.InvocationName -ne '.') {
         if (-not $package) { throw 'the package did not install' }
         Write-Host "Installed $($package.PackageFullName); framework dependencies: $(($package.Dependencies | ForEach-Object { $_.Name }) -join ', ')"
 
+        # Only this package's own process counts: a Dev copy of TimeTug may be running on the same machine.
+        $install = $package.InstallLocation
+        $own = { @(Get-Process -Name TimeTug -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($install, [System.StringComparison]::OrdinalIgnoreCase) }) }
         Start-Process "shell:AppsFolder\$($package.PackageFamilyName)!App"
-        $running = $null
-        for ($waited = 0; $waited -lt 30 -and -not $running; $waited += 2) { Start-Sleep -Seconds 2; $running = Get-Process -Name TimeTug -ErrorAction SilentlyContinue }
-        if (-not $running) { throw 'TimeTug did not start' }
+        $running = @()
+        for ($waited = 0; $waited -lt 30 -and $running.Count -eq 0; $waited += 2) { Start-Sleep -Seconds 2; $running = & $own }
+        if ($running.Count -eq 0) { throw 'TimeTug did not start' }
         Start-Sleep -Seconds 8
-        if (-not (Get-Process -Name TimeTug -ErrorAction SilentlyContinue)) { throw 'TimeTug started and then exited' }
+        if ((& $own).Count -eq 0) { throw 'TimeTug started and then exited' }
         $log = Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalState\logs\timetug.log"
         if (-not (Test-Path -LiteralPath $log) -or (Get-Content -LiteralPath $log).Count -lt 1) { throw 'the app wrote no log entries' }
         Write-Host "The app is running and has written $((Get-Content -LiteralPath $log).Count) log line(s)."
-        Get-Process -Name TimeTug -ErrorAction SilentlyContinue | Stop-Process -Force
+        & $own | Stop-Process -Force
         Start-Sleep -Seconds 2
 
         if ($Wack) {
@@ -101,6 +104,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             if (-not (Test-Path -LiteralPath $kit)) { Write-Host "The Windows App Certification Kit is not installed on this machine ($Platform): its report is skipped." }
             else {
                 $report = Join-Path $Folder 'wack.xml'
+                if (Test-Path -LiteralPath $report) { Remove-Item -LiteralPath $report -Force }   # never judge by an old report
                 & $kit reset | Out-Null
                 & $kit test -appxpackagepath $msix.FullName -reportoutputpath $report | Select-Object -Last 3
                 if (-not (Test-Path -LiteralPath $report)) { throw 'the Certification Kit wrote no report' }
@@ -119,7 +123,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         }
     }
     finally {
-        Get-Process -Name TimeTug -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        if ($own) { & $own | Stop-Process -Force -ErrorAction SilentlyContinue }
         Get-AppxPackage -Name $identityName | Remove-AppxPackage -ErrorAction SilentlyContinue
         # Taking the certificate out again needs the rights that put it in; without them (the VM, where SYSTEM trusted it) it stays for the next run.
         try { Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Thumbprint -eq $thumbprint } | Remove-Item } catch { Write-Host 'The throwaway certificate stays trusted on this machine (not elevated).' }

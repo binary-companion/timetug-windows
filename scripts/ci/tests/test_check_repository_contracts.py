@@ -48,6 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@{SHA} # v7
       - run: ./scripts/release/resolve-release.ps1
+      - run: ./scripts/release/assert-on-default-branch.ps1
   build:
     needs: plan
     runs-on: windows-latest
@@ -229,6 +230,10 @@ class RepositoryContracts(unittest.TestCase):
         self.fails('so it must run in the `release` environment', **self.release(RELEASE.replace('    environment: release\n', '    environment: production\n')))
         self.fails('must pass -RequireOAuthIds', **self.release(RELEASE.replace(' -RequireOAuthIds', '')))
         self.fails('must not be a dry run', **self.release(RELEASE.replace('-Flavour Store', '-Flavour Store -DryRun')))
+
+    def test_the_plan_job_must_decide_and_check_the_ref(self):
+        self.fails('the plan job must run resolve-release.ps1', **self.release(RELEASE.replace('resolve-release.ps1', 'other.ps1')))
+        self.fails('the plan job must run assert-on-default-branch.ps1', **self.release(RELEASE.replace('assert-on-default-branch.ps1', 'other.ps1')))
 
     def test_the_release_workflow_never_submits_or_publishes(self):
         for step in ('./submit-to-store.ps1 -submission', 'gh release upload v1 a.msix', 'curl -X POST https://example.invalid', 'msstore publish', 'winget upload'):

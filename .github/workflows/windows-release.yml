@@ -61,6 +61,14 @@ jobs:
           }
           ./scripts/release/resolve-release.ps1 -EventName $env:EVENT_NAME -ReleaseTag $env:RELEASE_TAG -ReleasePrerelease ($env:RELEASE_PRERELEASE -eq 'true') `
             -InputVersion $env:INPUT_VERSION -InputRef $env:INPUT_REF -DefaultBranch $env:DEFAULT_BRANCH -TagExists $exists
+      - name: Only build commits that were merged
+        if: steps.resolve.outputs.go == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_REF: ${{ steps.resolve.outputs.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: ./scripts/release/assert-on-default-branch.ps1 -Ref $env:BUILD_REF -DefaultBranch $env:DEFAULT_BRANCH
 
   build:
     needs: plan

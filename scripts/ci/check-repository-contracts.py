@@ -240,6 +240,9 @@ if release.is_file():
             require('-DryRun' not in commands, f'{RELEASE_WORKFLOW}: job {job_name} must not be a dry run')
         else:
             require(environment_name(job) in (None, 'release'), f'{RELEASE_WORKFLOW}: job {job_name} uses an environment other than release')
+    plan_commands = ' '.join(str(step.get('run', '')) for step in (jobs.get('plan') or {}).get('steps') or [] if isinstance(step, dict))
+    for script in ('resolve-release.ps1', 'assert-on-default-branch.ps1'):
+        require(script in plan_commands, f'{RELEASE_WORKFLOW}: the plan job must run {script}')
     commands_and_actions = []
     for job in jobs.values():
         for step in (job.get('steps') or []) if isinstance(job, dict) else []:
