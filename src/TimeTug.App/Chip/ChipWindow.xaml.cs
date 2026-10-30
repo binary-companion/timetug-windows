@@ -373,6 +373,10 @@ internal sealed partial class ChipWindow : Window, IChipWindow
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
+        // Closed by the system or by Dispose: either way nothing may keep acting on a closed window.
+        _disposed = true;
+        _store.Changed -= OnLookSignal;
+        _ui.Changed -= OnLookSignal;
         _guard.Dispose();
         ClosedCore?.Invoke();
     }

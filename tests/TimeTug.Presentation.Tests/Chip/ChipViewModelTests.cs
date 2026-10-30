@@ -356,6 +356,18 @@ public sealed class ChipViewModelTests : IDisposable
     }
 
     [Fact]
+    public void A_meeting_that_drops_off_one_state_and_comes_back_is_not_announced_again()
+    {
+        Use(ChipMode.Always);
+        var start = Noon.AddMinutes(15);
+        _engine.Push(State(Meeting("a", "Planning", start - Noon, TimeSpan.FromMinutes(30))));
+        _engine.Push(State());
+        _engine.Push(State(Meeting("a", "Planning", start - Noon, TimeSpan.FromMinutes(30))));
+
+        _announcements.Should().ContainSingle().Which.Should().Be("Planning starts in 15 minutes");
+    }
+
+    [Fact]
     public void A_meeting_first_seen_inside_a_band_is_announced_with_its_real_minutes_and_wider_bands_stay_silent()
     {
         Use(ChipMode.Always);

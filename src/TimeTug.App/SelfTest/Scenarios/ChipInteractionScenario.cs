@@ -83,12 +83,14 @@ internal static class ChipInteractionScenario
 
         // ---- right click: the menu ----------------------------------------------------------------------------------------------------
         blocker.Activate();
-        await rig.Tug.Settle(700);
+        var blockerFirst = await rig.Tug.WaitFor(() => ChipWindowChrome.ForegroundWindow() == blockerHandle, 3000);
+        run.Info("before the menu, the other window has the keyboard: " + blockerFirst + "; " + TimeTug.Platform.Flyout.FlyoutWindowChrome.DescribeForeground(handle));
         (cx, cy) = Centre();
         var menus = window.MenusOpened;
         run.Check(MouseInput.RightClickAt(cx, cy), "a real right click is delivered");
         run.Check(await rig.Tug.WaitFor(() => window.MenusOpened > menus), "the menu opens");
-        if (foregroundWorks)
+        run.Info("with the menu open: " + TimeTug.Platform.Flyout.FlyoutWindowChrome.DescribeForeground(handle));
+        if (foregroundWorks && blockerFirst)
         {
             run.Check(ChipWindowChrome.ForegroundWindow() == blockerHandle, "the open menu left the keyboard with the other window");
         }

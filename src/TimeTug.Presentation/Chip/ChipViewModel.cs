@@ -29,6 +29,9 @@ public sealed class ChipViewModel : IDisposable
 
     private const string Category = "chip";
 
+    /// <summary>How many (event, band) entries are kept before those for events off the agenda are dropped.</summary>
+    private const int MaxRemembered = 500;
+
     /// <summary>The start is announced only if it is noticed within this long of it, so a meeting that began long ago is not announced when the app opens.</summary>
     private static readonly TimeSpan NowAnnouncementGrace = TimeSpan.FromMinutes(1);
 
@@ -254,10 +257,14 @@ public sealed class ChipViewModel : IDisposable
         return Format("Chip_Announce_Minutes", item.Title, _words.SpokenDuration(TimeSpan.FromMinutes(minutes)));
     }
 
-    /// <summary>Forgets what was said about meetings that are no longer on the agenda, so the set stays as small as the day.</summary>
+    /// <summary>
+    /// Keeps the set of what was said as small as the day without forgetting too soon: an event that is merely absent from one state (a re-publication, a
+    /// calendar filter changing) must not be announced again when it comes back, so entries for events no longer on the agenda are dropped only once
+    /// the set has grown past a day's worth.
+    /// </summary>
     private void PruneAnnounced(IReadOnlyList<AgendaItem> agenda)
     {
-        if (_announced.Count > 0)
+        if (_announced.Count > MaxRemembered)
         {
             _announced.RemoveWhere(a => agenda.All(i => !string.Equals(i.EventId, a.EventId, StringComparison.Ordinal)));
         }
