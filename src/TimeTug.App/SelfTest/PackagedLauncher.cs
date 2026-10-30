@@ -6,17 +6,17 @@ namespace TimeTug.App.SelfTest;
 /// <summary>
 /// Starts the packaged app the way the shell does when a person chooses a jump list item: <c>IApplicationActivationManager.ActivateApplication</c>
 /// with the app user model id and the item's arguments (the spike, docs/spikes/2026-10-chip-window-and-jumplist.md, proved the arguments arrive on
-/// the command line). Self-test only.
+/// the command line). With <paramref name="appUserModelId"/> it starts another package's app instead (the cross-flavour scenario). Self-test only.
 /// </summary>
 internal static class PackagedLauncher
 {
     /// <summary>Starts the app with <paramref name="arguments"/>; returns the new process id, or null with the reason when Windows refused.</summary>
-    public static (uint? ProcessId, string? Error) Activate(string arguments)
+    public static (uint? ProcessId, string? Error) Activate(string? arguments, string? appUserModelId = null)
     {
         try
         {
             var manager = (IApplicationActivationManager)new ApplicationActivationManager();
-            var id = Windows.ApplicationModel.AppInfo.Current.AppUserModelId;
+            var id = appUserModelId ?? Windows.ApplicationModel.AppInfo.Current.AppUserModelId;
             var hr = manager.ActivateApplication(id, arguments, 0, out var processId);
             return hr == 0 ? (processId, null) : (null, "ActivateApplication returned 0x" + hr.ToString("X8", System.Globalization.CultureInfo.InvariantCulture));
         }

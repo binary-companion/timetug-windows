@@ -64,3 +64,5 @@ RegisterHotKey
 UnregisterHotKey
 HOT_KEY_MODIFIERS
 WM_HOTKEY
+MessageBox
+MESSAGEBOX_STYLE

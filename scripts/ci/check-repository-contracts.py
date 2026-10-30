@@ -112,8 +112,8 @@ if scenario_list.is_file() and scenario_folder.is_dir():
         if not line.strip() or line.lstrip().startswith('#'):
             continue
         fields = line.split()
-        if len(fields) != 4 or not fields[1].isdigit() or not fields[2].isdigit() or fields[3] not in ('selftest', 'a11y'):
-            require(False, f'scripts/ci/selftest-scenarios.txt:{number}: expected "name min-screenshots timeout-seconds selftest|a11y": {line.strip()}')
+        if len(fields) != 4 or not fields[1].isdigit() or not fields[2].isdigit() or fields[3] not in ('selftest', 'a11y', 'vm'):
+            require(False, f'scripts/ci/selftest-scenarios.txt:{number}: expected "name min-screenshots timeout-seconds selftest|a11y|vm": {line.strip()}')
             continue
         require(fields[0] not in listed, f'scripts/ci/selftest-scenarios.txt: {fields[0]} is listed twice')
         listed[fields[0]] = fields[3]
@@ -237,7 +237,7 @@ if release.is_file():
         if 'build-release-msix.ps1' in commands:
             require(environment_name(job) == 'release', f'{RELEASE_WORKFLOW}: job {job_name} builds the release package, so it must run in the `release` environment')
             require('-RequireOAuthIds' in commands, f'{RELEASE_WORKFLOW}: job {job_name} must pass -RequireOAuthIds')
-            require('-DryRun' not in commands, f'{RELEASE_WORKFLOW}: job {job_name} must not be a dry run')
+            require('-DryRun' not in commands and '-LocalSign' not in commands, f'{RELEASE_WORKFLOW}: job {job_name} must not be a dry run')
         else:
             require(environment_name(job) in (None, 'release'), f'{RELEASE_WORKFLOW}: job {job_name} uses an environment other than release')
     plan_commands = ' '.join(str(step.get('run', '')) for step in (jobs.get('plan') or {}).get('steps') or [] if isinstance(step, dict))

@@ -2,6 +2,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using TimeTug.Platform.Diagnostics;
 using TimeTug.Platform.Instance;
+using TimeTug.Presentation.Startup;
 
 namespace TimeTug.App;
 
@@ -9,6 +10,7 @@ namespace TimeTug.App;
 public partial class App : Application
 {
     private AppInstanceService? _instance;
+    private DistributionGuard? _distribution;
     private AppShell? _shell;
 
     public App()
@@ -47,11 +49,22 @@ public partial class App : Application
         try
         {
             _instance = AppInstanceService.CreateDefault(PackageFamilyName(), EtwDiagnostics.Log);
-            if (!_instance.IsPrimary)
+            // The first copy of this package also looks for a copy of another distribution (Dev, Store, Direct have different identities and data, and the
+            // instance key above is per package); a launch that is not the first never gets that far.
+            _distribution = _instance.IsPrimary ? DistributionGuard.Enter(BuildFlavour.Current, new NamedMutexMarkers()) : null;
+            switch (StartupArbiter.Decide(_instance.IsPrimary, _distribution))
             {
-                await _instance.RedirectAsync(ActivationParser.FromArguments(Environment.GetCommandLineArgs()));
-                Exit();
-                return;
+                case StartupDecision.RedirectAndExit:
+                    await _instance.RedirectAsync(ActivationParser.FromArguments(Environment.GetCommandLineArgs()));
+                    Exit();
+                    return;
+                case StartupDecision.ShowCollisionAndExit:
+                    // Nothing has started: no engine, no log file, no data touched. Say why and leave.
+                    EtwDiagnostics.Log.Record("info", "instance", "another distribution of TimeTug is running; this copy shows a notice and exits");
+                    var text = new ResourceLoaderLocalizer();
+                    new MessageBoxStartupNotice().Show(text.GetString("Instance_NoticeTitle"), text.GetString("Instance_OtherDistribution"));
+                    Exit();
+                    return;
             }
         }
         catch (Exception e) when (e is not OperationCanceledException)
