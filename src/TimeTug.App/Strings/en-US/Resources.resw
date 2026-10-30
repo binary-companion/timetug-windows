@@ -435,4 +435,29 @@
   <data name="SoftwareUpdate_StoreLinkAutomation" xml:space="preserve"><value>Open Microsoft Store updates</value></data>
   <data name="SoftwareUpdate_Development" xml:space="preserve"><value>Development build {0}. Updates are installed by hand, not from the Store.</value></data>
   <data name="SoftwareUpdate_DevelopmentNoCommit" xml:space="preserve"><value>Development build. Updates are installed by hand, not from the Store.</value></data>
+  <data name="Chip_Countdown_Upcoming" xml:space="preserve"><value>in {0}</value><comment>The countdown chip: '{0}' is a duration such as 12 min or 1 h 5 min.</comment></data>
+  <data name="Chip_Countdown_Running" xml:space="preserve"><value>now · ends {0}</value><comment>The countdown chip while the meeting runs: '{0}' is the end time.</comment></data>
+  <data name="Chip_Automation_Upcoming" xml:space="preserve"><value>{0}, in {1}</value><comment>What a screen reader says for the chip: '{0}' is the meeting title, '{1}' a spoken duration such as 12 minutes.</comment></data>
+  <data name="Chip_Automation_Running" xml:space="preserve"><value>{0}, in progress, ends {1}</value></data>
+  <data name="Chip_Announce_Minutes" xml:space="preserve"><value>{0} starts in {1}</value><comment>Said by a screen reader 30, 15, 5 and 1 minute before a meeting.</comment></data>
+  <data name="Chip_Announce_Now" xml:space="preserve"><value>{0} is starting now</value></data>
+  <data name="Chip_WindowTitle" xml:space="preserve"><value>Next meeting</value><comment>The countdown chip's window title (read by screen readers).</comment></data>
+  <data name="Chip_Menu_Join" xml:space="preserve"><value>Join</value></data>
+  <data name="Chip_Menu_Hide" xml:space="preserve"><value>Hide until the next meeting</value></data>
+  <data name="Chip_Menu_Settings" xml:space="preserve"><value>Open Settings</value></data>
+  <data name="SettingsText_countdown-chip" xml:space="preserve"><value>Countdown chip</value></data>
+  <data name="SettingsKeywords_countdown-chip" xml:space="preserve"><value>chip;countdown;next meeting;always on top;floating;desktop;overlay;timer;minutes</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="Appearance_Chip_Off" xml:space="preserve"><value>Off</value></data>
+  <data name="Appearance_Chip_Off_Name" xml:space="preserve"><value>Countdown chip off</value></data>
+  <data name="Appearance_Chip_Off_Detail" xml:space="preserve"><value>Never shown</value></data>
+  <data name="Appearance_Chip_BeforeMeetings" xml:space="preserve"><value>Before meetings</value></data>
+  <data name="Appearance_Chip_BeforeMeetings_Name" xml:space="preserve"><value>Countdown chip before meetings</value></data>
+  <data name="Appearance_Chip_BeforeMeetings_Detail" xml:space="preserve"><value>Shown shortly before a meeting and until it ends</value></data>
+  <data name="Appearance_Chip_Always" xml:space="preserve"><value>Always</value></data>
+  <data name="Appearance_Chip_Always_Name" xml:space="preserve"><value>Countdown chip always</value></data>
+  <data name="Appearance_Chip_Always_Detail" xml:space="preserve"><value>Shown whenever today has a meeting to come or in progress</value></data>
+  <data name="Appearance_ChipLead_Label" xml:space="preserve"><value>Show it this long before a meeting</value></data>
+  <data name="Appearance_ChipLead_Option" xml:space="preserve"><value>{0} min</value></data>
+  <data name="Appearance_ChipLead_Name" xml:space="preserve"><value>Show the chip {0} minutes before a meeting</value></data>
+  <data name="Appearance_ChipNote" xml:space="preserve"><value>A small box that stays on top near the taskbar with the next meeting and how long until it starts. Drag it where you like; double-click it to put it back. Click it to open today's meetings. It never takes the keyboard and steps aside for the tug and for full-screen apps.</value></data>
 </root>

@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.Globalization;
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Chip;
 using TimeTug.Presentation.Flyout;
 
 namespace TimeTug.Presentation.Settings;
@@ -57,6 +59,17 @@ public sealed class AppearanceViewModel : ObservableObject, IDisposable
             Choice(FlyoutBackdrop.Material, "Appearance_Backdrop_Material"),
             Choice(FlyoutBackdrop.Solid, "Appearance_Backdrop_Solid"),
         ];
+        ChipModeChoices =
+        [
+            Choice(ChipMode.Off, "Appearance_Chip_Off"),
+            Choice(ChipMode.BeforeMeetings, "Appearance_Chip_BeforeMeetings"),
+            Choice(ChipMode.Always, "Appearance_Chip_Always"),
+        ];
+        ChipLeadChoices = [.. ChipSettings.LeadChoices.Select(minutes => new AppearanceChoice<int>(
+            minutes,
+            string.Format(CultureInfo.CurrentCulture, text.GetString("Appearance_ChipLead_Option"), minutes),
+            string.Format(CultureInfo.CurrentCulture, text.GetString("Appearance_ChipLead_Name"), minutes),
+            string.Empty))];
         store.Changed += OnStoreChanged;
         ui.Changed += OnUiChanged;
     }
@@ -67,6 +80,7 @@ public sealed class AppearanceViewModel : ObservableObject, IDisposable
         public const string Theme = "appearance";
         public const string Backdrop = "popup-card-style";
         public const string TrayStyle = "tray-icon-style";
+        public const string Chip = "countdown-chip";
     }
 
     public IReadOnlyList<AppearanceChoice<AppTheme>> ThemeChoices { get; }
@@ -74,6 +88,12 @@ public sealed class AppearanceViewModel : ObservableObject, IDisposable
     public IReadOnlyList<AppearanceChoice<TrayIconStyle>> TrayChoices { get; }
 
     public IReadOnlyList<AppearanceChoice<FlyoutBackdrop>> BackdropChoices { get; }
+
+    /// <summary>Off, Before meetings, Always: when the countdown chip is shown.</summary>
+    public IReadOnlyList<AppearanceChoice<ChipMode>> ChipModeChoices { get; }
+
+    /// <summary>How many minutes before a meeting the chip appears under Before meetings (5, 10, 15, 30, 60).</summary>
+    public IReadOnlyList<AppearanceChoice<int>> ChipLeadChoices { get; }
 
     public AppTheme Theme => _current.Theme;
 
@@ -96,6 +116,17 @@ public sealed class AppearanceViewModel : ObservableObject, IDisposable
 
     public string ThemeNote => _text.GetString("Appearance_ThemeNote");
 
+    public ChipMode ChipMode => _current.ChipMode;
+
+    public int ChipLeadMinutes => _current.ChipLeadMinutes;
+
+    /// <summary>The lead-minutes choice applies only to Before meetings; the other modes have no lead time, so the pane disables it.</summary>
+    public bool ChipLeadEnabled => _current.ChipMode == ChipMode.BeforeMeetings;
+
+    public string ChipNote => _text.GetString("Appearance_ChipNote");
+
+    public string ChipLeadLabel => _text.GetString("Appearance_ChipLead_Label");
+
     public string TrayNote => _text.GetString("Appearance_TrayNote");
 
     /// <summary>True when the theme that applies is the dark one: the previews are drawn in it.</summary>
@@ -109,6 +140,12 @@ public sealed class AppearanceViewModel : ObservableObject, IDisposable
     public void SetTrayStyle(TrayIconStyle style) => Save(s => s.TrayStyle == style ? null : s with { TrayStyle = style });
 
     public void SetBackdrop(FlyoutBackdrop backdrop) => Save(s => s.Backdrop == backdrop ? null : s with { Backdrop = backdrop });
+
+    public void SetChipMode(ChipMode mode) => Save(s => s.ChipMode == mode || !Enum.IsDefined(mode) ? null : s with { ChipMode = mode });
+
+    /// <summary>Chooses how many minutes ahead the chip appears. Ignored unless the mode is Before meetings, and for a number the pane does not offer.</summary>
+    public void SetChipLeadMinutes(int minutes) => Save(s =>
+        s.ChipMode != ChipMode.BeforeMeetings || s.ChipLeadMinutes == minutes || !ChipSettings.LeadChoices.Contains(minutes) ? null : s with { ChipLeadMinutes = minutes });
 
     public void Dispose()
     {
@@ -182,6 +219,17 @@ public sealed class AppearanceViewModel : ObservableObject, IDisposable
         if (before.Backdrop != settings.Backdrop)
         {
             OnPropertyChanged(nameof(Backdrop));
+        }
+
+        if (before.ChipMode != settings.ChipMode)
+        {
+            OnPropertyChanged(nameof(ChipMode));
+            OnPropertyChanged(nameof(ChipLeadEnabled));
+        }
+
+        if (before.ChipLeadMinutes != settings.ChipLeadMinutes)
+        {
+            OnPropertyChanged(nameof(ChipLeadMinutes));
         }
 
         var overrideChanged = overridden != _backdropOverridden;

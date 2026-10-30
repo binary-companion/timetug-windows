@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using TimeTug.Platform.Tray;
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Chip;
 using TimeTug.Presentation.Flyout;
 using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Tray;
@@ -22,6 +23,7 @@ public sealed partial class AppearancePage : UserControl
     private readonly List<(RadioButton Tile, TrayPreview Preview)> _trayTiles = [];
     private readonly List<RadioButton> _backdropTiles = [];
     private readonly List<RadioButton> _themeTiles = [];
+    private readonly List<RadioButton> _chipModeButtons = [];
     private bool _syncing;
 
     public AppearancePage(AppearanceViewModel model, SettingsText text, ILocalizer localizer, string title)
@@ -41,6 +43,30 @@ public sealed partial class AppearancePage : UserControl
         SettingsHighlight.SetId(TrayHost, AppearanceViewModel.Ids.TrayStyle);
         SettingsHighlight.SetId(BackdropHost, AppearanceViewModel.Ids.Backdrop);
         SettingsHighlight.SetId(ThemeHost, AppearanceViewModel.Ids.Theme);
+        ChipHeader.Text = text.ControlTitle(AppearanceViewModel.Ids.Chip);
+        ChipNote.Text = model.ChipNote;
+        ChipLead.Header = model.ChipLeadLabel;
+        AutomationProperties.SetName(ChipModeButtons, ChipHeader.Text);
+        AutomationProperties.SetName(ChipLead, model.ChipLeadLabel);
+        SettingsHighlight.SetId(ChipHost, AppearanceViewModel.Ids.Chip);
+        foreach (var choice in model.ChipModeChoices)
+        {
+            var button = new RadioButton { GroupName = "ChipMode", Tag = choice.Value, Content = choice.Title };
+            AutomationProperties.SetName(button, choice.AutomationName);
+            AutomationProperties.SetHelpText(button, choice.Detail);
+            button.Checked += OnChipModeChecked;
+            ChipModeButtons.Children.Add(button);
+            _chipModeButtons.Add(button);
+        }
+
+        foreach (var choice in model.ChipLeadChoices)
+        {
+            var item = new ComboBoxItem { Tag = choice.Value, Content = choice.Title };
+            AutomationProperties.SetName(item, choice.AutomationName);
+            ChipLead.Items.Add(item);
+        }
+
+        ChipLead.SelectionChanged += OnChipLeadChanged;
 
         var renderer = NewRenderer();
         var clock = localizer.GetString("Appearance_Preview_Clock");
@@ -80,6 +106,12 @@ public sealed partial class AppearancePage : UserControl
     internal IReadOnlyList<RadioButton> BackdropChoiceTiles => _backdropTiles;
 
     internal IReadOnlyList<RadioButton> ThemeChoiceTiles => _themeTiles;
+
+    /// <summary>The Off, Before meetings and Always buttons of the countdown chip (for the self-test).</summary>
+    internal IReadOnlyList<RadioButton> ChipModeChoiceButtons => _chipModeButtons;
+
+    /// <summary>The "how long before a meeting" choice of the countdown chip (for the self-test).</summary>
+    internal ComboBox ChipLeadBox => ChipLead;
 
     /// <summary>The note that says Windows overrides the backdrop (open only while it does).</summary>
     internal InfoBar OverrideNotice => OverrideBar;
@@ -132,6 +164,22 @@ public sealed partial class AppearancePage : UserControl
         }
     }
 
+    private void OnChipModeChecked(object sender, RoutedEventArgs e)
+    {
+        if (!_syncing && sender is RadioButton { Tag: ChipMode mode })
+        {
+            _model.SetChipMode(mode);
+        }
+    }
+
+    private void OnChipLeadChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_syncing && ChipLead.SelectedItem is ComboBoxItem { Tag: int minutes })
+        {
+            _model.SetChipLeadMinutes(minutes);
+        }
+    }
+
     private void OnThemeChecked(object sender, RoutedEventArgs e)
     {
         if (!_syncing && sender is RadioButton { Tag: AppTheme theme })
@@ -161,6 +209,14 @@ public sealed partial class AppearancePage : UserControl
             {
                 tile.IsChecked = tile.Tag is AppTheme theme && theme == _model.Theme;
             }
+
+            foreach (var button in _chipModeButtons)
+            {
+                button.IsChecked = button.Tag is ChipMode mode && mode == _model.ChipMode;
+            }
+
+            ChipLead.SelectedItem = ChipLead.Items.OfType<ComboBoxItem>().FirstOrDefault(i => i.Tag is int minutes && minutes == _model.ChipLeadMinutes);
+            ChipLead.IsEnabled = _model.ChipLeadEnabled;
 
             OverrideBar.Message = _model.BackdropOverrideText;
             OverrideBar.IsOpen = _model.BackdropOverridden;

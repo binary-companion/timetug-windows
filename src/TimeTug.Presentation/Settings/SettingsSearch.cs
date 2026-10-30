@@ -29,6 +29,7 @@ public sealed class SettingsSearch
         ("appearance", SettingsPane.Appearance),
         ("popup-card-style", SettingsPane.Appearance),
         ("tray-icon-style", SettingsPane.Appearance),
+        ("countdown-chip", SettingsPane.Appearance),
         ("launch-at-login", SettingsPane.General),
         ("popup-shortcut", SettingsPane.General),
         ("about", SettingsPane.General),
