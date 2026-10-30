@@ -122,7 +122,7 @@ public static class OAuthIdProviders
         var clients = new Dictionary<string, Pkg.OAuthClient>(StringComparer.Ordinal);
         foreach (var kind in Enum.GetValues<OAuthProvider>())
         {
-            if (provider.Get(kind) is { } client)
+            if (provider.ClientFor(kind) is { } client)
             {
                 clients[Family(kind)] = client;
             }

@@ -37,8 +37,8 @@ public sealed class OAuthIdProviderTests : IDisposable
     {
         var provider = new EmbeddedOAuthIdProvider(new EmbeddedOAuthValues(null, null, null), _diagnostics);
 
-        provider.Get(OAuthProvider.Google).Should().BeNull();
-        provider.Get(OAuthProvider.Microsoft).Should().BeNull();
+        provider.ClientFor(OAuthProvider.Google).Should().BeNull();
+        provider.ClientFor(OAuthProvider.Microsoft).Should().BeNull();
         OAuthIdProviders.ToClients(provider).Should().BeEmpty("the engine then reports both kinds as not configured and the views say so");
     }
 
@@ -66,7 +66,7 @@ public sealed class OAuthIdProviderTests : IDisposable
     {
         var provider = new EmbeddedOAuthIdProvider(new EmbeddedOAuthValues(id, secret, null), _diagnostics);
 
-        provider.Get(OAuthProvider.Google).Should().BeNull();
+        provider.ClientFor(OAuthProvider.Google).Should().BeNull();
         NoSentinelsLogged();
     }
 
@@ -75,7 +75,7 @@ public sealed class OAuthIdProviderTests : IDisposable
     {
         var provider = new EmbeddedOAuthIdProvider(new EmbeddedOAuthValues(null, null, "  " + MicrosoftId + " "), _diagnostics);
 
-        provider.Get(OAuthProvider.Microsoft)!.ClientID.Should().Be(MicrosoftId);
+        provider.ClientFor(OAuthProvider.Microsoft)!.ClientID.Should().Be(MicrosoftId);
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public sealed class OAuthIdProviderTests : IDisposable
     {
         var provider = OAuthIdProviders.Create(Flavour.Dev, WriteDevFile(), new EmbeddedOAuthValues(null, null, null), _diagnostics);
 
-        provider.Get(OAuthProvider.Google)!.ClientID.Should().Be(GoogleId);
-        provider.Get(OAuthProvider.Microsoft)!.ClientID.Should().Be(MicrosoftId);
+        provider.ClientFor(OAuthProvider.Google)!.ClientID.Should().Be(GoogleId);
+        provider.ClientFor(OAuthProvider.Microsoft)!.ClientID.Should().Be(MicrosoftId);
         NoSentinelsLogged();
     }
 
@@ -97,8 +97,8 @@ public sealed class OAuthIdProviderTests : IDisposable
 
         var provider = OAuthIdProviders.Create(flavour, path, new EmbeddedOAuthValues(null, null, null), _diagnostics);
 
-        provider.Get(OAuthProvider.Google).Should().BeNull();
-        provider.Get(OAuthProvider.Microsoft).Should().BeNull();
+        provider.ClientFor(OAuthProvider.Google).Should().BeNull();
+        provider.ClientFor(OAuthProvider.Microsoft).Should().BeNull();
         _diagnostics.Entries.Should().NotContain(e => e.Message.Contains(DevOAuthFile.FileName, StringComparison.Ordinal), "the file is not even looked at");
         NoSentinelsLogged();
     }
@@ -110,8 +110,8 @@ public sealed class OAuthIdProviderTests : IDisposable
     {
         var provider = OAuthIdProviders.Create(flavour, WriteDevFile(), new EmbeddedOAuthValues("embedded-id", "embedded-secret", "embedded-ms"), _diagnostics);
 
-        provider.Get(OAuthProvider.Google)!.ClientID.Should().Be("embedded-id");
-        provider.Get(OAuthProvider.Microsoft)!.ClientID.Should().Be("embedded-ms");
+        provider.ClientFor(OAuthProvider.Google)!.ClientID.Should().Be("embedded-id");
+        provider.ClientFor(OAuthProvider.Microsoft)!.ClientID.Should().Be("embedded-ms");
     }
 
     [Fact]
@@ -119,8 +119,8 @@ public sealed class OAuthIdProviderTests : IDisposable
     {
         var provider = OAuthIdProviders.Create(Flavour.Dev, Path.Combine(_folder, "missing.json"), new EmbeddedOAuthValues(GoogleId, GoogleSecret, MicrosoftId), _diagnostics);
 
-        provider.Get(OAuthProvider.Google).Should().BeNull();
-        provider.Get(OAuthProvider.Microsoft).Should().BeNull();
+        provider.ClientFor(OAuthProvider.Google).Should().BeNull();
+        provider.ClientFor(OAuthProvider.Microsoft).Should().BeNull();
     }
 
     [Fact]
