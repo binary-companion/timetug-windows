@@ -41,5 +41,6 @@ The packages are unsigned on purpose: the Store signs what it accepts. The Direc
 
 1. Reserve the app name in Partner Center and copy the identity values into the four variables above.
 2. Create the `release` environment with the owner as reviewer and add the three secrets.
-3. Run the workflow by hand with `ref` = `main` for a trial, approve it, download `store-upload`, and run `scripts/ci/check-release-package.ps1 -Package <the .msix>` on a package from it.
-4. Install the package from `store-package-x64` in a clean user profile on a PC (it is unsigned, so Windows will refuse it outside the Store: use the dry run's Dev-signed package for installing tests) and complete the first sign-in with real accounts once a Store flight exists.
+3. Run the workflow by hand with `ref` = `main` for a trial, approve it in the Actions page, download `store-upload`, unzip the `.msixbundle` and run `scripts/ci/check-release-package.ps1 -Package <an .msix from store-package-x64>` on it.
+4. Upload the trial `store-upload` file to Partner Center as a package flight (not a submission to everyone). The package is unsigned, so Windows refuses it outside the Store; to try an installable build use the dry run's Dev-signed package instead (`release-dryrun-x64` artifact: trust its `dryrun.cer`, then install).
+5. Once a Store flight exists, install it on a clean user profile and complete the first sign-in with real accounts (manual checklist).
