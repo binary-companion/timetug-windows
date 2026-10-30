@@ -214,6 +214,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         Invoke-Step 'check' {
             $arguments = @{ Package = $msix; ExpectedVersion = $parsed.Package }
             if ($DryRun) { $arguments.Sentinel = [string[]]$script:sentinels }
+            $global:LASTEXITCODE = 0   # an earlier native command (git) must not decide the verdict
             & $checkScript @arguments
             if ($LASTEXITCODE -ne 0) { throw 'check-release-package.ps1 found development scaffolding in the package' }
         }

@@ -180,6 +180,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         foreach ($problem in $all) { Write-Host "FAIL: $problem" }
         if ($all.Count -gt 0) { Write-Host "$($all.Count) problem(s) in the release package"; exit 1 }
         Write-Host 'PASS: the release package carries no development scaffolding'
+        $global:LASTEXITCODE = 0
     }
     finally { if ($cleanup -and (Test-Path -LiteralPath $cleanup)) { Remove-Item -Recurse -Force -LiteralPath $cleanup } }
 }
