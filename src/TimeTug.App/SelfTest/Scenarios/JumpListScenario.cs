@@ -65,6 +65,22 @@ internal static class JumpListScenario
             return condition();
         }
 
+        // The list is read through WinRT calls that complete on this (the UI) thread: never block on them, wait for them.
+        async Task<bool> WaitForListAsync(string[] expected, int milliseconds = 10000)
+        {
+            for (var waited = 0; waited < milliseconds; waited += 100)
+            {
+                if ((await ArgumentsAsync()).SequenceEqual(expected))
+                {
+                    return true;
+                }
+
+                await Task.Delay(100, cancellation);
+            }
+
+            return (await ArgumentsAsync()).SequenceEqual(expected);
+        }
+
         var queue = DispatcherQueue.GetForCurrentThread();
         var diagnostics = new RecordingDiagnostics();
         var text = new ResourceLoaderLocalizer();
@@ -97,7 +113,7 @@ internal static class JumpListScenario
         await ClearAsync();
         var started = shell.RunAsync();
         var baseArguments = new[] { "--jump flyout", "--jump test-tug", "--jump settings" };
-        run.Check(await WaitFor(() => ArgumentsAsync().GetAwaiter().GetResult().SequenceEqual(baseArguments)),
+        run.Check(await WaitForListAsync(baseArguments),
             "startup saved the base list (Open today's meetings, Test tug, Settings) before the engine's first state");
 
         // ---- 2. a meeting in progress with a link adds "Join next meeting" ---------------------------------------------------
@@ -106,7 +122,7 @@ internal static class JumpListScenario
         await started.WaitAsync(TimeSpan.FromSeconds(30), cancellation);
         run.Check(!shell.Failed, "the app started" + (shell.FailureReason is null ? string.Empty : ": " + shell.FailureReason));
         var withJoin = new[] { "--jump flyout", "--jump join-next", "--jump test-tug", "--jump settings" };
-        run.Check(await WaitFor(() => ArgumentsAsync().GetAwaiter().GetResult().SequenceEqual(withJoin)), "a meeting in progress with a link adds Join next meeting, in the second place");
+        run.Check(await WaitForListAsync(withJoin), "a meeting in progress with a link adds Join next meeting, in the second place");
 
         var list = await WinJumpList.LoadCurrentAsync();
         run.Check(list.Items.Count == 4 && list.Items.All(i => i.Kind == Windows.UI.StartScreen.JumpListItemKind.Arguments && string.IsNullOrEmpty(i.GroupName) && !i.RemovedByUser),
@@ -172,7 +188,7 @@ internal static class JumpListScenario
 
         // ---- 5. a stale Join next meeting (the link is gone) opens the flyout instead -------------------------------------------
         engine.Push(Day(now, withLink: false));
-        run.Check(await WaitFor(() => ArgumentsAsync().GetAwaiter().GetResult().SequenceEqual(baseArguments)), "when the link is gone the list goes back to the base list");
+        run.Check(await WaitForListAsync(baseArguments), "when the link is gone the list goes back to the base list");
         var stale = await ActivateAsync("--jump join-next");
         run.Check(stale, "a stale Join next meeting is started");
         run.Check(await WaitFor(() => flyout.IsOpen), "a stale Join next meeting opens the flyout instead");
@@ -203,7 +219,7 @@ internal static class JumpListScenario
         run.Check(await WaitFor(() => windows.WindowCount == 0), "the tug closes");
 
         // ---- 7. quitting leaves the base list on disk ---------------------------------------------------------------------------------
-        run.Check(await WaitFor(() => ArgumentsAsync().GetAwaiter().GetResult().SequenceEqual(withJoin)), "before quitting, the list holds Join next meeting again");
+        run.Check(await WaitForListAsync(withJoin), "before quitting, the list holds Join next meeting again");
         await shell.QuitAsync(exitProcess: false).WaitAsync(TimeSpan.FromSeconds(30), cancellation);
         run.Check((await ArgumentsAsync()).SequenceEqual(baseArguments), "quitting saved the base list: no Join next meeting is left on disk");
         ScanDiskFile(run);
