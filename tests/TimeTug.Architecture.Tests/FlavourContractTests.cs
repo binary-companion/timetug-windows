@@ -150,6 +150,16 @@ public partial class FlavourContractTests
     }
 
     [Fact]
+    public void Release_packages_bundle_the_dotnet_runtime_and_the_windows_app_sdk_runtime_only_where_the_spike_decided()
+    {
+        // docs/spikes/2026-10-store-packaging.md: .NET always bundled outside Dev; the Windows App SDK runtime for Direct, and for Store only on request.
+        var project = File.ReadAllText(Path.Combine(Root, "src", "TimeTug.App", "TimeTug.App.csproj"));
+
+        project.Should().MatchRegex(@"Condition=""'\$\(Flavour\)' != 'Dev'"">\s*<SelfContained>true</SelfContained>");
+        project.Should().Contain("'$(Flavour)' == 'Direct' Or '$(ReleaseWindowsAppSdkSelfContained)' == 'true'");
+    }
+
+    [Fact]
     public void No_source_outside_the_development_flavour_names_the_dev_alias_or_the_dev_oauth_file()
     {
         // The alias is used by the development scripts and the self-test (compiled only under SELFTEST). The OAuth file is read only under SELFTEST.
