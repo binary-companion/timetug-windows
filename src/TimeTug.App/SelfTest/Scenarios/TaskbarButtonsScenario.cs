@@ -42,6 +42,15 @@ internal static class TaskbarButtonsScenario
                 : "UI Automation sees nothing on the taskbar (hidden, or Explorer did not answer), so only the windows' own styles are asserted");
         }
 
+        // The first state the engine publishes can come before it has listed the account, and then the app shows the first-run welcome window (a
+        // normal window, which rightly has a button). This scenario is about everything else, so close it and say so.
+        if (rig.Shell.Welcome is { } early)
+        {
+            run.Info("the welcome window opened at launch (the first state had no account yet); it is closed before the first audit");
+            early.Close();
+            run.Check(await rig.WaitFor(() => rig.Shell.Welcome is null), "the early welcome window closes");
+        }
+
         // ---- right after launch: the tray only --------------------------------------------------------------------------------------
         await rig.Settle(1000);
         await AuditAsync(rig, witness, "launched, tray only", []);
