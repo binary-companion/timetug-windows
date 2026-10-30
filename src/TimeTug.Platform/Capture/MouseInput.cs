@@ -13,6 +13,9 @@ public static partial class MouseInput
     private const uint LeftDown = 0x0002;
     private const uint LeftUp = 0x0004;
 
+    /// <summary>Moves the pointer to the physical-pixel position (no click). Used to bring up an auto-hidden taskbar. False when Windows refused.</summary>
+    public static bool MoveTo(int x, int y) => SetCursorPos(x, y);
+
     /// <summary>Moves the pointer to the physical-pixel position and clicks. False when Windows refused either step.</summary>
     public static bool ClickAt(int x, int y)
     {

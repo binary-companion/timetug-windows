@@ -335,7 +335,7 @@ public sealed partial class SettingsWindow : Window
     {
         var model = _models.CreateCalendars();
         _ownedModels.Add(model);
-        return new CalendarsPage(model, _shell, _text, _localizer, _text.PaneTitle(SettingsPane.Calendars));
+        return new CalendarsPage(model, _shell, _text, _localizer, _ui, _text.PaneTitle(SettingsPane.Calendars));
     }
 
     private TugRulesPage NewTugRulesPage()

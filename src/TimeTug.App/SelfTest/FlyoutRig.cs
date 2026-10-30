@@ -132,7 +132,8 @@ internal sealed class FlyoutRig : IDisposable
         Item("standup", "Team stand-up", -80, 30, AgendaPhase.Past, color: "#9334E6", calendar: "Team"),
         Item("review", "Design review", -20, 50, AgendaPhase.Current, join: "https://zoom.us/j/123456789", others: 5),
         Item("planning", "Quarterly planning with the platform and growth teams", 70, 60, AgendaPhase.Upcoming, color: "#E8710A", join: "https://meet.google.com/abc-defg-hij", others: 8, next: true),
-        Item("learn", "Lunch and learn", 160, 60, AgendaPhase.Upcoming, calendar: "Team", color: "#9334E6"),
+        // A calendar as light as the card it sits on: its bar needs an edge to show.
+        Item("learn", "Lunch and learn", 160, 60, AgendaPhase.Upcoming, calendar: "Team", color: "#FBFBFB"),
         Item("winddown", "Wind down", 370, 60, AgendaPhase.Upcoming, color: "#D93025", join: "https://example.test/room") with
         {
             IsMerged = true,

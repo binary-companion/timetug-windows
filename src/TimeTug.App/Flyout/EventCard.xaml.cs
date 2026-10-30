@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using TimeTug.App.Theming;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Flyout;
 using Windows.ApplicationModel.DataTransfer;
@@ -42,6 +43,37 @@ internal sealed partial class EventCard : UserControl
     /// <summary>The Join button (null when the row has no link), for the keyboard path and the self-test.</summary>
     public Button? Join => _row.HasJoin ? JoinButton : null;
 
+    /// <summary>The calendar's colour bar (for the self-test).</summary>
+    internal Microsoft.UI.Xaml.Controls.Border ColorBar => Bar;
+
+    /// <summary>
+    /// The calendar's colour bar. A colour that hardly differs from the card (a black or a white calendar) gets a one pixel edge in the theme's
+    /// foreground, so the bar is never invisible; a contrast theme draws it in the system highlight and ignores the calendar's colour.
+    /// </summary>
+    private void DrawBar(string? hex)
+    {
+        Bar.BorderThickness = new Thickness(0);
+        if (_palette.IsContrast)
+        {
+            Bar.Background = _palette.Blue;
+            return;
+        }
+
+        var swatch = SwatchColors.For(hex, _palette.Dark);
+        if (!swatch.UsesCalendarColor)
+        {
+            Bar.Background = _palette.Blue;
+            return;
+        }
+
+        Bar.Background = SwatchColors.Brush(swatch.Fill);
+        if (!swatch.FillShows)
+        {
+            Bar.BorderBrush = SwatchColors.Brush(swatch.Edge);
+            Bar.BorderThickness = new Thickness(1);
+        }
+    }
+
     private void Draw(ILocalizer text)
     {
         var row = _row;
@@ -57,7 +89,7 @@ internal sealed partial class EventCard : UserControl
 
         TimeText.Text = row.TimeText;
         TimeText.Foreground = palette.Secondary;
-        Bar.Background = FlyoutPalette.FromHex(row.CalendarColorHex) ?? palette.Blue;
+        DrawBar(row.CalendarColorHex);
         Bar.Opacity = dim ? 0.5 : 1;
 
         TitleText.Text = row.Title;

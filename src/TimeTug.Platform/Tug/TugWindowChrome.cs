@@ -36,10 +36,18 @@ public static partial class TugWindowChrome
     // WS_CAPTION (border and dialog frame), WS_THICKFRAME, WS_SYSMENU, WS_MINIMIZEBOX, WS_MAXIMIZEBOX.
     private const nint FrameStyles = 0x00C00000 | 0x00040000 | 0x00080000 | 0x00020000 | 0x00010000;
     private const nint WsExNoActivate = 0x08000000;
+    private const nint WsExToolWindow = 0x00000080;
+    private const nint WsExAppWindow = 0x00040000;
 
-    /// <summary>Square corners and no border colour: a full-monitor window must not leave rounded gaps or a hairline at the edges.</summary>
+    /// <summary>
+    /// Square corners and no border colour: a full-monitor window must not leave rounded gaps or a hairline at the edges. It is also a tool window
+    /// (<c>WS_EX_TOOLWINDOW</c>, not <c>WS_EX_APPWINDOW</c>), so it has no taskbar button and no Alt+Tab entry by its style alone; the window's
+    /// <c>IsShownInSwitchers = false</c> is a request to Explorer that is forgotten when Explorer restarts, the style is not.
+    /// </summary>
     public static void StyleAsFullMonitorOverlay(nint hwnd)
     {
+        var style = GetWindowLongPtr(hwnd, GwlExStyle);
+        _ = SetWindowLongPtr(hwnd, GwlExStyle, (style | WsExToolWindow) & ~WsExAppWindow);
         var corner = DwmcpDoNotRound;
         _ = DwmSetWindowAttribute(hwnd, DwmaWindowCornerPreference, ref corner, sizeof(int));
         var border = DwmaColorNone;

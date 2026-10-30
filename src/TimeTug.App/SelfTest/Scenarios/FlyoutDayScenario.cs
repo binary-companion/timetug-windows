@@ -36,6 +36,8 @@ internal static class FlyoutDayScenario
         var cards = window.EventCards;
         run.Check(cards.Count == 6, "six cards: " + cards.Count);
         run.Check(cards.Select(c => c.Row.Kind).SequenceEqual([FlyoutRowKind.AllDay, FlyoutRowKind.Past, FlyoutRowKind.Current, FlyoutRowKind.Next, FlyoutRowKind.Upcoming, FlyoutRowKind.Upcoming]), "kinds: all day, past, current, next, upcoming, upcoming");
+        run.Check(cards[4].Row.CalendarColorHex == "#FBFBFB" && cards[4].ColorBar.BorderThickness.Left == 1, "a calendar colour as light as the card gets a one pixel edge on its bar");
+        run.Check(cards.Where((_, i) => i != 4).All(c => c.ColorBar.BorderThickness.Left == 0), "the other bars, which show against the card, have none");
         run.Check(cards[0].Row.TimeText == "All day", "the holiday says All day");
         run.Check(cards[2].Row.BadgeText == "Now" && cards[2].Row.Progress is > 0 and < 1, "the meeting in progress has a Now pill and progress");
         run.Check(cards[3].Row.BadgeText is { Length: > 0 } countdown && countdown.StartsWith("in ", StringComparison.Ordinal), "the next meeting has a countdown pill: " + cards[3].Row.BadgeText);
