@@ -55,6 +55,8 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@{SHA} # v7
+        with:
+          ref: ${{{{ needs.plan.outputs.sha }}}}
       - run: ./scripts/release/build-release-msix.ps1 -Flavour Store -RequireOAuthIds
         env:
           GOOGLE_OAUTH_CLIENT_ID: ${{{{ secrets.GOOGLE_OAUTH_CLIENT_ID }}}}
@@ -234,6 +236,10 @@ class RepositoryContracts(unittest.TestCase):
     def test_the_plan_job_must_decide_and_check_the_ref(self):
         self.fails('the plan job must run resolve-release.ps1', **self.release(RELEASE.replace('resolve-release.ps1', 'other.ps1')))
         self.fails('the plan job must run assert-on-default-branch.ps1', **self.release(RELEASE.replace('assert-on-default-branch.ps1', 'other.ps1')))
+
+    def test_the_build_job_checks_out_the_verified_commit(self):
+        self.fails('must check out needs.plan.outputs.sha', **self.release(RELEASE.replace('needs.plan.outputs.sha', 'needs.plan.outputs.ref')))
+        self.fails('must check out needs.plan.outputs.sha', **self.release(RELEASE.replace('          ref: ${{ needs.plan.outputs.sha }}\n', '')))
 
     def test_the_release_workflow_never_submits_or_publishes(self):
         for step in ('./submit-to-store.ps1 -submission', 'gh release upload v1 a.msix', 'curl -X POST https://example.invalid', 'msstore publish', 'winget upload'):
