@@ -26,7 +26,7 @@ Check 'a release tag maps to X.Y.Z.0' {
 }
 
 Check 'anything that is not X.Y.Z is rejected' {
-    foreach ($bad in '', 'v1.2', 'v1.2.3.4', 'v01.2.3', 'v1.2.x', 'release-1.2.3', 'v1.2.3+build', 'v1.2.65536', ' v1.2.3', 'v1.2.3 ') {
+    foreach ($bad in '', 'v1.2', 'v1.2.3.4', 'v01.2.3', 'v1.2.x', 'release-1.2.3', 'v1.2.3+build', 'v1.2.65536', ' v1.2.3', 'v1.2.3 ', "v1.2.3`n") {
         Assert-Throws { ConvertTo-PackageVersion $bad } 'version'
     }
 }

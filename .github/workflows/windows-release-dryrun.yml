@@ -1,0 +1,75 @@
+# The pull-request check of the release path: the same script and the same package checks as windows-release.yml, with FAKE OAuth ids, a
+# throwaway certificate created in the job and a throwaway identity. It uses no secret and no environment (a contract check enforces both), installs
+# the Dev-signed Store package, starts it, runs the Windows App Certification Kit where it exists (x64), and bundles the two architectures the way the
+# release does. Its jobs are meant to become required checks once stable (the owner sets that).
+name: Windows release dry run
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-dryrun-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dry-run:
+    name: release-dry-run (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-latest, platform: x64, wack: true }
+          - { runner: windows-11-arm, platform: ARM64, wack: false }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Build the Store package with fake ids and a throwaway certificate (${{ matrix.platform }})
+        shell: pwsh
+        timeout-minutes: 20
+        run: ./scripts/release/build-release-msix.ps1 -Flavour Store -Platform ${{ matrix.platform }} -Version 0.0.1 -DryRun -OutputFolder build/release
+      - name: Install it, start it and run the Windows App Certification Kit (${{ matrix.platform }})
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/release/test-release-package.ps1 -Folder build/release -Platform ${{ matrix.platform }} -Wack:$${{ matrix.wack }}
+      - name: Stage what the next job needs and what an artifact may hold
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/dryrun-artifact | Out-Null
+          Copy-Item build/release/*.msix, build/release/dryrun.cer, build/release/build-info.txt -Destination build/dryrun-artifact -ErrorAction SilentlyContinue
+          Copy-Item build/release/wack.xml -Destination build/dryrun-artifact -ErrorAction SilentlyContinue
+      - name: Upload the dry-run package (public certificate and report only, never a private key)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dryrun-${{ matrix.platform }}
+          path: build/dryrun-artifact/
+          if-no-files-found: warn
+          retention-days: 7
+
+  bundle:
+    name: release-dry-run (bundle)
+    needs: dry-run
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-dryrun-*
+          path: build/packages
+      - name: Make the two-architecture upload
+        shell: pwsh
+        run: ./scripts/release/bundle-msixupload.ps1 -Folder build/packages -OutputFolder build/upload
+      - name: Check the packages inside the bundle input
+        shell: pwsh
+        run: |
+          Get-ChildItem build/packages -Recurse -Filter '*.msix' | ForEach-Object { ./scripts/ci/check-release-package.ps1 -Package $_.FullName; if ($LASTEXITCODE -ne 0) { throw "$($_.Name) failed the release package check" } }

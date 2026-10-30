@@ -35,6 +35,48 @@ jobs:
       - run: echo ok
 '''
 
+RELEASE = f'''name: Windows release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@{SHA} # v7
+      - run: ./scripts/release/resolve-release.ps1
+  build:
+    needs: plan
+    runs-on: windows-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@{SHA} # v7
+      - run: ./scripts/release/build-release-msix.ps1 -Flavour Store -RequireOAuthIds
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{{{ secrets.GOOGLE_OAUTH_CLIENT_ID }}}}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{{{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}}}
+          MICROSOFT_OAUTH_CLIENT_ID: ${{{{ secrets.MICROSOFT_OAUTH_CLIENT_ID }}}}
+      - uses: actions/upload-artifact@{SHA} # v7
+        with:
+          name: store-package
+          path: build/release/*.msix
+'''
+
+DRYRUN = f'''name: Windows release dry run
+on: [pull_request]
+permissions:
+  contents: read
+jobs:
+  dry-run:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@{SHA} # v7
+      - run: ./scripts/release/build-release-msix.ps1 -Flavour Store -DryRun
+'''
+
 SCENARIOS = '''# comment
 hello  1  90  selftest
 a11y-hold  0  300  a11y
@@ -51,6 +93,8 @@ def make(root: Path, **overrides):
         '.gitattributes': '* text=auto eol=lf\n',
         '.github/dependabot.yml': 'version: 2\n',
         '.github/workflows/ci.yml': CI,
+        '.github/workflows/windows-release.yml': RELEASE,
+        '.github/workflows/windows-release-dryrun.yml': DRYRUN,
         '.gitignore': '*.pfx\n*.p12\n*.pvk\n*.key\n*.snk\n',
         'scripts/ci/selftest-scenarios.txt': SCENARIOS,
         **SCENARIO_CLASSES,
@@ -156,6 +200,48 @@ class RepositoryContracts(unittest.TestCase):
     def test_other_secrets_are_banned(self):
         self.fails('SIGNING_KEY', **{'.github/workflows/ci.yml': CI.replace('GITHUB_TOKEN', 'SIGNING_KEY')})
         self.fails('whole secrets context', **{'.github/workflows/ci.yml': CI.replace('secrets.GITHUB_TOKEN', 'toJSON(secrets)')})
+
+    def release(self, text):
+        return {'.github/workflows/windows-release.yml': text}
+
+    def test_the_release_workflow_may_read_the_oauth_secrets_in_the_release_environment(self):
+        self.assertEqual(run().returncode, 0)
+
+    def test_the_oauth_secrets_are_refused_outside_the_release_environment(self):
+        self.fails('uses secret GOOGLE_OAUTH_CLIENT_ID in job build', **self.release(RELEASE.replace('    environment: release\n', '')))
+        self.fails('uses secret GOOGLE_OAUTH_CLIENT_ID in job plan', **self.release(RELEASE.replace('      - run: ./scripts/release/resolve-release.ps1\n', '      - run: echo "${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}"\n')))
+        other = 'name: X\non: [push]\njobs:\n  x:\n    runs-on: ubuntu-latest\n    environment: release\n    steps:\n      - run: echo "${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}"\n'
+        self.fails('other.yml: uses secret GOOGLE_OAUTH_CLIENT_ID', **{'.github/workflows/other.yml': other})
+        self.fails('uses secret GOOGLE_OAUTH_CLIENT_ID', **{'.github/workflows/windows-release-dryrun.yml': DRYRUN + '        env:\n          X: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}\n'})
+
+    def test_no_other_secret_is_allowed_in_the_release_workflow(self):
+        self.fails('uses secret PARTNER_CENTER_TOKEN', **self.release(RELEASE.replace('MICROSOFT_OAUTH_CLIENT_ID }}', 'MICROSOFT_OAUTH_CLIENT_ID }} ${{ secrets.PARTNER_CENTER_TOKEN }}')))
+
+    def test_the_release_workflow_runs_only_on_a_release_or_by_hand(self):
+        self.fails('must run only on a published release or by hand', **self.release(RELEASE.replace('  workflow_dispatch:\n', '  workflow_dispatch:\n  pull_request:\n')))
+        self.fails('must run only on a published release or by hand', **self.release(RELEASE.replace('  workflow_dispatch:\n', '  workflow_dispatch:\n  push:\n')))
+
+    def test_the_release_workflow_has_read_only_permissions(self):
+        self.fails('permissions must be exactly contents: read', **self.release(RELEASE.replace('contents: read', 'contents: write')))
+        self.fails('permissions must be exactly contents: read', **self.release(RELEASE.replace('contents: read', 'contents: read\n  id-token: write')))
+
+    def test_the_build_job_needs_the_environment_and_real_ids_and_is_no_dry_run(self):
+        self.fails('so it must run in the `release` environment', **self.release(RELEASE.replace('    environment: release\n', '    environment: production\n')))
+        self.fails('must pass -RequireOAuthIds', **self.release(RELEASE.replace(' -RequireOAuthIds', '')))
+        self.fails('must not be a dry run', **self.release(RELEASE.replace('-Flavour Store', '-Flavour Store -DryRun')))
+
+    def test_the_release_workflow_never_submits_or_publishes(self):
+        for step in ('./submit-to-store.ps1 -submission', 'gh release upload v1 a.msix', 'curl -X POST https://example.invalid', 'msstore publish', 'winget upload'):
+            self.fails('talks to a store or publishes', **self.release(RELEASE + f'      - run: {step}\n'))
+
+    def test_the_dry_run_has_no_environment_and_uses_fake_ids(self):
+        self.fails('must not use an environment', **{'.github/workflows/windows-release-dryrun.yml': DRYRUN.replace('    runs-on: windows-latest\n', '    runs-on: windows-latest\n    environment: release\n')})
+        self.fails('must build with -DryRun', **{'.github/workflows/windows-release-dryrun.yml': DRYRUN.replace(' -DryRun', '')})
+        self.fails('must not require real OAuth ids', **{'.github/workflows/windows-release-dryrun.yml': DRYRUN + '      - run: ./x.ps1 -RequireOAuthIds\n'})
+
+    def test_both_release_workflows_must_exist(self):
+        self.fails('missing documented path: .github/workflows/windows-release.yml', **{'.github/workflows/windows-release.yml': None})
+        self.fails('missing documented path: .github/workflows/windows-release-dryrun.yml', **{'.github/workflows/windows-release-dryrun.yml': None})
 
 if __name__ == '__main__':
     unittest.main()
