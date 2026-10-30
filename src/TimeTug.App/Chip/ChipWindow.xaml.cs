@@ -213,21 +213,50 @@ internal sealed partial class ChipWindow : Window, IChipWindow
         var chosen = _store.Load();
         var dark = AppearanceResolver.IsDark(chosen.Theme, _ui);
         var contrast = _ui.HighContrast;
+        var themeChanged = dark != _dark;
         _dark = dark;
         _contrast = contrast;
         Root.RequestedTheme = contrast ? ElementTheme.Default : dark ? ElementTheme.Dark : ElementTheme.Light;
         var palette = FlyoutPalette.For(dark, contrast);
-        // The first shell is solid; the acrylic backdrop follows in the next change.
-        SystemBackdrop = null;
-        Root.Background = contrast ? palette.CardFill : new SolidColorBrush(ThemeColors.Get("SolidBackgroundFillColorBase", dark));
-        Backdrop = FlyoutBackdrop.Solid;
+        var acrylic = AppearanceResolver.Backdrop(chosen.Backdrop, _ui) == FlyoutBackdrop.Material && ChipBackdrop.IsSupported;
+        if (acrylic)
+        {
+            if (SystemBackdrop is not ChipBackdrop existing || existing.Dark != dark || themeChanged)
+            {
+                SystemBackdrop = new ChipBackdrop(dark);
+            }
+
+            // A fully transparent brush still takes hits, so a click anywhere in the window reaches it.
+            Root.Background = new SolidColorBrush(Colors.Transparent);
+        }
+        else
+        {
+            SystemBackdrop = null;
+            Root.Background = contrast ? palette.CardFill : new SolidColorBrush(ThemeColors.Get("SolidBackgroundFillColorBase", dark));
+        }
+
+        Backdrop = acrylic ? FlyoutBackdrop.Material : FlyoutBackdrop.Solid;
         TitleText.Foreground = palette.Primary;
         CountdownText.Foreground = palette.Secondary;
         ApplyAccent();
     }
 
-    /// <summary>The thin bar in the accent colour (the next change colours it by the meeting's calendar).</summary>
-    private void ApplyAccent() => AccentBar.Background = FlyoutPalette.For(_dark, _contrast).Blue;
+    /// <summary>The thin bar in the meeting's calendar colour (legible by the same rule as the flyout's cards), or the accent colour without one; the system's highlight colour under a contrast theme.</summary>
+    private void ApplyAccent()
+    {
+        var palette = FlyoutPalette.For(_dark, _contrast);
+        if (_contrast || _plan.AccentColorHex is null)
+        {
+            AccentBar.Background = palette.Blue;
+            AccentBar.BorderThickness = new Thickness(0);
+            return;
+        }
+
+        var swatch = SwatchColors.For(_plan.AccentColorHex, _dark);
+        AccentBar.Background = SwatchColors.Brush(swatch.Fill);
+        AccentBar.BorderBrush = SwatchColors.Brush(swatch.Edge);
+        AccentBar.BorderThickness = swatch.FillShows ? new Thickness(0) : new Thickness(1);
+    }
 
     // ---- pointer ------------------------------------------------------------------------------------------------
 

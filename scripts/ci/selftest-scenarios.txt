@@ -36,4 +36,6 @@ settings-general         13  240  selftest
 settings-appearance      9  240  selftest
 flyout-merge             6  240  selftest
 taskbar-buttons          0  180  selftest
+chip-modes                6  240  selftest
+chip-interaction          1  240  selftest
 a11y-hold                0  420  a11y

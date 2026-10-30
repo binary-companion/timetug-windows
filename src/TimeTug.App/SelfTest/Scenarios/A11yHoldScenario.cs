@@ -24,7 +24,7 @@ internal static class A11yHoldScenario
     public const string Name = "a11y-hold";
 
     /// <summary>How many rounds the scanner is told to expect (<c>scripts/ci/run-a11y.ps1</c> passes the same number).</summary>
-    public const int Rounds = 12;
+    public const int Rounds = 13;
 
     private static readonly TimeSpan WaitForScanner = TimeSpan.FromSeconds(120);
 
@@ -167,6 +167,18 @@ internal static class A11yHoldScenario
             run.Check(await HoldForScannerAsync(rig, 12, "the flyout with the merge menu and its submenu open", cancellation), "the scanner finished round 12");
             mergedCard?.Menu?.Hide();
             flyout.Host.Close();
+        }
+
+        // Round 13: the countdown chip (one element named with the whole sentence; the pieces are raw).
+        using (var chip = ChipRig.Over(flyout))
+        {
+            chip.Use(TimeTug.Presentation.Chip.ChipMode.Always);
+            rig.Engine.Push(chip.StateWith(12, join: "https://meet.example.test/a11y-chip"));
+            chip.Host.Start();
+            var chipWindow = await chip.WaitForWindowAsync();
+            run.Check(chipWindow is not null, "the countdown chip opens");
+            run.Check(await HoldForScannerAsync(rig, 13, "the countdown chip", cancellation), "the scanner finished round 13");
+            chip.Use(TimeTug.Presentation.Chip.ChipMode.Off);
         }
 
         return rig.Finish();
