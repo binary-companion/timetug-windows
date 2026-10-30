@@ -88,6 +88,7 @@ internal static class SelfTestRunner
         [TaskbarButtonsScenario.Name] = TaskbarButtonsScenario.RunAsync,
         [ChipModesScenario.Name] = ChipModesScenario.RunAsync,
         [ChipInteractionScenario.Name] = ChipInteractionScenario.RunAsync,
+        [JumpListScenario.Name] = JumpListScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
     };
 
