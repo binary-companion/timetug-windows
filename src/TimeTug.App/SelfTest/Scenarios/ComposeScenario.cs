@@ -167,12 +167,22 @@ internal static class ComposeScenario
         var chip = shell.Chip;
         run.Check(chip is not null && await WaitFor(() => chip.IsShown), "turning the chip on in the Appearance setting shows it for the meeting in progress, at once");
         var chipWindow = shell.Services.GetRequiredService<ChipWindowFactory>().Last;
-        if (chipWindow is not null && ChipWindowChrome.OuterBounds(chipWindow.Handle) is { } chipBounds)
+        if (factory?.Last?.Window is { EverActive: false })
+        {
+            run.Info("SKIPPED the click on the chip: no window of the app ever became the foreground window here, so injected input does not reach the app");
+        }
+        else if (chipWindow is not null && ChipWindowChrome.OuterBounds(chipWindow.Handle) is { } chipBounds)
         {
             await Task.Delay(700, cancellation);
             openings = 0;
-            run.Check(MouseInput.ClickAt((int)chipBounds.CenterX, (int)chipBounds.CenterY), "a real click lands on the chip");
-            run.Check(await WaitFor(() => flyout.IsOpen) && openings == 1, "a click on the chip opens the flyout (the same call as the tray icon's)");
+            // A press that arrives before the window has seen the pointer arrive can be lost on a slow machine: tried again until it opens the flyout.
+            var opened = false;
+            for (var attempt = 0; attempt < 4 && !opened; attempt++)
+            {
+                opened = MouseInput.ClickAt((int)chipBounds.CenterX, (int)chipBounds.CenterY) && await WaitFor(() => flyout.IsOpen, 2500);
+            }
+
+            run.Check(opened && openings == 1, "a real click on the chip opens the flyout (the same call as the tray icon's): " + openings);
             flyout.Close();
             await Task.Delay(FlyoutHost.ClickGrace + TimeSpan.FromMilliseconds(100), cancellation);
         }

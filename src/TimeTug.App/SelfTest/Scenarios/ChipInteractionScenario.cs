@@ -49,6 +49,7 @@ internal static class ChipInteractionScenario
         }
 
         var handle = window.Handle;
+        await run.ShotAsync(window, "chip");
         run.Check(ChipWindowChrome.HasChipStyles(handle), "tool window, no app window, no activation: styles read back from Windows");
         var foreground = new List<nint>();
         using var stop = new CancellationTokenSource();
@@ -68,67 +69,90 @@ internal static class ChipInteractionScenario
             CancellationToken.None);
         var vetoesBefore = NoActivateGuard.Vetoes;
 
+        // A press that arrives before the window has seen the pointer arrive can be lost on a slow machine: the input is tried again until it has its effect.
+        async Task<bool> TryAsync(Func<bool> send, Func<bool> done)
+        {
+            for (var attempt = 0; attempt < 4; attempt++)
+            {
+                if (send() && await rig.Tug.WaitFor(done, 2500))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         (int X, int Y) Centre()
         {
             var b = ChipWindowChrome.OuterBounds(handle)!.Value;
             return ((int)b.CenterX, (int)b.CenterY);
         }
 
-        // ---- left click: the flyout opens ----------------------------------------------------------------------------------------
-        var (cx, cy) = Centre();
-        run.Check(MouseInput.ClickAt(cx, cy), "a real left click is delivered on the chip");
-        run.Check(await rig.Tug.WaitFor(() => rig.Flyout.Host.IsOpen), "the click opened the flyout");
-        rig.Flyout.Host.Close();
-        await Task.Delay(FlyoutHost.ClickGrace + TimeSpan.FromMilliseconds(100), cancellation);
-
-        // ---- right click: the menu ----------------------------------------------------------------------------------------------------
-        blocker.Activate();
-        var blockerFirst = await rig.Tug.WaitFor(() => ChipWindowChrome.ForegroundWindow() == blockerHandle, 3000);
-        run.Info("before the menu, the other window has the keyboard: " + blockerFirst + "; " + TimeTug.Platform.Flyout.FlyoutWindowChrome.DescribeForeground(handle));
-        (cx, cy) = Centre();
-        var menus = window.MenusOpened;
-        run.Check(MouseInput.RightClickAt(cx, cy), "a real right click is delivered");
-        run.Check(await rig.Tug.WaitFor(() => window.MenusOpened > menus), "the menu opens");
-        run.Info("with the menu open: " + TimeTug.Platform.Flyout.FlyoutWindowChrome.DescribeForeground(handle));
-        if (foregroundWorks && blockerFirst)
+        // Real mouse input is delivered to the windows only where the machine gives the app the input desktop (a hosted runner's session does not: no window ever becomes
+        // the foreground window, whatever is clicked). Where it does not, the pointer steps are skipped and said so, as the tug's no-focus scenario does.
+        int cx = 0;
+        int cy = 0;
+        int menus = 0;
+        if (foregroundWorks)
         {
-            run.Check(ChipWindowChrome.ForegroundWindow() == blockerHandle, "the open menu left the keyboard with the other window");
+            // ---- left click: the flyout opens ----------------------------------------------------------------------------------------
+            (cx, cy) = Centre();
+            run.Check(await TryAsync(() => MouseInput.ClickAt(cx, cy), () => rig.Flyout.Host.IsOpen), "a real left click on the chip opened the flyout");
+            rig.Flyout.Host.Close();
+            await Task.Delay(FlyoutHost.ClickGrace + TimeSpan.FromMilliseconds(100), cancellation);
+
+            // ---- right click: the menu ----------------------------------------------------------------------------------------------------
+            blocker.Activate();
+            var blockerFirst = await rig.Tug.WaitFor(() => ChipWindowChrome.ForegroundWindow() == blockerHandle, 3000);
+            run.Info("before the menu, the other window has the keyboard: " + blockerFirst + "; " + TimeTug.Platform.Flyout.FlyoutWindowChrome.DescribeForeground(handle));
+            (cx, cy) = Centre();
+            menus = window.MenusOpened;
+            run.Check(await TryAsync(() => MouseInput.RightClickAt(cx, cy), () => window.MenusOpened > menus), "a real right click opens the menu");
+            run.Info("with the menu open: " + TimeTug.Platform.Flyout.FlyoutWindowChrome.DescribeForeground(handle));
+            if (foregroundWorks && blockerFirst)
+            {
+                run.Check(ChipWindowChrome.ForegroundWindow() == blockerHandle, "the open menu left the keyboard with the other window");
+            }
+
+            run.Check(window.LastMenuItems.Select(i => i.Text).SequenceEqual(["Join", "Hide until the next meeting", "Open Settings"]), "the menu has Join, Hide until the next meeting and Open Settings: " + string.Join(", ", window.LastMenuItems.Select(i => i.Text)));
+            run.Check(window.LastMenuItems.Count > 0 && Invoke(window.LastMenuItems[0]) && await rig.Tug.WaitFor(() => rig.Joined.Count == 1), "Join opens the meeting through the flyout's path");
+            run.Check(rig.Joined.SequenceEqual(["chip-1"]), "it joined the chip's meeting: " + string.Join(", ", rig.Joined));
+            await rig.Tug.Settle(300);
+
+            (cx, cy) = Centre();
+            menus = window.MenusOpened;
+            await TryAsync(() => MouseInput.RightClickAt(cx, cy), () => window.MenusOpened > menus);
+            run.Check(window.LastMenuItems.Count > 0 && Invoke(window.LastMenuItems[^1]) && await rig.Tug.WaitFor(() => rig.SettingsOpened == 1), "Open Settings asks for the Appearance pane");
+            await rig.Tug.Settle(300);
+
+            // ---- drag: the place is remembered for the monitor ----------------------------------------------------------------------------
+            (cx, cy) = Centre();
+            var before = ChipWindowChrome.OuterBounds(handle)!.Value;
+            var (toX, toY) = (main.Work.X + 300, main.Work.Y + 260);
+            // The drag runs off the UI thread: the window must be free to see each move while the button is held.
+            run.Check(await Task.Run(() => MouseInput.DragFromTo(cx, cy, toX, toY), CancellationToken.None), "a real drag is delivered");
+            run.Check(await rig.Tug.WaitFor(() => rig.Store.Load().ChipPositions.Count == 1), "the drop is remembered");
+            var after = ChipWindowChrome.OuterBounds(handle)!.Value;
+            run.Check(Math.Abs((after.X - before.X) - (toX - cx)) <= 2 && Math.Abs((after.Y - before.Y) - (toY - cy)) <= 2, $"the chip followed the pointer ({before} to {after})");
+            run.Check(rig.Store.Load().ChipPositions is [{ } place] && place.MonitorId == main.Id, "the place belongs to the monitor it was dropped on");
+            run.Check(!rig.Flyout.Host.IsOpen, "a drag is not a click");
+            await rig.Tug.Settle(600);
+            await run.ShotAsync(window, "dragged");
+
+            // ---- double click: back to the default place ----------------------------------------------------------------------------------
+            (cx, cy) = Centre();
+            run.Check(MouseInput.DoubleClickAt(cx, cy), "a real double click is delivered");
+            run.Check(await rig.Tug.WaitFor(() => rig.Store.Load().ChipPositions.Count == 0), "a double click forgets the place");
+            var home = ChipPlacement.Compute([], rig.Flyout.Monitors.Monitors, rig.Flyout.Anchor.Rect, window.MeasureContent());
+            run.Check(await rig.Tug.WaitFor(() => ChipWindowChrome.OuterBounds(handle) is { } b && Math.Abs(b.X - home.X) <= 2 && Math.Abs(b.Y - home.Y) <= 2), "the chip is back in its default place");
+            rig.Flyout.Host.Close();
+            await Task.Delay(FlyoutHost.ClickGrace + TimeSpan.FromMilliseconds(100), cancellation);
         }
-
-        run.Check(window.LastMenuItems.Select(i => i.Text).SequenceEqual(["Join", "Hide until the next meeting", "Open Settings"]), "the menu has Join, Hide until the next meeting and Open Settings: " + string.Join(", ", window.LastMenuItems.Select(i => i.Text)));
-        run.Check(Invoke(window.LastMenuItems[0]) && await rig.Tug.WaitFor(() => rig.Joined.Count == 1), "Join opens the meeting through the flyout's path");
-        run.Check(rig.Joined.SequenceEqual(["chip-1"]), "it joined the chip's meeting: " + string.Join(", ", rig.Joined));
-        await rig.Tug.Settle(300);
-
-        (cx, cy) = Centre();
-        menus = window.MenusOpened;
-        MouseInput.RightClickAt(cx, cy);
-        await rig.Tug.WaitFor(() => window.MenusOpened > menus);
-        run.Check(Invoke(window.LastMenuItems[^1]) && await rig.Tug.WaitFor(() => rig.SettingsOpened == 1), "Open Settings asks for the Appearance pane");
-        await rig.Tug.Settle(300);
-
-        // ---- drag: the place is remembered for the monitor ----------------------------------------------------------------------------
-        (cx, cy) = Centre();
-        var before = ChipWindowChrome.OuterBounds(handle)!.Value;
-        var (toX, toY) = (main.Work.X + 300, main.Work.Y + 260);
-        // The drag runs off the UI thread: the window must be free to see each move while the button is held.
-        run.Check(await Task.Run(() => MouseInput.DragFromTo(cx, cy, toX, toY), CancellationToken.None), "a real drag is delivered");
-        run.Check(await rig.Tug.WaitFor(() => rig.Store.Load().ChipPositions.Count == 1), "the drop is remembered");
-        var after = ChipWindowChrome.OuterBounds(handle)!.Value;
-        run.Check(Math.Abs((after.X - before.X) - (toX - cx)) <= 2 && Math.Abs((after.Y - before.Y) - (toY - cy)) <= 2, $"the chip followed the pointer ({before} to {after})");
-        run.Check(rig.Store.Load().ChipPositions is [{ } place] && place.MonitorId == main.Id, "the place belongs to the monitor it was dropped on");
-        run.Check(!rig.Flyout.Host.IsOpen, "a drag is not a click");
-        await rig.Tug.Settle(600);
-        await run.ShotAsync(window, "dragged");
-
-        // ---- double click: back to the default place ----------------------------------------------------------------------------------
-        (cx, cy) = Centre();
-        run.Check(MouseInput.DoubleClickAt(cx, cy), "a real double click is delivered");
-        run.Check(await rig.Tug.WaitFor(() => rig.Store.Load().ChipPositions.Count == 0), "a double click forgets the place");
-        var home = ChipPlacement.Compute([], rig.Flyout.Monitors.Monitors, rig.Flyout.Anchor.Rect, window.MeasureContent());
-        run.Check(await rig.Tug.WaitFor(() => ChipWindowChrome.OuterBounds(handle) is { } b && Math.Abs(b.X - home.X) <= 2 && Math.Abs(b.Y - home.Y) <= 2), "the chip is back in its default place");
-        rig.Flyout.Host.Close();
-        await Task.Delay(FlyoutHost.ClickGrace + TimeSpan.FromMilliseconds(100), cancellation);
+        else
+        {
+            run.Info("SKIPPED the click, menu, drag and double click steps: this machine never made another window the foreground window, so injected input does not reach the app");
+        }
 
         // ---- the tug hides the chip and its dismissal brings it back ----------------------------------------------------------------
         run.Check(await rig.Tug.PresentAsync(rig.Tug.Request("e-chip", "Weekly sync", TimeSpan.FromSeconds(180))), "a takeover opens");
@@ -154,11 +178,19 @@ internal static class ChipInteractionScenario
         run.Check(window.Announced.SequenceEqual(["Planning review starts in 30 minutes"]), "the chip announced 30 minutes before, once: " + string.Join(" | ", window.Announced));
 
         // ---- hide until the next meeting ----------------------------------------------------------------------------------------------------
-        (cx, cy) = Centre();
-        menus = window.MenusOpened;
-        MouseInput.RightClickAt(cx, cy);
-        await rig.Tug.WaitFor(() => window.MenusOpened > menus);
-        run.Check(Invoke(window.LastMenuItems[1]) && await rig.Tug.WaitFor(() => !rig.Host.HasWindow), "Hide until the next meeting closes the chip");
+        if (foregroundWorks)
+        {
+            (cx, cy) = Centre();
+            menus = window.MenusOpened;
+            await TryAsync(() => MouseInput.RightClickAt(cx, cy), () => window.MenusOpened > menus);
+            run.Check(window.LastMenuItems.Count > 1 && Invoke(window.LastMenuItems[1]) && await rig.Tug.WaitFor(() => !rig.Host.HasWindow), "Hide until the next meeting closes the chip");
+        }
+        else
+        {
+            rig.Model.HideUntilNextMeeting();
+            run.Check(await rig.Tug.WaitFor(() => !rig.Host.HasWindow), "Hide until the next meeting closes the chip (through the view model: no input reaches the app here)");
+        }
+
         rig.Tug.Engine.Push(rig.StateWith(120, id: "chip-2", title: "Review"));
         run.Check(await rig.WaitForWindowAsync() is not null, "a different meeting brings it back");
 
