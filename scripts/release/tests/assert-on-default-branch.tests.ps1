@@ -17,5 +17,10 @@ Check 'a ref with commits the default branch lacks is not' {
     foreach ($status in 'ahead', 'diverged', '', 'unknown') { Assert-Equal (Test-OnDefaultBranch $status) $false }
 }
 
+Check 'only a full lower-case commit id is a commit id' {
+    Assert-Equal (Test-CommitSha ('a' * 40)) $true
+    foreach ($bad in '', 'main', 'v1.2.3', ('a' * 39), ('a' * 41), ('A' * 40), ('g' * 40), (('a' * 40) + "`n")) { Assert-Equal (Test-CommitSha $bad) $false }
+}
+
 if ($script:failures -gt 0) { Write-Host "$($script:failures) failed"; exit 1 }
 Write-Host 'all passed'

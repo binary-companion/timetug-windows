@@ -243,6 +243,14 @@ if release.is_file():
     plan_commands = ' '.join(str(step.get('run', '')) for step in (jobs.get('plan') or {}).get('steps') or [] if isinstance(step, dict))
     for script in ('resolve-release.ps1', 'assert-on-default-branch.ps1'):
         require(script in plan_commands, f'{RELEASE_WORKFLOW}: the plan job must run {script}')
+    # The jobs that build check out the commit the plan job verified, never a name that could be moved after the check.
+    for job_name, job in jobs.items():
+        if job_name == 'plan' or not isinstance(job, dict):
+            continue
+        for step in job.get('steps') or []:
+            if isinstance(step, dict) and str(step.get('uses', '')).startswith('actions/checkout@'):
+                require(str((step.get('with') or {}).get('ref', '')).strip() == '${{ needs.plan.outputs.sha }}',
+                        f'{RELEASE_WORKFLOW}: job {job_name} must check out needs.plan.outputs.sha (the verified commit), not a tag or branch name')
     commands_and_actions = []
     for job in jobs.values():
         for step in (job.get('steps') or []) if isinstance(job, dict) else []:

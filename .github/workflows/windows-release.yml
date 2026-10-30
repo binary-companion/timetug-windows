@@ -38,6 +38,7 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
       ref: ${{ steps.resolve.outputs.ref }}
       flight: ${{ steps.resolve.outputs.flight }}
+      sha: ${{ steps.pin.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,7 +62,8 @@ jobs:
           }
           ./scripts/release/resolve-release.ps1 -EventName $env:EVENT_NAME -ReleaseTag $env:RELEASE_TAG -ReleasePrerelease ($env:RELEASE_PRERELEASE -eq 'true') `
             -InputVersion $env:INPUT_VERSION -InputRef $env:INPUT_REF -DefaultBranch $env:DEFAULT_BRANCH -TagExists $exists
-      - name: Only build commits that were merged
+      - name: Only build commits that were merged, and pin the build to that commit
+        id: pin
         if: steps.resolve.outputs.go == 'true'
         shell: pwsh
         env:
@@ -86,7 +88,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.plan.outputs.ref }}
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
@@ -122,7 +124,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.plan.outputs.ref }}
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: store-package-*
