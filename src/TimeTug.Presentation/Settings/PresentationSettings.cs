@@ -1,5 +1,7 @@
 using System.Globalization;
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Chip;
+using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
 
 namespace TimeTug.Presentation.Settings;
@@ -103,4 +105,25 @@ public sealed record PresentationSettings(AppTheme Theme, TrayIconStyle TrayStyl
 {
     /// <summary>A fresh install: follow the system theme, show the minute digit, use acrylic, let Windows place the Settings window.</summary>
     public static PresentationSettings Defaults { get; } = new(AppTheme.UseSystem, TrayIconStyle.IconWithMinuteDigit, FlyoutBackdrop.Material, null);
+
+    /// <summary>When the countdown chip is shown. Off on a fresh install, so nothing changes for a person who did not ask for it.</summary>
+    public ChipMode ChipMode { get; init; } = ChipMode.Off;
+
+    /// <summary>How many minutes before the next timed meeting the chip appears under ChipMode.BeforeMeetings; one of <see cref="ChipSettings.LeadChoices"/>.</summary>
+    public int ChipLeadMinutes { get; init; } = ChipSettings.DefaultLeadMinutes;
+
+    /// <summary>Where the person dragged the chip, per monitor (see <see cref="ChipPosition"/>). Empty until it was dragged.</summary>
+    public ValueList<ChipPosition> ChipPositions { get; init; }
+}
+
+/// <summary>The fixed choices and limits of the chip's settings.</summary>
+public static class ChipSettings
+{
+    /// <summary>Minutes before a meeting the chip can appear, in the order the Appearance pane offers them.</summary>
+    public static IReadOnlyList<int> LeadChoices { get; } = [5, 10, 15, 30, 60];
+
+    public const int DefaultLeadMinutes = 15;
+
+    /// <summary>The most remembered positions kept (one per monitor ever dragged on); the oldest are dropped.</summary>
+    public const int MaxPositions = 16;
 }

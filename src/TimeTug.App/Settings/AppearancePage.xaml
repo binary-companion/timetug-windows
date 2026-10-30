@@ -77,6 +77,15 @@
       </Grid>
       <TextBlock x:Name="ThemeNote" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
                  Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="2,0,0,0" />
+
+      <!-- Countdown chip (Windows only: the Mac has its menu-bar text) -->
+      <TextBlock x:Name="ChipHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,18,0,2" AutomationProperties.HeadingLevel="Level2" />
+      <StackPanel x:Name="ChipHost" Spacing="6">
+        <StackPanel x:Name="ChipModeButtons" />
+        <ComboBox x:Name="ChipLead" MinWidth="160" />
+      </StackPanel>
+      <TextBlock x:Name="ChipNote" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                 Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="2,0,0,0" />
     </StackPanel>
   </ScrollViewer>
 </UserControl>

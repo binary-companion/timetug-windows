@@ -8,8 +8,9 @@ using TimeTug.Presentation.Abstractions;
 namespace TimeTug.Platform.OsState;
 
 /// <summary>
-/// The connected displays, enumerated with <c>EnumDisplayMonitors</c> and refreshed on <c>WM_DISPLAYCHANGE</c>.
-/// <see cref="Changed"/> is raised only when the layout actually differs from the last one.
+/// The connected displays, enumerated with <c>EnumDisplayMonitors</c> and refreshed on <c>WM_DISPLAYCHANGE</c> and on <c>WM_SETTINGCHANGE</c>
+/// (a taskbar moved or resized changes a work area, and a scaling change changes a DPI, without a display change of its own).
+/// <see cref="Changed"/> is raised only when the layout actually differs from the last one (the identifier, bounds, work area, DPI or the primary flag).
 /// </summary>
 public sealed unsafe class MonitorService : IMonitorService, IDisposable
 {
@@ -63,7 +64,7 @@ public sealed unsafe class MonitorService : IMonitorService, IDisposable
 
     private void OnMessage(WindowMessage message)
     {
-        if (message.Id != WindowMessage.DisplayChange)
+        if (message.Id is not (WindowMessage.DisplayChange or WindowMessage.SettingChange))
         {
             return;
         }

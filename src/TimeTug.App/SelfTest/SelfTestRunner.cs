@@ -86,6 +86,8 @@ internal static class SelfTestRunner
         [SettingsAppearanceScenario.Name] = SettingsAppearanceScenario.RunAsync,
         [FlyoutMergeScenario.Name] = FlyoutMergeScenario.RunAsync,
         [TaskbarButtonsScenario.Name] = TaskbarButtonsScenario.RunAsync,
+        [ChipModesScenario.Name] = ChipModesScenario.RunAsync,
+        [ChipInteractionScenario.Name] = ChipInteractionScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
     };
 
