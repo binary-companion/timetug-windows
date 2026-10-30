@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Time.Testing;
 using TimeTug.Platform.Instance;
+using TimeTug.Presentation.JumpList;
 
 namespace TimeTug.Platform.Tests.Instance;
 
@@ -12,9 +13,9 @@ public class AppInstanceServiceTests
 
     private AppInstanceService Launch() => new(_registry, AppInstanceService.MainKey, _time, _log);
 
-    private static (List<ActivationKind> Received, Action<ActivationKind> Handler) Collector()
+    private static (List<AppActivation> Received, Action<AppActivation> Handler) Collector()
     {
-        var received = new List<ActivationKind>();
+        var received = new List<AppActivation>();
         return (received, received.Add);
     }
 
@@ -40,10 +41,10 @@ public class AppInstanceServiceTests
         first.MarkReady(_tug);
         using var second = Launch();
 
-        await second.RedirectAsync(ActivationKind.Flyout);
+        await second.RedirectAsync(AppActivation.Flyout);
 
         _registry.Redirects.Should().Be(1);
-        received.Should().Equal(ActivationKind.Flyout);
+        received.Should().Equal(AppActivation.Flyout);
     }
 
     [Fact]
@@ -55,7 +56,7 @@ public class AppInstanceServiceTests
         second.Activated += handler;
         second.MarkReady(_tug);
 
-        await second.RedirectAsync(ActivationKind.Flyout);
+        await second.RedirectAsync(AppActivation.Flyout);
 
         received.Should().BeEmpty();
     }
@@ -65,7 +66,7 @@ public class AppInstanceServiceTests
     {
         using var first = Launch();
 
-        await first.RedirectAsync(ActivationKind.Flyout);
+        await first.RedirectAsync(AppActivation.Flyout);
 
         _registry.Redirects.Should().Be(0);
         _log.Entries.Should().Contain(e => e.Message.Contains("nothing to redirect", StringComparison.Ordinal));
@@ -81,11 +82,11 @@ public class AppInstanceServiceTests
         first.Activated += handler;
         using var second = Launch();
 
-        await second.RedirectAsync(ActivationKind.Flyout);
+        await second.RedirectAsync(AppActivation.Flyout);
         received.Should().BeEmpty("startup has not finished");
 
         first.MarkReady(_tug);
-        received.Should().Equal(ActivationKind.Flyout);
+        received.Should().Equal(AppActivation.Flyout);
 
         first.MarkReady(_tug);
         received.Should().HaveCount(1, "a second MarkReady delivers nothing more");
@@ -101,7 +102,7 @@ public class AppInstanceServiceTests
         for (var i = 0; i < 3; i++)
         {
             using var other = Launch();
-            await other.RedirectAsync(ActivationKind.Flyout);
+            await other.RedirectAsync(AppActivation.Flyout);
         }
 
         first.MarkReady(_tug);
@@ -128,7 +129,7 @@ public class AppInstanceServiceTests
         var (received, handler) = Collector();
         first.Activated += handler;
         using var second = Launch();
-        await second.RedirectAsync(ActivationKind.Flyout);
+        await second.RedirectAsync(AppActivation.Flyout);
         _tug.IsTugShowing = true;
 
         first.MarkReady(_tug);
@@ -149,7 +150,7 @@ public class AppInstanceServiceTests
         _tug.IsTugShowing = true;
         using var second = Launch();
 
-        await second.RedirectAsync(ActivationKind.Flyout);
+        await second.RedirectAsync(AppActivation.Flyout);
 
         received.Should().BeEmpty();
         _log.Entries.Should().Contain(e => e.Level == "info" && e.Message.Contains("tug is showing", StringComparison.Ordinal));
@@ -165,12 +166,12 @@ public class AppInstanceServiceTests
         _tug.IsTugShowing = true;
         using (var during = Launch())
         {
-            await during.RedirectAsync(ActivationKind.Flyout);
+            await during.RedirectAsync(AppActivation.Flyout);
         }
 
         _tug.IsTugShowing = false;
         using var after = Launch();
-        await after.RedirectAsync(ActivationKind.Flyout);
+        await after.RedirectAsync(AppActivation.Flyout);
 
         received.Should().ContainSingle();
     }
@@ -186,7 +187,7 @@ public class AppInstanceServiceTests
         for (var i = 0; i < 4; i++)
         {
             using var other = Launch();
-            await other.RedirectAsync(ActivationKind.Flyout);
+            await other.RedirectAsync(AppActivation.Flyout);
             _time.Advance(TimeSpan.FromMilliseconds(100));
         }
 
@@ -203,12 +204,12 @@ public class AppInstanceServiceTests
         first.MarkReady(_tug);
         using (var one = Launch())
         {
-            await one.RedirectAsync(ActivationKind.Flyout);
+            await one.RedirectAsync(AppActivation.Flyout);
         }
 
         _time.Advance(AppInstanceService.CoalesceWindow);
         using var two = Launch();
-        await two.RedirectAsync(ActivationKind.Flyout);
+        await two.RedirectAsync(AppActivation.Flyout);
 
         received.Should().HaveCount(2);
     }
@@ -223,14 +224,14 @@ public class AppInstanceServiceTests
         first.MarkReady(_tug);
         using (var one = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log))
         {
-            await one.RedirectAsync(ActivationKind.Flyout);
+            await one.RedirectAsync(AppActivation.Flyout);
         }
 
         // The machine's clock is set back an hour; ten real seconds pass; the person starts the app again.
         time.StepWallClock(TimeSpan.FromHours(-1));
         time.Advance(TimeSpan.FromSeconds(10));
         using var two = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log);
-        await two.RedirectAsync(ActivationKind.Flyout);
+        await two.RedirectAsync(AppActivation.Flyout);
 
         received.Should().HaveCount(2, "the launch ten seconds later is a new activation whatever the wall clock says");
     }
@@ -245,13 +246,13 @@ public class AppInstanceServiceTests
         first.MarkReady(_tug);
         using (var one = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log))
         {
-            await one.RedirectAsync(ActivationKind.Flyout);
+            await one.RedirectAsync(AppActivation.Flyout);
         }
 
         time.StepWallClock(TimeSpan.FromHours(1));
         time.Advance(TimeSpan.FromMilliseconds(100));
         using var two = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log);
-        await two.RedirectAsync(ActivationKind.Flyout);
+        await two.RedirectAsync(AppActivation.Flyout);
 
         received.Should().HaveCount(1, "two launches 100 ms apart are one burst");
     }
@@ -270,12 +271,12 @@ public class AppInstanceServiceTests
 
         using (var one = Launch())
         {
-            await one.RedirectAsync(ActivationKind.Flyout);
+            await one.RedirectAsync(AppActivation.Flyout);
         }
 
         _time.Advance(AppInstanceService.CoalesceWindow);
         using var two = Launch();
-        await two.RedirectAsync(ActivationKind.Flyout);
+        await two.RedirectAsync(AppActivation.Flyout);
 
         calls.Should().Be(2);
         _log.Entries.Should().Contain(e => e.Level == "error" && e.Message.Contains("InvalidOperationException", StringComparison.Ordinal));
@@ -290,7 +291,7 @@ public class AppInstanceServiceTests
         _registry.RedirectFails = new IOException("gone");
         using var second = Launch();
 
-        var redirect = () => second.RedirectAsync(ActivationKind.Flyout);
+        var redirect = () => second.RedirectAsync(AppActivation.Flyout);
 
         await redirect.Should().NotThrowAsync();
         _log.Entries.Should().Contain(e => e.Level == "warning" && e.Message.Contains("IOException", StringComparison.Ordinal));
@@ -303,7 +304,7 @@ public class AppInstanceServiceTests
         _registry.RedirectWaitsFor = new TaskCompletionSource().Task;
         using var second = Launch();
 
-        var redirect = second.RedirectAsync(ActivationKind.Flyout);
+        var redirect = second.RedirectAsync(AppActivation.Flyout);
         redirect.IsCompleted.Should().BeFalse();
         _time.Advance(AppInstanceService.RedirectTimeout - TimeSpan.FromMilliseconds(1));
         redirect.IsCompleted.Should().BeFalse();
@@ -328,7 +329,7 @@ public class AppInstanceServiceTests
 
         next.IsPrimary.Should().BeTrue();
         received.Should().BeEmpty();
-        await next.RedirectAsync(ActivationKind.Flyout);
+        await next.RedirectAsync(AppActivation.Flyout);
         first.Dispose();   // twice is fine
     }
 
@@ -344,7 +345,7 @@ public class AppInstanceServiceTests
         first.MarkReady(_tug);
         using var second = new AppInstanceService(registry, AppInstanceService.MainKey, _time, _log);
 
-        await second.RedirectAsync(ActivationKind.Flyout);
+        await second.RedirectAsync(AppActivation.Flyout);
 
         first.IsPrimary.Should().BeTrue();
         second.IsPrimary.Should().BeFalse("the data belongs to the first instance");
@@ -391,5 +392,140 @@ public class AppInstanceServiceTests
         var registry = AppInstanceService.DefaultRegistry("BinaryCompanion.TimeTug.Dev_8wekyb3d8bbwe", _log);
 
         registry.Should().BeOfType<FallbackInstanceRegistry>();
+    }
+
+    // ---- jump list actions --------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(JumpAction.Flyout)]
+    [InlineData(JumpAction.JoinNext)]
+    [InlineData(JumpAction.TestTug)]
+    [InlineData(JumpAction.Settings)]
+    public async Task A_jump_action_reaches_the_primary_with_its_action(JumpAction action)
+    {
+        using var first = Launch();
+        var (received, handler) = Collector();
+        first.Activated += handler;
+        first.MarkReady(_tug);
+        using var second = Launch();
+
+        await second.RedirectAsync(AppActivation.ForJump(action));
+
+        received.Should().Equal(AppActivation.ForJump(action));
+        received.Single().Kind.Should().Be(ActivationKind.Jump);
+        received.Single().Jump.Should().Be(action);
+    }
+
+    [Fact]
+    public async Task A_jump_action_before_startup_has_finished_is_held_and_delivered_once_afterwards()
+    {
+        using var first = Launch();
+        var (received, handler) = Collector();
+        first.Activated += handler;
+        using var second = Launch();
+
+        await second.RedirectAsync(AppActivation.ForJump(JumpAction.JoinNext));
+        received.Should().BeEmpty("startup has not finished");
+
+        first.MarkReady(_tug);
+        received.Should().Equal(AppActivation.ForJump(JumpAction.JoinNext));
+
+        first.MarkReady(_tug);
+        received.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void The_primarys_own_launch_arguments_are_held_until_startup_has_finished_like_any_early_activation()
+    {
+        using var first = Launch();
+        var (received, handler) = Collector();
+        first.Activated += handler;
+
+        first.AcceptLaunch(AppActivation.ForJump(JumpAction.Settings));
+        received.Should().BeEmpty("the engine has not sent its first state");
+
+        first.MarkReady(_tug);
+        received.Should().Equal(AppActivation.ForJump(JumpAction.Settings));
+        _log.Entries.Should().Contain(e => e.Message.Contains("held", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_plain_launch_of_the_primary_asks_for_nothing()
+    {
+        using var first = Launch();
+        var (received, handler) = Collector();
+        first.Activated += handler;
+
+        first.AcceptLaunch(AppActivation.Flyout);
+        first.MarkReady(_tug);
+
+        received.Should().BeEmpty("the first launch opens no flyout; only a jump action in its arguments asks for something");
+    }
+
+    [Fact]
+    public async Task A_jump_action_while_a_tug_shows_is_ignored_and_logged_and_the_tug_wins()
+    {
+        using var first = Launch();
+        var (received, handler) = Collector();
+        first.Activated += handler;
+        first.MarkReady(_tug);
+        _tug.IsTugShowing = true;
+        using var second = Launch();
+
+        await second.RedirectAsync(AppActivation.ForJump(JumpAction.TestTug));
+
+        received.Should().BeEmpty();
+        _log.Entries.Should().Contain(e => e.Level == "info" && e.Message.Contains("tug is showing", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task The_same_action_twice_in_a_burst_is_one_activation_but_a_different_action_is_not_swallowed()
+    {
+        using var first = Launch();
+        var (received, handler) = Collector();
+        first.Activated += handler;
+        first.MarkReady(_tug);
+
+        foreach (var action in new[] { JumpAction.JoinNext, JumpAction.JoinNext, JumpAction.Settings })
+        {
+            using var other = Launch();
+            await other.RedirectAsync(AppActivation.ForJump(action));
+            _time.Advance(TimeSpan.FromMilliseconds(50));
+        }
+
+        received.Should().Equal(AppActivation.ForJump(JumpAction.JoinNext), AppActivation.ForJump(JumpAction.Settings));
+    }
+
+    [Fact]
+    public async Task The_same_action_after_the_burst_is_a_new_activation_whatever_the_wall_clock_did()
+    {
+        var time = new SteppingTime(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero));
+        using var first = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log);
+        var (received, handler) = Collector();
+        first.Activated += handler;
+        first.MarkReady(_tug);
+        using (var one = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log))
+        {
+            await one.RedirectAsync(AppActivation.ForJump(JumpAction.JoinNext));
+        }
+
+        time.StepWallClock(TimeSpan.FromHours(-1));
+        time.Advance(TimeSpan.FromSeconds(10));
+        using var two = new AppInstanceService(_registry, AppInstanceService.MainKey, time, _log);
+        await two.RedirectAsync(AppActivation.ForJump(JumpAction.JoinNext));
+
+        received.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task What_is_logged_for_a_jump_action_is_its_fixed_word_and_nothing_else()
+    {
+        using var first = Launch();
+        first.MarkReady(_tug);
+        using var second = Launch();
+
+        await second.RedirectAsync(AppActivation.ForJump(JumpAction.JoinNext));
+
+        _log.Entries.Should().Contain(e => e.Message.Contains("join-next", StringComparison.Ordinal));
     }
 }

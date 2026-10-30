@@ -4,15 +4,17 @@ using TimeTug.Presentation.Flyout;
 namespace TimeTug.Platform.Instance;
 
 /// <summary>
-/// Keeps TimeTug to one running copy per package identity and lets a later launch ask the running copy to open the flyout. It sits on
+/// Keeps TimeTug to one running copy per package identity and lets a later launch ask the running copy to open the flyout (or, from an
+/// item of the taskbar jump list, to carry out a <see cref="AppActivation.Jump"/> action). It sits on
 /// an <see cref="IInstanceRegistry"/> (the Windows App SDK's <c>AppInstance</c> in the package, a mutex without identity).
 /// <list type="bullet">
 /// <item>The first launch registers the key and is the primary. A later launch finds the key held, hands its activation to the
 /// primary and exits: it must not start the engine or touch the data folder the primary is using.</item>
 /// <item>The primary subscribes when this service is made, which is before the engine starts. An activation that arrives before
-/// <see cref="MarkReady"/> is held (one at most) and delivered when startup has finished.</item>
-/// <item>While the tug is showing, an activation is ignored and logged: the tug has priority. A burst of launches within
-/// <see cref="CoalesceWindow"/> is one activation.</item>
+/// <see cref="MarkReady"/> is held (one at most, the latest) and delivered when startup has finished; so is the primary's own launch
+/// when its arguments carry a jump action (<see cref="AcceptLaunch"/>).</item>
+/// <item>While the tug is showing, an activation is ignored and logged: the tug has priority. A burst of identical requests within
+/// <see cref="CoalesceWindow"/> is one activation; a different request in the burst is not swallowed.</item>
 /// </list>
 /// Activations are raised on an arbitrary thread; the subscriber posts to the UI thread.
 /// </summary>
@@ -35,9 +37,10 @@ public sealed class AppInstanceService : IAppInstance
     private ITugPresence? _tug;
     private bool _ready;
     private bool _disposed;
-    private ActivationKind? _held;
+    private AppActivation? _held;
     // A monotonic timestamp, not a wall-clock instant: a clock set back must not make every later launch look like part of the last burst.
     private long? _lastDelivered;
+    private AppActivation? _lastRequest;
 
     /// <summary>Registers (or finds) <paramref name="key"/>. This is the moment that decides whether the process is the primary.</summary>
     public AppInstanceService(IInstanceRegistry registry, string key, TimeProvider? time = null, IDiagnostics? diagnostics = null)
@@ -67,9 +70,9 @@ public sealed class AppInstanceService : IAppInstance
 
     public bool IsPrimary => _registration.IsCurrent;
 
-    public event Action<ActivationKind>? Activated;
+    public event Action<AppActivation>? Activated;
 
-    public async Task RedirectAsync(ActivationKind kind)
+    public async Task RedirectAsync(AppActivation activation)
     {
         if (IsPrimary)
         {
@@ -79,7 +82,7 @@ public sealed class AppInstanceService : IAppInstance
 
         try
         {
-            await _registration.RedirectToAsync(kind).WaitAsync(RedirectTimeout, _time).ConfigureAwait(false);
+            await _registration.RedirectToAsync(activation).WaitAsync(RedirectTimeout, _time).ConfigureAwait(false);
             Note("info", "this launch was handed to the running copy");
         }
         catch (TimeoutException)
@@ -93,9 +96,19 @@ public sealed class AppInstanceService : IAppInstance
         }
     }
 
+    public void AcceptLaunch(AppActivation activation)
+    {
+        if (activation.Kind != ActivationKind.Jump)
+        {
+            return;
+        }
+
+        OnReceived(activation);
+    }
+
     public void MarkReady(ITugPresence? tug = null)
     {
-        ActivationKind? held;
+        AppActivation? held;
         lock (_gate)
         {
             if (_ready || _disposed)
@@ -109,9 +122,9 @@ public sealed class AppInstanceService : IAppInstance
             _held = null;
         }
 
-        if (held is { } kind)
+        if (held is { } activation)
         {
-            Deliver(kind);
+            Deliver(activation);
         }
     }
 
@@ -132,7 +145,7 @@ public sealed class AppInstanceService : IAppInstance
         _registration.Dispose();
     }
 
-    private void OnReceived(ActivationKind kind)
+    private void OnReceived(AppActivation activation)
     {
         lock (_gate)
         {
@@ -143,16 +156,16 @@ public sealed class AppInstanceService : IAppInstance
 
             if (!_ready)
             {
-                Note("info", "a second launch arrived before startup finished; it is held until then");
-                _held = kind;
+                Note("info", "a launch arrived before startup finished; it is held until then");
+                _held = activation;
                 return;
             }
         }
 
-        Deliver(kind);
+        Deliver(activation);
     }
 
-    private void Deliver(ActivationKind kind)
+    private void Deliver(AppActivation activation)
     {
         lock (_gate)
         {
@@ -168,19 +181,20 @@ public sealed class AppInstanceService : IAppInstance
             }
 
             var now = _time.GetTimestamp();
-            if (_lastDelivered is { } last && _time.GetElapsedTime(last, now) < CoalesceWindow)
+            if (_lastDelivered is { } last && _lastRequest == activation && _time.GetElapsedTime(last, now) < CoalesceWindow)
             {
                 Note("info", "a second launch was folded into the one just before");
                 return;
             }
 
             _lastDelivered = now;
-            Note("info", "a second launch asked this copy to open the flyout");
+            _lastRequest = activation;
+            Note("info", $"a second launch asked this copy for {activation.Describe()}");
         }
 
         try
         {
-            Activated?.Invoke(kind);
+            Activated?.Invoke(activation);
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {

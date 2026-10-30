@@ -267,11 +267,11 @@ internal static class ComposeScenario
         {
             public bool IsCurrent => true;
 
-            public event Action<ActivationKind>? ActivationReceived;
+            public event Action<AppActivation>? ActivationReceived;
 
-            public void Raise() => ActivationReceived?.Invoke(ActivationKind.Flyout);
+            public void Raise() => ActivationReceived?.Invoke(AppActivation.Flyout);
 
-            public Task RedirectToAsync(ActivationKind kind) => Task.CompletedTask;
+            public Task RedirectToAsync(AppActivation kind) => Task.CompletedTask;
 
             public void Dispose()
             {

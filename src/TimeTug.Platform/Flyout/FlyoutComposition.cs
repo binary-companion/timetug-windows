@@ -2,6 +2,7 @@ using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.Instance;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Flyout;
+using TimeTug.Presentation.JumpList;
 
 namespace TimeTug.Platform.Flyout;
 
@@ -29,12 +30,16 @@ public sealed class FlyoutComposition : IDisposable
     private readonly IUiDispatcher _ui;
     private readonly IDiagnostics? _diagnostics;
     private readonly object _gate = new();
+    private readonly JumpActionHandler? _jump;
     private IDisposable? _activation;
+    private IDisposable? _jumpActivation;
     private IDisposable? _shortcut;
     private bool _retired;
 
     /// <param name="instance">This copy's single-instance registration; null in a self-test, which has none.</param>
-    public FlyoutComposition(IAppInstance? instance, HotkeyService hotkey, FlyoutHost host, ITugPresence tug, IUiDispatcher ui, IDiagnostics? diagnostics = null)
+    /// <param name="jump">Carries out the jump list actions a second launch brings; null when the app has no jump list.</param>
+    public FlyoutComposition(
+        IAppInstance? instance, HotkeyService hotkey, FlyoutHost host, ITugPresence tug, IUiDispatcher ui, IDiagnostics? diagnostics = null, JumpActionHandler? jump = null)
     {
         ArgumentNullException.ThrowIfNull(hotkey);
         ArgumentNullException.ThrowIfNull(host);
@@ -46,6 +51,7 @@ public sealed class FlyoutComposition : IDisposable
         _tug = tug;
         _ui = ui;
         _diagnostics = diagnostics;
+        _jump = jump;
     }
 
     /// <summary>Starts listening for second launches. Call before the engine starts.</summary>
@@ -59,6 +65,10 @@ public sealed class FlyoutComposition : IDisposable
             }
 
             _activation = FlyoutTriggers.OpenOnActivation(_instance, _host, _ui);
+            if (_jump is not null)
+            {
+                _jumpActivation = FlyoutTriggers.RunJumpOnActivation(_instance, _jump, _ui);
+            }
         }
     }
 
@@ -102,8 +112,9 @@ public sealed class FlyoutComposition : IDisposable
             }
 
             _retired = true;
-            subscriptions = [_activation, _shortcut];
+            subscriptions = [_activation, _jumpActivation, _shortcut];
             _activation = null;
+            _jumpActivation = null;
             _shortcut = null;
         }
 

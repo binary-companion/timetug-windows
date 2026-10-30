@@ -49,7 +49,7 @@ public partial class App : Application
             _instance = AppInstanceService.CreateDefault(PackageFamilyName(), EtwDiagnostics.Log);
             if (!_instance.IsPrimary)
             {
-                await _instance.RedirectAsync(ActivationKind.Flyout);
+                await _instance.RedirectAsync(ActivationParser.FromArguments(Environment.GetCommandLineArgs()));
                 Exit();
                 return;
             }
@@ -64,6 +64,8 @@ public partial class App : Application
 
         var diagnostics = FanOutDiagnostics.CreateDefault();
         _instance.Diagnostics = diagnostics;
+        // The person chose a jump list item while TimeTug was not running: the action waits for the engine's first state like any early launch.
+        _instance.AcceptLaunch(ActivationParser.FromArguments(Environment.GetCommandLineArgs()));
         _shell = new AppShell(DispatcherQueue.GetForCurrentThread(), diagnostics, instance: _instance);
         try
         {

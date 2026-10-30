@@ -43,7 +43,10 @@ internal sealed class RecordingEngineClient : IEngineClient
     /// <summary>When set, the engine reports a cancellation instead of failing.</summary>
     public bool Cancel { get; set; }
 
-    public IObservable<AppState> State => throw new NotSupportedException();
+    /// <summary>What <see cref="State"/> returns; a test that needs the state stream sets it.</summary>
+    public IObservable<AppState>? StateSource { get; set; }
+
+    public IObservable<AppState> State => StateSource ?? throw new NotSupportedException();
 
     public IObservable<TakeoverRequest> TakeoversDue => throw new NotSupportedException();
 
