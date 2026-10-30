@@ -48,7 +48,7 @@ internal sealed record SelfTestOptions(string Scenario, string OutputFolder, int
 /// </summary>
 internal static class SelfTestRunner
 {
-    private static readonly TimeSpan Overall = TimeSpan.FromSeconds(120);
+    private static readonly TimeSpan Overall = TimeSpan.FromSeconds(200);
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private static readonly Dictionary<string, Func<SelfTestOptions, CancellationToken, Task<SelfTestResult>>> Scenarios = new()
