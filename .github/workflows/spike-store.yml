@@ -1,0 +1,52 @@
+# TEMPORARY spike for Task 0 (store packaging). Never merged.
+name: spike-store
+on:
+  pull_request:
+    paths: ['.github/workflows/spike-store.yml', 'spike/**']
+permissions:
+  contents: read
+jobs:
+  spike:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-latest, platform: x64 }
+          - { runner: windows-11-arm, platform: ARM64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Tooling present on this runner
+        shell: pwsh
+        run: |
+          Test-Path 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe'
+          Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10' -Directory | % Name
+          Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Directory | % Name
+      - name: Variants
+        shell: pwsh
+        env:
+          KEEP_SPIKE: ''
+        run: |
+          $src = $env:GITHUB_WORKSPACE
+          $work = Join-Path $env:RUNNER_TEMP 'spike'
+          $variants = @(
+            @{ n = 'v2'; a = '' },
+            @{ n = 'v3'; a = 'WindowsAppSDKSelfContained=true' },
+            @{ n = 'v4'; a = 'WindowsAppSDKSelfContained=true;SelfContained=true' },
+            @{ n = 'v5'; a = 'SelfContained=true' }
+          )
+          foreach ($v in $variants) {
+            Write-Host "=== $($v.n): $($v.a)"
+            & ./spike/spike-pack.ps1 -Name $v.n -Config Release -DropAlias -Platform '${{ matrix.platform }}' -Source $src -Work $work -AppProps $v.a
+            & ./spike/spike-install.ps1 -Name $v.n -Work $work -Wack
+          }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: spike-wack-${{ matrix.platform }}
+          path: ${{ runner.temp }}/spike/*/wack.xml
+          if-no-files-found: ignore
