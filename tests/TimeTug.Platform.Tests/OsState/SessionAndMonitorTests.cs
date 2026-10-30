@@ -106,6 +106,52 @@ public class MonitorServiceTests
     }
 
     [Fact]
+    public void A_moved_taskbar_announced_by_a_setting_change_is_a_change_once()
+    {
+        var source = new FakeMessageSource();
+        IReadOnlyList<MonitorInfo> layout = [Main with { WorkArea = new PixelRect(0, 0, 1920, 1040) }];
+        using var service = new MonitorService(source, () => layout);
+        var changed = 0;
+        service.Changed += () => changed++;
+
+        layout = [Main with { WorkArea = new PixelRect(48, 0, 1872, 1080) }];
+        source.Raise(WindowMessage.SettingChange);
+        source.Raise(WindowMessage.SettingChange);
+
+        changed.Should().Be(1, "the second message found the same layout");
+        service.Monitors.Single().Work.Should().Be(new PixelRect(48, 0, 1872, 1080));
+    }
+
+    [Fact]
+    public void A_changed_scaling_is_a_change()
+    {
+        var source = new FakeMessageSource();
+        IReadOnlyList<MonitorInfo> layout = [Main];
+        using var service = new MonitorService(source, () => layout);
+        var changed = 0;
+        service.Changed += () => changed++;
+
+        layout = [Main with { Dpi = 144 }];
+        source.Raise(WindowMessage.SettingChange);
+
+        changed.Should().Be(1);
+        service.Primary.Scale.Should().Be(1.5);
+    }
+
+    [Fact]
+    public void A_setting_change_that_leaves_the_layout_alone_raises_nothing()
+    {
+        var source = new FakeMessageSource();
+        using var service = new MonitorService(source, () => [Main, Side]);
+        var changed = 0;
+        service.Changed += () => changed++;
+
+        source.Raise(WindowMessage.SettingChange);
+
+        changed.Should().Be(0);
+    }
+
+    [Fact]
     public void A_moved_primary_is_a_change()
     {
         var source = new FakeMessageSource();
