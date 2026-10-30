@@ -1,4 +1,4 @@
-<Project>
+<Project InitialTargets="TimeTugFlavourGuard">
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
@@ -22,4 +22,20 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Debug' Or '$(Configuration)' == 'CI'">
     <DefineConstants>$(DefineConstants);SELFTEST</DefineConstants>
   </PropertyGroup>
+
+  <!-- The package flavour: Dev (default), Store or Direct (-p:Flavour=Store|Direct; see docs/development.md). The release flavours define STORE or
+       DIRECT and are built only in Release, which never defines SELFTEST (the guard below fails any other combination). -->
+  <PropertyGroup>
+    <Flavour Condition="'$(Flavour)' == ''">Dev</Flavour>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Flavour)' == 'Store'">
+    <DefineConstants>$(DefineConstants);STORE</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Flavour)' == 'Direct'">
+    <DefineConstants>$(DefineConstants);DIRECT</DefineConstants>
+  </PropertyGroup>
+  <Target Name="TimeTugFlavourGuard">
+    <Error Condition="'$(Flavour)' != 'Dev' And '$(Flavour)' != 'Store' And '$(Flavour)' != 'Direct'" Text="Flavour must be Dev, Store or Direct (got '$(Flavour)')." />
+    <Error Condition="'$(Flavour)' != 'Dev' And '$(Configuration)' != 'Release'" Text="The $(Flavour) flavour is built with -c Release: only development builds carry the self-test (Debug and CI configurations)." />
+  </Target>
 </Project>
