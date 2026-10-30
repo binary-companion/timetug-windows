@@ -114,6 +114,9 @@ internal static class TaskbarButtonsScenario
 
         var present = windows.Where(InSwitchers).Select(w => w.Handle).Order().ToList();
         run.Check(present.SequenceEqual(expected.Order()), $"{state}: the windows that get a taskbar button and an Alt+Tab entry are exactly the expected ones ({present.Count} of {expected.Length})");
+        // The style alone must say the same (the tug and the flyout are tool windows; AppWindow.IsShownInSwitchers is a request Explorer forgets when it restarts).
+        var byStyle = windows.Where(w => w.HasTaskbarPresence).Select(w => w.Handle).Order().ToList();
+        run.Check(byStyle.SequenceEqual(expected.Order()), $"{state}: and so do the windows' own styles, without AppWindow.IsShownInSwitchers ({byStyle.Count} of {expected.Length})");
 
         if (WindowsTaskbarProbe.ElementClassCounts() is { } classes)
         {
