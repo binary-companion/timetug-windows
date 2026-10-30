@@ -121,6 +121,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     finally {
         Get-Process -Name TimeTug -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
         Get-AppxPackage -Name $identityName | Remove-AppxPackage -ErrorAction SilentlyContinue
-        Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Thumbprint -eq $thumbprint } | Remove-Item -ErrorAction SilentlyContinue
+        # Taking the certificate out again needs the rights that put it in; without them (the VM, where SYSTEM trusted it) it stays for the next run.
+        try { Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Thumbprint -eq $thumbprint } | Remove-Item } catch { Write-Host 'The throwaway certificate stays trusted on this machine (not elevated).' }
     }
 }
