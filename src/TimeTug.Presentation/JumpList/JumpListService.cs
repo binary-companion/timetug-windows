@@ -30,6 +30,7 @@ public sealed class JumpListService
     private Task _pump = Task.CompletedTask;
     private bool _pumping;
     private bool _started;
+    private bool _supported;
     private bool _stopped;
 
     public JumpListService(IEngineClient engine, IJumpListPlatform platform, ILocalizer text, TimeProvider time, IDiagnostics? diagnostics = null)
@@ -75,6 +76,11 @@ public sealed class JumpListService
             return;
         }
 
+        lock (_gate)
+        {
+            _supported = true;
+        }
+
         Request(JumpListPlan.Base);
         var subscription = _engine.State.Subscribe(new StateObserver(state => Request(JumpListPlan.For(state))));
         lock (_gate)
@@ -94,6 +100,7 @@ public sealed class JumpListService
     {
         IDisposable? subscription;
         Task pump;
+        bool supported;
         lock (_gate)
         {
             if (_stopped)
@@ -102,12 +109,13 @@ public sealed class JumpListService
             }
 
             _stopped = true;
+            supported = _supported;
             subscription = _subscription;
             _subscription = null;
         }
 
         subscription?.Dispose();
-        if (_started && _platform.IsSupported)
+        if (supported)
         {
             lock (_gate)
             {
@@ -123,6 +131,11 @@ public sealed class JumpListService
             catch (TimeoutException)
             {
                 Note("warning", "saving the jump list on quit took too long; it is left as it is");
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                // The pump records its own failures; quitting never fails because of the list.
+                Note("warning", $"saving the jump list on quit failed ({e.GetType().Name})");
             }
         }
     }
@@ -204,8 +217,9 @@ public sealed class JumpListService
                 await _platform.SaveAsync(plan.Actions.Select(Entry).ToList()).ConfigureAwait(false);
                 saved = true;
             }
-            catch (Exception e) when (e is not OutOfMemoryException and not OperationCanceledException)
+            catch (Exception e) when (e is not OutOfMemoryException)
             {
+                // A save that ends cancelled counts as a failure too: the loop must always leave _pumping false.
                 Note("warning", $"updating the jump list failed ({e.GetType().Name})");
             }
 
