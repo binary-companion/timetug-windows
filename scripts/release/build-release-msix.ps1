@@ -206,8 +206,8 @@ if ($MyInvocation.InvocationName -ne '.') {
 
     if (-not $SkipCheck) {
         Invoke-Step 'check' {
-            $arguments = @('-Package', $msix, '-ExpectedVersion', $parsed.Package)
-            if ($DryRun) { $arguments += @('-Sentinel') + $script:sentinels }
+            $arguments = @{ Package = $msix; ExpectedVersion = $parsed.Package }
+            if ($DryRun) { $arguments.Sentinel = [string[]]$script:sentinels }
             & $checkScript @arguments
             if ($LASTEXITCODE -ne 0) { throw 'check-release-package.ps1 found development scaffolding in the package' }
         }
