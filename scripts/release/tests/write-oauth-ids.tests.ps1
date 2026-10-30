@@ -50,6 +50,7 @@ Check 'values must be plain tokens' {
 Check 'the generated source carries the values and is a partial implementation' {
     $source = New-OAuthIdsSource $sentinelGoogle $sentinelSecret $sentinelMicrosoft
     Assert-True ($source -match 'static partial void Provide') 'no Provide implementation'
+    Assert-True ($source.Contains('#nullable enable')) 'generated code needs an explicit nullable directive'
     Assert-True ($source.Contains("googleClientId = `"$sentinelGoogle`";")) 'google id missing'
     Assert-True ($source.Contains("googleClientSecret = `"$sentinelSecret`";")) 'google secret missing'
     Assert-True ($source.Contains("microsoftClientId = `"$sentinelMicrosoft`";")) 'microsoft id missing'
