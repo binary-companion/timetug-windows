@@ -28,6 +28,9 @@
 .PARAMETER IdentityName, Publisher, PublisherDisplayName, AppName
   Partner Center values (Product identity). Default: the environment variables PARTNER_CENTER_PACKAGE_NAME, PARTNER_CENTER_PUBLISHER,
   PARTNER_CENTER_PUBLISHER_DISPLAY_NAME and PARTNER_CENTER_APP_NAME, else what is in the manifest (the placeholders, which fail the build).
+.PARAMETER BundleWindowsAppSdk
+  Store flavour only: bundle the Windows App SDK runtime too (the fallback if the Store cannot resolve the framework dependency; see
+  docs/spikes/2026-10-store-packaging.md). The Direct flavour always bundles it.
 .PARAMETER RequireOAuthIds
   Fail when the OAuth ids are not all in the environment (a real release does this).
 .PARAMETER DryRun
@@ -48,6 +51,7 @@ param(
     [string]$Publisher = $env:PARTNER_CENTER_PUBLISHER,
     [string]$PublisherDisplayName = $env:PARTNER_CENTER_PUBLISHER_DISPLAY_NAME,
     [string]$AppName = $env:PARTNER_CENTER_APP_NAME,
+    [switch]$BundleWindowsAppSdk,
     [switch]$RequireOAuthIds,
     [switch]$DryRun,
     [switch]$SkipCheck
@@ -172,8 +176,10 @@ if ($MyInvocation.InvocationName -ne '.') {
         Invoke-Step 'publish' {
             Push-Location $script:Repo
             try {
+                $runtime = @()
+                if ($BundleWindowsAppSdk) { $runtime = @('-p:ReleaseWindowsAppSdkSelfContained=true') }
                 dotnet publish src/TimeTug.App/TimeTug.App.csproj -c Release "-p:Platform=$Platform" "-p:Flavour=$Flavour" "-p:ReleaseManifestPath=$manifestPath" `
-                    "-p:Version=$($parsed.Semantic)" -p:GenerateAppxPackageOnBuild=true @signing "-p:AppxPackageDir=$layout\" -p:AppxBundle=Never --nologo
+                    "-p:Version=$($parsed.Semantic)" -p:GenerateAppxPackageOnBuild=true @signing @runtime "-p:AppxPackageDir=$layout\" -p:AppxBundle=Never --nologo
                 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
             }
             finally { Pop-Location }
