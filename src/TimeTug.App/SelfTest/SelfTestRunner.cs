@@ -76,6 +76,7 @@ internal static class SelfTestRunner
         [FlyoutTugWinsScenario.Name] = FlyoutTugWinsScenario.RunAsync,
         [FlyoutAnchorScenario.Name] = FlyoutAnchorScenario.RunAsync,
         [SecondLaunchScenario.Name] = SecondLaunchScenario.RunAsync,
+        [CrossFlavourInstanceScenario.Name] = CrossFlavourInstanceScenario.RunAsync,
         [HotkeyScenario.Name] = HotkeyScenario.RunAsync,
         [ComposeScenario.Name] = ComposeScenario.RunAsync,
         [SettingsShellScenario.Name] = SettingsShellScenario.RunAsync,

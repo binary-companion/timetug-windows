@@ -54,6 +54,8 @@
   <data name="TestTugTitle" xml:space="preserve"><value>Test meeting</value></data>
   <data name="TestTugCalendar" xml:space="preserve"><value>TimeTug</value></data>
   <data name="ConnectFailed" xml:space="preserve"><value>Couldn’t connect to {0}. Check your details and try again.</value></data>
+  <data name="Instance_NoticeTitle" xml:space="preserve"><value>TimeTug</value></data>
+  <data name="Instance_OtherDistribution" xml:space="preserve"><value>TimeTug is already running from a different installation. Close it to use this copy.</value></data>
   <data name="ProviderUnavailable" xml:space="preserve"><value>{0} sign-in isn’t set up in this build.</value></data>
   <data name="ProviderOpensBrowser" xml:space="preserve"><value>Opens your browser to sign in</value></data>
   <data name="ProviderAsksDetails" xml:space="preserve"><value>Asks for your details here</value></data>

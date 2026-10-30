@@ -1,6 +1,7 @@
 # Every self-test scenario, one per line: name, the fewest screenshots it must produce, its timeout in seconds, and who runs it.
 #   selftest = scripts/ci/run-selftest.ps1 (every pull request, both architectures)
 #   a11y     = scripts/ci/run-a11y.ps1 (holds windows open while axe-windows scans them)
+#   vm       = needs a second distribution installed; scripts/vm/vm-cross-flavour.sh runs it (not in CI, and not part of 'all')
 # scripts/ci/check-repository-contracts.py fails when this list and the scenario classes in
 # src/TimeTug.App/SelfTest/Scenarios (their Name constants) differ.
 hello                    1  90   selftest
@@ -26,6 +27,7 @@ flyout-problems           1  120  selftest
 flyout-tug-wins           1  150  selftest
 flyout-anchor            1  150  selftest
 second-launch            1  150  selftest
+cross-flavour-instance   0  120  vm
 hotkey                   0  120  selftest
 compose                  1  180  selftest
 settings-shell           8  180  selftest
