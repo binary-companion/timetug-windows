@@ -410,14 +410,14 @@ public sealed class JumpListServiceTests
     }
 
     [Fact]
-    public async Task The_service_does_not_promise_the_start_menu_or_a_pinned_icon_in_any_item_name()
+    public async Task Item_names_are_short_enough_for_a_jump_list()
     {
         var service = Service();
         service.Start();
         _engine.Push(Day.State(Day.Meeting("a", TimeSpan.FromMinutes(10), next: true)));
         await service.FlushAsync();
 
-        Names(_platform.Last).Should().OnlyContain(n => n.Length is > 0 and <= 40);
+        Names(_platform.Last).Should().OnlyContain(n => n.Length > 0 && n.Length <= 40);
     }
 }
 
