@@ -57,7 +57,9 @@ if ($MyInvocation.InvocationName -ne '.') {
     if ($certificate.Subject -ne $publisher) { throw "unexpected certificate subject '$($certificate.Subject)'" }
 
     $thumbprint = $certificate.Thumbprint
-    Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+    # Trusting is machine-wide and needs an elevated session; on the VM that is done as SYSTEM first, and the install here runs as the user.
+    $alreadyTrusted = @(Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Thumbprint -eq $thumbprint }).Count -gt 0
+    if (-not $alreadyTrusted) { Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null }
     try {
         Get-AppxPackage -Name $identityName | Remove-AppxPackage
         for ($attempt = 1; $attempt -le 2; $attempt++) {
