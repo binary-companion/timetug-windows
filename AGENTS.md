@@ -32,10 +32,10 @@ artwork/                    brand artwork, all rights reserved (artwork/LICENSE.
 - Platform services are small classes behind interfaces, each with tests. Every OS read (session lock and unlock, notification state, monitor list, transparency and animation settings, toast service, `TimeProvider`) sits behind an injectable interface.
 - The app never runs elevated. No focus-stealing tricks (no simulated key presses, no thread-input attachment).
 - All HTTP goes through `HttpClient`. Secrets only in Credential Locker. Never log event titles or calendar content.
-- `SELFTEST` (the self-test and the `--selftest` switch) is defined only in the `Debug` and `CI` configurations, never in `Release` or Store builds.
+- `SELFTEST` (the self-test and the `--selftest` switch) is defined only in the `Debug` and `CI` configurations, never in `Release` or Store builds. The package flavour (`-p:Flavour=Dev|Store|Direct`, default Dev) defines `DEVFLAVOUR`, `STORE` or `DIRECT`; Store and Direct build only in `Release`, with no alias, no developer files and no self-test (`scripts/ci/check-release-package.ps1` fails a package that has any).
 - Display strings: the app owns its localization resources (`Strings/en-US/Resources.resw`); the engine supplies none.
 - Pin third-party GitHub Actions by commit SHA (look it up with `gh api`, never guess). Pull-request jobs get none of the owner's signing material; the development MSIX uses a throwaway self-signed certificate created in the job.
-- OAuth client ids come from a git-ignored local file (`local.settings.json`, VM builds) and are never printed or committed; CI embeds none.
+- OAuth client ids come from a git-ignored local file (`dev-oauth.json`, development builds) or, in Store and Direct builds, from the release environment through a generated, git-ignored source file (`scripts/release/write-oauth-ids.ps1`). They are never printed, logged or committed; pull-request and merge builds embed none.
 - Every package version in `Directory.Packages.props` is exact. Nothing floats.
 - Windows projects target `net10.0-windows10.0.22621.0`. Libraries and tests are AnyCPU; only `TimeTug.App` picks an architecture (`-p:Platform=x64` or `-p:Platform=ARM64`).
 

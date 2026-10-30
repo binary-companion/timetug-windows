@@ -198,12 +198,13 @@ internal static class AppComposition
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>()),
             diagnostics: () => new DiagnosticsViewModel(
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IDiagnosticsReader>(), sp.GetRequiredService<IClipboardService>(),
-                sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(), AppVersion.Current(), AppVersion.WindowsVersion()),
+                sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(),
+                AppIdentity.For(BuildFlavour.Current).Label(AppVersion.Current()), AppVersion.WindowsVersion()),
             general: () => new GeneralViewModel(
                 sp.GetRequiredService<LaunchAtLoginViewModel>(),
                 new HotkeyRecorderViewModel(sp.GetRequiredService<IHotkeyControl>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()),
                 new AboutViewModel(
-                    AppVersion.Current(), AppVersion.BuildCommit(), IsDevelopmentBuild, sp.GetRequiredService<ISystemLauncher>(),
+                    AppVersion.Current(), AppVersion.BuildCommit(), BuildFlavour.Current != Flavour.Store, sp.GetRequiredService<ISystemLauncher>(),
                     sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>())),
             appearance: () => new AppearanceViewModel(
                 sp.GetRequiredService<IPresentationSettingsStore>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<IUiDispatcher>(),
@@ -253,24 +254,16 @@ internal static class AppComposition
         return !failed;
     };
 
-    /// <summary>A development or CI build (the <c>SELFTEST</c> configurations): not in the Store, so the Software Update page shows its commit.</summary>
-    private const bool IsDevelopmentBuild =
-#if SELFTEST
-        true;
-#else
-        false;
-#endif
-
     private static EngineStartup DefaultEngineStartup(IDiagnostics diagnostics)
     {
-        IReadOnlyDictionary<string, OAuthClient> clients = new Dictionary<string, OAuthClient>();
-#if SELFTEST
-        // Development and CI builds only: the ids come from a git-ignored file on this machine. A Release build offers
-        // Google and Microsoft only once phase 9 injects the ids; until then those kinds show as not configured.
-        clients = Presentation.Startup.DevOAuthFile.Load(
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TimeTug", Presentation.Startup.DevOAuthFile.FileName), diagnostics);
+        // Dev: the git-ignored file on this machine. Store and Direct: the ids the release job generated into the build (none in pull-request and
+        // merge builds, so Google and Microsoft then show as not set up). A release build never looks at the file.
+#if DEVFLAVOUR
+        var devFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TimeTug", DevOAuthFile.FileName);
+#else
+        var devFile = string.Empty;
 #endif
-        _ = diagnostics;
-        return new EngineStartup(EngineStartup.DefaultDataDirectory(), Testing: false, clients);
+        var provider = OAuthIdProviders.Create(BuildFlavour.Current, devFile, ReleaseOAuthIds.Values(), diagnostics);
+        return new EngineStartup(EngineStartup.DefaultDataDirectory(), Testing: false, OAuthIdProviders.ToClients(provider));
     }
 }

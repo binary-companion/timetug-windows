@@ -253,7 +253,7 @@ public class AccountsPaneTests
         model.Providers.Select(p => p.Name).Should().Equal("Google", "Microsoft", "iCloud", "Other (CalDAV)");
         var microsoft = model.Providers[1];
         microsoft.IsEnabled.Should().BeFalse();
-        microsoft.Hint.Should().Be("Sign-in for Microsoft isn’t set up in this build.");
+        microsoft.Hint.Should().Be("Microsoft sign-in isn’t set up in this build.");
         model.Providers.Where(p => p.Id != "microsoft").Should().OnlyContain(p => p.IsEnabled);
 
         await model.ConnectAsync("microsoft");

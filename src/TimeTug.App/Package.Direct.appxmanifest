@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The website download (deferred, program design section 6). Signed in CI later with the Binary Companion certificate, which does not exist yet:
+     the publisher is a placeholder until then and scripts/release/build-release-msix.ps1 can only build it unsigned. Own identity, so own data. -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  IgnorableNamespaces="uap rescap desktop com">
+
+  <Identity
+    Name="BinaryCompanion.TimeTug"
+    Publisher="CN=Binary Companion"
+    Version="0.0.0.0" />
+
+  <Properties>
+    <DisplayName>TimeTug</DisplayName>
+    <PublisherDisplayName>Binary Companion LLC</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.22621.0" MaxVersionTested="10.0.26100.0" />
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22621.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="$targetentrypoint$">
+      <uap:VisualElements
+        DisplayName="TimeTug"
+        Description="TimeTug for Windows"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <!-- Toast buttons: Windows starts (or signals) the app through this COM class, and AppNotificationManager.Register() needs it. -->
+        <desktop:Extension Category="windows.toastNotificationActivation">
+          <desktop:ToastNotificationActivation ToastActivatorCLSID="FD6FD187-13C7-4AD9-9431-0BA160BBDC0F" />
+        </desktop:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer Executable="TimeTug.exe" Arguments="----AppNotificationActivated:" DisplayName="TimeTug toast activator">
+              <com:Class Id="FD6FD187-13C7-4AD9-9431-0BA160BBDC0F" DisplayName="TimeTug toast activator" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
+        <!-- Launch at login. Off until the person turns it on (the welcome window's checkbox or Settings, General); Windows keeps the state and
+             the person can change it in Settings, Startup apps. The id is StartupTaskService.TaskId. -->
+        <desktop:Extension Category="windows.startupTask" Executable="TimeTug.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="TimeTugStartup" Enabled="false" DisplayName="TimeTug" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <Capability Name="internetClient" />
+  </Capabilities>
+</Package>

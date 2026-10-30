@@ -47,7 +47,7 @@ public class WelcomeViewModelTests
 
         var google = model.Providers[0];
         google.IsEnabled.Should().BeFalse();
-        google.Hint.Should().Contain("Google").And.Contain("set up in this build");
+        google.Hint.Should().Be("Google sign-in isn’t set up in this build.");
         model.Providers[1].IsEnabled.Should().BeTrue();
 
         await model.ConnectAsync("google");

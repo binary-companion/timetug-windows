@@ -21,6 +21,18 @@ dotnet test  TimeTug.sln -c Debug -p:Platform=ARM64 --no-build --nologo
 - Always pass `-p:Platform=x64` or `-p:Platform=ARM64`; the solution maps every other project to Any CPU. Libraries and tests are AnyCPU, so the same test binaries run natively on both architectures. Only the app differs (`src\TimeTug.App\bin\<platform>\<configuration>\...`).
 - `SELFTEST` is defined in `Debug` and `CI`, not `Release`.
 
+## Release flavours (Store and Direct)
+
+One codebase builds three packages, chosen by `-p:Flavour=Dev|Store|Direct` (default Dev; Store and Direct build only with `-c Release`, which never defines `SELFTEST`). Dev is today's CI package (throwaway certificate, `timetug-dev` alias, self-test, `dev-oauth.json`). Store and Direct have their own manifest (`Package.Store.appxmanifest`, `Package.Direct.appxmanifest`), their own identity, so their own data, and their own toast COM class; neither has the alias, the developer files or the self-test. `BuildFlavour.Current` (Presentation) says which one is running; Copy diagnostics adds it to the version line. What each flavour bundles, and why, is in `docs/spikes/2026-10-store-packaging.md`: the .NET runtime always; the Windows App SDK runtime in Direct, and in Store only with `-p:ReleaseWindowsAppSdkSelfContained=true`.
+
+```
+scripts\release\build-release-msix.ps1 -Flavour Store -Platform x64 -Version v1.2.3            # needs the Partner Center values (below)
+scripts\release\build-release-msix.ps1 -Flavour Store -Platform ARM64 -Version v1.2.3 -DryRun  # fake ids, throwaway certificate and identity, nothing secret
+scripts\release\build-release-msix.ps1 -Flavour Direct -Platform x64 -Version v1.2.3           # unsigned until a signing certificate exists
+```
+
+The script maps the tag to the package version (`v1.2.3` is `1.2.3.0`; anything that is not `X.Y.Z` is refused, a `-beta.1` suffix only with `-Prerelease`), fills the manifest, writes the OAuth ids from `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` and `MICROSOFT_OAUTH_CLIENT_ID` into the git-ignored `src/TimeTug.Presentation/Startup/ReleaseOAuthIds.g.cs` (never printed, deleted after the build; Google needs its id and secret together, as the Mac build does), runs `dotnet publish`, writes `TimeTug_<version>_<arch>.msix` and `.msixupload` (unsigned: the Store signs it) and runs `scripts/ci/check-release-package.ps1` on the result. The Store identity values come from `PARTNER_CENTER_PACKAGE_NAME`, `PARTNER_CENTER_PUBLISHER`, `PARTNER_CENTER_PUBLISHER_DISPLAY_NAME` and `PARTNER_CENTER_APP_NAME` (or the manifest); while a `__PARTNER_CENTER_*__` placeholder is open the build stops and names it. A dry run builds with fake ids, so `check-release-package.ps1 -Sentinel` can prove they land in `TimeTug.Presentation.dll` and in no other file of the package. The scripts' own tests are plain PowerShell (`scripts/release/tests`, `scripts/ci/tests`) and run in the `architecture` job.
+
 ## The Windows 11 ARM VM (Parallels)
 
 The VM is named `Windows 11` (Windows 11 build 26200, ARM64) and is normally suspended. It has .NET SDK 10.0.401, Git and Windows PowerShell 5.1, no winget and no `pwsh`, and the repository cloned at `C:\src\timetug-windows`. Everything below is driven from the Mac with the scripts in `scripts/vm` (they need Parallels Desktop's `prlctl`; set `VM_NAME` for a VM with another name). Each prints what it does, fails with a message that says why, and returns the command's exit code.
@@ -180,7 +192,7 @@ The `hotkey` scenario posts `WM_HOTKEY` to the real window (`HotkeyRegistrar.Sim
 
 ## OAuth client ids for local builds
 
-Google and Microsoft sign-in need the OAuth client registrations that the Mac app uses. They are never in the repository. A development or CI build (the `SELFTEST` configurations) reads them from `%LOCALAPPDATA%\TimeTug\dev-oauth.json` on the machine running it; when the file is absent those two kinds show as "isn’t set up in this build", exactly as in pull-request CI. A Release build reads no such file (phase 9 injects the ids). The file is git-ignored by name (`dev-oauth.json`), copied onto the machine by hand and never printed or logged: diagnostics name only the families found.
+Google and Microsoft sign-in need the OAuth client registrations that the Mac app uses. They are never in the repository. A development or CI build (the `SELFTEST` configurations) reads them from `%LOCALAPPDATA%\TimeTug\dev-oauth.json` on the machine running it; when the file is absent those two kinds show as "isn’t set up in this build", exactly as in pull-request CI. A Store or Direct build compiles that reader out and takes its ids from the release environment instead (see "Release flavours"). The file is git-ignored by name (`dev-oauth.json`), copied onto the machine by hand and never printed or logged: diagnostics name only the families found.
 
 ```json
 {

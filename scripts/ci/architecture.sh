@@ -19,3 +19,7 @@ tool_or_skip() {
 if tool_or_skip shellcheck; then shellcheck -x -P SCRIPTDIR scripts/vm/*.sh scripts/vm/tests/*.sh; fi
 scripts/vm/tests/test-vm-scripts.sh </dev/null
 if tool_or_skip pwsh; then pwsh -NoProfile -File scripts/vm/tests/vm-install.tests.ps1; fi
+# The release scripts' logic (version mapping, manifest filling, OAuth id file, the package check against good and deliberately bad fixtures).
+if tool_or_skip pwsh; then
+  for tests in scripts/release/tests/*.tests.ps1 scripts/ci/tests/*.tests.ps1; do pwsh -NoProfile -File "$tests"; done
+fi

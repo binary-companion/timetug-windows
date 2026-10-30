@@ -29,6 +29,24 @@
   <ItemGroup>
     <Manifest Include="app.manifest" />
   </ItemGroup>
+  <!-- The package manifest follows the flavour (-p:Flavour=Dev|Store|Direct): Package.appxmanifest for Dev, Package.<Flavour>.appxmanifest otherwise.
+       scripts/release/build-release-msix.ps1 passes -p:ReleaseManifestPath with the Partner Center values and the version filled in. -->
+  <!-- Release packages carry their runtimes (docs/spikes/2026-10-store-packaging.md). The .NET runtime is always bundled: a Store customer has no .NET 10
+       desktop runtime. The Windows App SDK runtime is bundled in the Direct package (a sideloaded package has no Store to resolve the framework dependency)
+       and, in the Store package, only with -p:ReleaseWindowsAppSdkSelfContained=true (the fallback if the Store cannot resolve the dependency). Set here and not
+       on the command line: a global property would also reach the class libraries, which refuse it. -->
+  <PropertyGroup Condition="'$(Flavour)' != 'Dev'">
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Flavour)' == 'Direct' Or '$(ReleaseWindowsAppSdkSelfContained)' == 'true'">
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Flavour)' != 'Dev' And '$(ReleaseManifestPath)' == ''">
+    <ReleaseManifestPath>Package.$(Flavour).appxmanifest</ReleaseManifestPath>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Flavour)' != 'Dev'">
+    <AppxManifest Include="$(ReleaseManifestPath)" SubType="Designer" />
+  </ItemGroup>
   <!-- The commit this build was made from reaches the app as the SDK's SourceRevisionId (the SDK's built-in Source Link reads it from the git
        repository), which it appends to the informational version ("0.1.0+8060ec0..."); the Software Update page of a development build shows it.
        A build outside a git repository has none. -->
