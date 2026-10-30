@@ -48,7 +48,6 @@ Always in reach
 Connect the calendars you already use
 - Google Calendar and Microsoft (Outlook) calendars: sign in with your browser; TimeTug reads events with read-only permission.
 - iCloud, with an app-specific password, and other CalDAV calendars such as Fastmail or Nextcloud.
-- Calendar subscription links (iCal), read-only.
 
 Your calendar data stays on your PC. TimeTug talks to your calendar provider directly, keeps its working data in its own folder on your PC and keeps sign-in tokens and passwords in Windows Credential Locker. There are no TimeTug accounts and no TimeTug servers that see your calendar. Removing the app removes its data.
 

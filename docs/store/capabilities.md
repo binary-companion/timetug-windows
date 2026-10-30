@@ -7,7 +7,7 @@ Partner Center asks for a justification of each restricted capability, and certi
 | Declared | Why |
 | --- | --- |
 | `runFullTrust` (restricted) | TimeTug is a WinUI 3 desktop app packaged as MSIX, not a UWP app. It runs the portable engine as native libraries inside its own process (the Swift runtime and the engine DLLs), shows borderless always-on-top windows on every display for the takeover, owns a notification-area icon and a global shortcut, and listens on the loopback address (127.0.0.1) for the browser sign-in redirect. None of that is available inside an AppContainer. It never runs elevated and asks for no other privilege. |
-| `internetClient` | Outgoing connections to the calendar providers the person connects: Google Calendar and Microsoft Graph (HTTPS), iCloud and other CalDAV servers, and iCal subscription links. |
+| `internetClient` | Outgoing connections to the calendar providers the person connects: Google Calendar and Microsoft Graph (HTTPS), iCloud and other CalDAV servers. |
 
 Not declared, on purpose: any file-system, document, picture, contacts, location, microphone, camera or device capability; `internetClientServer` and `privateNetworkClientServer` (the loopback listener is the app's own redirect target and is closed after sign-in); `broadFileSystemAccess`; `allowElevation`.
 
