@@ -1,0 +1,61 @@
+{
+  "items": [
+    {
+      "id": "me@example.com",
+      "summary": "Me",
+      "backgroundColor": "#4285f4",
+      "accessRole": "owner",
+      "primary": true,
+      "timeZone": "America/Chicago"
+    },
+    {
+      "id": "team@example.com",
+      "summary": "Team Sync",
+      "backgroundColor": "#0b8043",
+      "accessRole": "owner",
+      "timeZone": "America/Chicago"
+    },
+    {
+      "id": "cafe@example.com",
+      "summary": "Café Sync",
+      "backgroundColor": "#e67c73",
+      "accessRole": "owner",
+      "timeZone": "America/Chicago"
+    },
+    {
+      "id": "night@example.com",
+      "summary": "Night Owls",
+      "backgroundColor": "#0b0f19",
+      "accessRole": "owner",
+      "timeZone": "America/Chicago"
+    },
+    {
+      "id": "graphite@example.com",
+      "summary": "Graphite",
+      "backgroundColor": "#2b2b2b",
+      "accessRole": "owner",
+      "timeZone": "America/Chicago"
+    },
+    {
+      "id": "paper@example.com",
+      "summary": "Paper Trail",
+      "backgroundColor": "#fbfbfb",
+      "accessRole": "owner",
+      "timeZone": "America/Chicago"
+    },
+    {
+      "id": "en.usa#holiday@group.v.calendar.google.com",
+      "summary": "Holidays",
+      "backgroundColor": "#8e24aa",
+      "accessRole": "reader",
+      "timeZone": "America/Chicago"
+    },
+    {
+      "id": "addressbook#contacts@group.v.calendar.google.com",
+      "summary": "Birthdays",
+      "backgroundColor": "#f4511e",
+      "accessRole": "reader",
+      "timeZone": "America/Chicago"
+    }
+  ]
+}

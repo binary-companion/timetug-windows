@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using TimeTug.App.Theming;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Settings;
 using Windows.UI;
@@ -21,6 +22,7 @@ public sealed partial class CalendarsPage : UserControl
     private readonly CalendarsViewModel _model;
     private readonly SettingsShellViewModel _shell;
     private readonly ILocalizer _text;
+    private readonly IUiSettings _ui;
     private readonly Dictionary<string, RowControls> _rows = [];
     private readonly List<(CalendarGroupView Group, ToggleSwitch Switch)> _groupSwitches = [];
     private string _structure = string.Empty;
@@ -28,11 +30,12 @@ public sealed partial class CalendarsPage : UserControl
     private bool _syncing;
     private bool _asking;
 
-    public CalendarsPage(CalendarsViewModel model, SettingsShellViewModel shell, SettingsText text, ILocalizer localizer, string title)
+    public CalendarsPage(CalendarsViewModel model, SettingsShellViewModel shell, SettingsText text, ILocalizer localizer, IUiSettings ui, string title)
     {
         _model = model;
         _shell = shell;
         _text = localizer;
+        _ui = ui;
         InitializeComponent();
         Heading.Text = title;
         Intro.Text = model.IntroText;
@@ -55,7 +58,7 @@ public sealed partial class CalendarsPage : UserControl
             Padding = new Thickness(8, 1, 8, 2),
             Background = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0x9E, 0x1A)),
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock { Text = model.BetaText, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"] },
+            Child = new TextBlock { Text = model.BetaText, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold },
         };
         AutomationProperties.SetName(badge, model.BetaAutomationName);
         header.Children.Add(badge);
@@ -75,6 +78,8 @@ public sealed partial class CalendarsPage : UserControl
         {
             model.PropertyChanged += OnModelChanged;
             shell.PropertyChanged += OnShellChanged;
+            ui.Changed += OnSystemChanged;
+            ActualThemeChanged += OnThemeChanged;
             Reveal();
             Sync();
         };
@@ -82,6 +87,8 @@ public sealed partial class CalendarsPage : UserControl
         {
             model.PropertyChanged -= OnModelChanged;
             shell.PropertyChanged -= OnShellChanged;
+            ui.Changed -= OnSystemChanged;
+            ActualThemeChanged -= OnThemeChanged;
         };
         Sync();
     }
@@ -156,6 +163,21 @@ public sealed partial class CalendarsPage : UserControl
 
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e) => Sync();
 
+    private void OnThemeChanged(FrameworkElement sender, object args) => Sync();
+
+    /// <summary>Windows' contrast theme can start or end while the pane is open; the swatches are drawn again (the raising thread is not necessarily this one).</summary>
+    private void OnSystemChanged()
+    {
+        _ = DispatcherQueue.TryEnqueue(Sync);
+    }
+
+    /// <summary>
+    /// How the colour swatches are drawn now: in the dark or the light theme, or not at all under a contrast theme (the system colours are
+    /// used and the calendar's colour is ignored). When it changes the rows are built again, because a check box takes its colours from the
+    /// resources it was built with.
+    /// </summary>
+    internal string SwatchLook => _ui.HighContrast ? "contrast" : ActualTheme == ElementTheme.Dark ? "dark" : "light";
+
     private void Sync()
     {
         _syncing = true;
@@ -204,7 +226,8 @@ public sealed partial class CalendarsPage : UserControl
     /// <summary>What the cards are made of, apart from the switch values: when it changes the cards are built again.</summary>
     private string StructureOf() =>
         string.Join('\n', _model.Sections.SelectMany(s => s.Groups.Select(g => $"{s.SourceId}|{s.Title}|{s.SubtitleText}|{g.Label}|" + string.Join(',', g.Rows.Select(r => r.Key + ":" + r.Title + ":" + r.ColorHex)))))
-        + "\n--\n" + string.Join(',', _model.SystemRows.Select(r => r.Key + ":" + r.Title + ":" + r.ColorHex));
+        + "\n--\n" + string.Join(',', _model.SystemRows.Select(r => r.Key + ":" + r.Title + ":" + r.ColorHex))
+        + "\n--\n" + SwatchLook;
 
     private void UpdateValues()
     {
@@ -242,9 +265,8 @@ public sealed partial class CalendarsPage : UserControl
         var column = new Grid { Margin = new Thickness(4, 0, 4, 6) };
         column.ColumnDefinitions.Add(new ColumnDefinition());
         column.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var left = new TextBlock { Text = _model.ColumnTugCalendars, FontWeight = Microsoft.UI.Text.FontWeights.Medium, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] };
-        var right = new TextBlock { Text = _model.ColumnTug, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"], Width = SwitchColumn, TextAlignment = TextAlignment.Center };
-        left.Foreground = right.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        var left = new TextBlock { Text = _model.ColumnTugCalendars, FontWeight = Microsoft.UI.Text.FontWeights.Medium, Style = SecondaryCaption };
+        var right = new TextBlock { Text = _model.ColumnTug, Style = SecondaryCaption, Width = SwitchColumn, TextAlignment = TextAlignment.Center };
         Grid.SetColumn(right, 1);
         column.Children.Add(left);
         column.Children.Add(right);
@@ -279,23 +301,24 @@ public sealed partial class CalendarsPage : UserControl
 
     private const double SwitchColumn = 64;
 
-    private static Border Card() => new()
+    private Style SecondaryCaption => (Style)Resources["SecondaryCaptionStyle"];
+
+    private Border Card() => new()
     {
-        Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-        BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+        Style = (Style)Resources["CalendarCardStyle"],
         BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(8),
         Child = new StackPanel(),
     };
 
-    private static Border Divider() => new()
+    private Border Divider() => new()
     {
         Height = 1,
-        Background = (Brush)Application.Current.Resources["DividerStrokeColorDefaultBrush"],
+        Style = (Style)Resources["CalendarDividerStyle"],
         IsHitTestVisible = false,
     };
 
-    private static StackPanel SectionHeader(CalendarSectionView section)
+    private StackPanel SectionHeader(CalendarSectionView section)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(4, 16, 4, 6) };
         panel.Children.Add(new FontIcon { Glyph = GlyphOf(section), FontSize = 16 });
@@ -303,7 +326,7 @@ public sealed partial class CalendarsPage : UserControl
         panel.Children.Add(new TextBlock
         {
             Text = section.SubtitleText,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+            Style = (Style)Resources["SecondaryTextStyle"],
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
@@ -322,14 +345,13 @@ public sealed partial class CalendarsPage : UserControl
 
     private Grid GroupRow(CalendarGroupView group)
     {
-        var grid = new Grid { Padding = new Thickness(12, 4, 8, 4), Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"] };
+        var grid = new Grid { Padding = new Thickness(12, 4, 8, 4), Style = (Style)Resources["CalendarGroupRowStyle"] };
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SwitchColumn) });
-        var secondary = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
-        var caption = (Style)Application.Current.Resources["CaptionTextBlockStyle"];
-        grid.Children.Add(new TextBlock { Text = group.Label, Style = caption, Foreground = secondary, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
-        var all = new TextBlock { Text = _text.GetString("Calendars_All"), Style = caption, Foreground = secondary, VerticalAlignment = VerticalAlignment.Center };
+        var caption = SecondaryCaption;
+        grid.Children.Add(new TextBlock { Text = group.Label, Style = caption, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        var all = new TextBlock { Text = _text.GetString("Calendars_All"), Style = caption, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(all, 1);
         grid.Children.Add(all);
         var toggle = new ToggleSwitch { MinWidth = 0, OnContent = string.Empty, OffContent = string.Empty, IsOn = group.AllTug, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
@@ -374,7 +396,7 @@ public sealed partial class CalendarsPage : UserControl
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         header.Children.Add(new TextBlock { Text = _model.SystemTitle, VerticalAlignment = VerticalAlignment.Center });
-        var count = new TextBlock { Text = _model.SystemCount.ToString(System.Globalization.CultureInfo.CurrentCulture), Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"], VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+        var count = new TextBlock { Text = _model.SystemCount.ToString(System.Globalization.CultureInfo.CurrentCulture), Style = (Style)Resources["SecondaryTextStyle"], VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
         Grid.SetColumn(count, 1);
         header.Children.Add(count);
         var rows = new StackPanel();
@@ -478,16 +500,8 @@ public sealed partial class CalendarsPage : UserControl
         {
             _page = page;
             Key = row.Key;
-            var accent = ColourOf(row.ColorHex) ?? ((SolidColorBrush)Application.Current.Resources["TextFillColorSecondaryBrush"]).Color;
-            var brush = new SolidColorBrush(accent);
             Show = new CheckBox { MinWidth = 0, Padding = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
-            // The checkbox is the calendar's colour: filled and ticked when shown, an outline in that colour when hidden.
-            foreach (var name in new[] { "CheckBoxCheckBackgroundFillChecked", "CheckBoxCheckBackgroundFillCheckedPointerOver", "CheckBoxCheckBackgroundFillCheckedPressed",
-                "CheckBoxCheckBackgroundStrokeChecked", "CheckBoxCheckBackgroundStrokeCheckedPointerOver", "CheckBoxCheckBackgroundStrokeCheckedPressed",
-                "CheckBoxCheckBackgroundStrokeUnchecked", "CheckBoxCheckBackgroundStrokeUncheckedPointerOver", "CheckBoxCheckBackgroundStrokeUncheckedPressed" })
-            {
-                Show.Resources[name] = brush;
-            }
+            DrawInCalendarColour(row.ColorHex);
 
             async void ShowChanged(object sender, RoutedEventArgs e)
             {
@@ -531,14 +545,30 @@ public sealed partial class CalendarsPage : UserControl
             ToolTipService.SetToolTip(Tug, row.TugToolTip.Length == 0 ? null : row.TugToolTip);
         }
 
-        private static Color? ColourOf(string? hex)
+        /// <summary>
+        /// The check box is the calendar's colour: filled when shown, an outline when hidden. The mark and the edge are chosen against that colour
+        /// and the card (<see cref="SwatchColors"/>): white or near-black, whichever reads at 4.5 to 1, and the calendar's own colour as the edge
+        /// only where it shows against the card, the theme's foreground where it does not. Under a contrast theme nothing is set, so the
+        /// system's own check box colours apply and the calendar's colour is ignored.
+        /// </summary>
+        private void DrawInCalendarColour(string? hex)
         {
-            if (hex is not { Length: 7 } || hex[0] != '#' || !int.TryParse(hex.AsSpan(1), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var rgb))
+            if (_page._ui.HighContrast)
             {
-                return null;
+                return;
             }
 
-            return Color.FromArgb(0xFF, (byte)((rgb >> 16) & 0xFF), (byte)((rgb >> 8) & 0xFF), (byte)(rgb & 0xFF));
+            var swatch = SwatchColors.For(hex, _page.ActualTheme == ElementTheme.Dark);
+            var fill = SwatchColors.Brush(swatch.Fill);
+            var edge = SwatchColors.Brush(swatch.Edge);
+            var mark = SwatchColors.Brush(swatch.Mark);
+            foreach (var state in new[] { "", "PointerOver", "Pressed" })
+            {
+                Show.Resources["CheckBoxCheckBackgroundFillChecked" + state] = fill;
+                Show.Resources["CheckBoxCheckBackgroundStrokeChecked" + state] = edge;
+                Show.Resources["CheckBoxCheckBackgroundStrokeUnchecked" + state] = edge;
+                Show.Resources["CheckBoxCheckGlyphForegroundChecked" + state] = mark;
+            }
         }
     }
 }

@@ -20,6 +20,9 @@ internal sealed class FlyoutPalette
 
     public bool IsContrast { get; private init; }
 
+    /// <summary>True for the dark theme's palette (false for the light one, and under a contrast theme).</summary>
+    public bool Dark { get; private init; }
+
     public Brush Primary { get; private init; } = null!;
 
     public Brush Secondary { get; private init; } = null!;
@@ -83,6 +86,7 @@ internal sealed class FlyoutPalette
 
         return new FlyoutPalette
         {
+            Dark = dark,
             Primary = Theme("TextFillColorPrimary", dark),
             Secondary = Theme("TextFillColorSecondary", dark),
             CardFill = Theme("CardBackgroundFillColorDefault", dark),
@@ -97,17 +101,6 @@ internal sealed class FlyoutPalette
             ProblemIcon = Rgb(255, 149, 0),
             ProblemStroke = new SolidColorBrush(Color.FromArgb(77, 255, 149, 0)),
         };
-    }
-
-    /// <summary>"#RRGGBB" as a brush; null for anything else (the Mac accepts nothing but that form either).</summary>
-    public static Brush? FromHex(string? hex)
-    {
-        if (hex is not { Length: 7 } || hex[0] != '#' || !int.TryParse(hex.AsSpan(1), System.Globalization.NumberStyles.AllowHexSpecifier, System.Globalization.CultureInfo.InvariantCulture, out var value))
-        {
-            return null;
-        }
-
-        return Rgb((byte)((value >> 16) & 0xFF), (byte)((value >> 8) & 0xFF), (byte)(value & 0xFF));
     }
 
     private static SolidColorBrush Rgb(byte r, byte g, byte b) => new(Color.FromArgb(255, r, g, b));

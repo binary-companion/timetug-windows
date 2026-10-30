@@ -30,9 +30,10 @@ hotkey                   0  120  selftest
 compose                  1  180  selftest
 settings-shell           8  180  selftest
 settings-tugrules        4  180  selftest
-settings-calendars       5  210  selftest
+settings-calendars       7  210  selftest
 settings-accounts        6  240  selftest
 settings-general         13  240  selftest
 settings-appearance      9  240  selftest
 flyout-merge             6  240  selftest
+taskbar-buttons          0  180  selftest
 a11y-hold                0  420  a11y

@@ -62,6 +62,51 @@ public sealed unsafe partial class WindowsTaskbarProbe : ITaskbarProbe
 
     public string Describe() => OnUiAutomationThread(DescribeTaskbar, "(UI Automation did not answer)");
 
+#if SELFTEST
+    /// <summary>Self-test only: how many taskbar elements there are of each UI Automation class (class names only, no names or ids). Null when UI Automation did not answer in time.</summary>
+    public static IReadOnlyDictionary<string, int>? ElementClassCounts()
+    {
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var answered = OnUiAutomationThread(
+            () =>
+            {
+                _ = WalkTaskbar(element =>
+                {
+                    counts[element.ClassName] = counts.GetValueOrDefault(element.ClassName) + 1;
+                    return null;
+                });
+                return true;
+            },
+            false);
+        return answered ? counts : null;
+    }
+
+    /// <summary>
+    /// Self-test only: the taskbar's elements whose name or automation id (an app's button is identified by its application id, here the package family name) contains <paramref name="text"/> (case-insensitive). Nothing else on the
+    /// taskbar is returned or logged. Null when UI Automation did not answer in time.
+    /// </summary>
+    public static IReadOnlyList<TaskbarMatch>? ButtonNamesContaining(string text)
+    {
+        var names = new List<TaskbarMatch>();
+        var answered = OnUiAutomationThread(
+            () =>
+            {
+                _ = WalkTaskbar(element =>
+                {
+                    if ((element.Name.Contains(text, StringComparison.OrdinalIgnoreCase) || element.AutomationId.Contains(text, StringComparison.OrdinalIgnoreCase)) && !element.Rect.IsEmpty)
+                    {
+                        names.Add(new TaskbarMatch(element.Name, element.ClassName, element.AutomationId));
+                    }
+
+                    return null;
+                });
+                return true;
+            },
+            false);
+        return answered ? names : null;
+    }
+#endif
+
     // ---- UI Automation ------------------------------------------------------------------------------------------
 
     private PixelRect? FindChevron()
@@ -229,3 +274,11 @@ public sealed unsafe partial class WindowsTaskbarProbe : ITaskbarProbe
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial int Shell_NotifyIconGetRect(ref NotifyIconIdentifier identifier, out NativeRect rect);
 }
+
+#if SELFTEST
+/// <summary>A taskbar element the self-test asked for by name: the name, the class and the automation id (a notification-area icon has the id <c>SystemTrayIcon</c>).</summary>
+public sealed record TaskbarMatch(string Name, string ClassName, string AutomationId)
+{
+    public bool IsTrayIcon => AutomationId == WindowsTaskbarProbe.TrayButtonId;
+}
+#endif
