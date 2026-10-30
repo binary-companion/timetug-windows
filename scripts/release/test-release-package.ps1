@@ -91,10 +91,17 @@ if ($MyInvocation.InvocationName -ne '.') {
         $running = @()
         for ($waited = 0; $waited -lt 30 -and $running.Count -eq 0; $waited += 2) { Start-Sleep -Seconds 2; $running = & $own }
         if ($running.Count -eq 0) { throw 'TimeTug did not start' }
-        Start-Sleep -Seconds 8
-        if ((& $own).Count -eq 0) { throw 'TimeTug started and then exited' }
+        # The app starts its engine after the process appears; wait (bounded) for its first log entry, and for the process to stay up meanwhile.
         $log = Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)\LocalState\logs\timetug.log"
-        if (-not (Test-Path -LiteralPath $log) -or (Get-Content -LiteralPath $log).Count -lt 1) { throw 'the app wrote no log entries' }
+        $lines = 0
+        for ($waited = 0; $waited -lt 90 -and $lines -lt 1; $waited += 3) {
+            Start-Sleep -Seconds 3
+            if ((& $own).Count -eq 0) { throw 'TimeTug started and then exited' }
+            if (Test-Path -LiteralPath $log) { $lines = @(Get-Content -LiteralPath $log -ErrorAction SilentlyContinue).Count }
+        }
+        if ($lines -lt 1) { throw 'the app wrote no log entries within 90 seconds' }
+        Start-Sleep -Seconds 5
+        if ((& $own).Count -eq 0) { throw 'TimeTug started and then exited' }
         Write-Host "The app is running and has written $((Get-Content -LiteralPath $log).Count) log line(s)."
         & $own | Stop-Process -Force
         Start-Sleep -Seconds 2
