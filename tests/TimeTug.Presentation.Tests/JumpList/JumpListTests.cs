@@ -290,6 +290,38 @@ public sealed class JumpListServiceTests
     }
 
     [Fact]
+    public async Task Quitting_when_the_platform_cannot_say_whether_it_is_supported_does_not_throw()
+    {
+        _platform.SupportFails = new InvalidOperationException("no identity");
+        var service = Service();
+        service.Start();
+
+        var stop = service.StopAsync;
+
+        await stop.Should().NotThrowAsync();
+        _platform.Saves.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_save_that_ends_cancelled_does_not_stop_later_saves_or_break_quitting()
+    {
+        _platform.SaveFails = new OperationCanceledException();
+        var service = Service();
+        service.Start();
+        await service.FlushAsync();
+        service.Saved.Should().BeNull();
+
+        _platform.SaveFails = null;
+        _engine.Push(Day.State(Day.Meeting("a", TimeSpan.FromMinutes(10), next: true)));
+        await service.FlushAsync();
+        Names(_platform.Last).Should().Contain("Join next meeting");
+
+        _platform.SaveFails = new OperationCanceledException();
+        var stop = service.StopAsync;
+        await stop.Should().NotThrowAsync();
+    }
+
+    [Fact]
     public async Task Quitting_saves_the_base_list_so_no_stale_join_item_is_left_on_disk()
     {
         var service = Service();
