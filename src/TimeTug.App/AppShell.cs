@@ -12,6 +12,7 @@ using TimeTug.Platform.Flyout;
 using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.Instance;
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Chip;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
 using TimeTug.Presentation.Settings;
@@ -26,7 +27,7 @@ namespace TimeTug.App;
 /// The running app on the UI thread: it builds the host, keeps a hidden window alive (closing the last visible window ends a WinUI
 /// app), puts the icon in the notification area (whose Quit is how a person ends the app), opens the flyout from the icon, a second
 /// launch and the shortcut, opens the welcome window once the engine's first state says this is a first run, and quits in the order
-/// the engine needs (<see cref="QuitSequence"/>): the flyout is closed, an outstanding takeover is closed, the tray icon is removed,
+/// the engine needs (<see cref="QuitSequence"/>): the countdown chip and the flyout are closed, an outstanding takeover is closed, the tray icon is removed,
 /// the engine is disposed, then the process exits.
 /// <para>
 /// Startup order: the host and its services are built; a second launch is listened for (<see cref="FlyoutComposition.ConnectActivation"/>)
@@ -50,6 +51,7 @@ internal sealed class AppShell
     private TrayViewModel? _trayModel;
     private TrayIconService? _tray;
     private FlyoutHost? _flyoutHost;
+    private ChipHost? _chip;
     private SettingsHost? _settingsHost;
     private FlyoutComposition? _flyout;
     private AppRuntime? _runtime;
@@ -84,6 +86,9 @@ internal sealed class AppShell
 
     /// <summary>Opens, closes and places the flyout (null before the services are built).</summary>
     internal FlyoutHost? Flyout => _flyoutHost;
+
+    /// <summary>Shows, places and closes the countdown chip (null until the engine's first state is in, and after quitting).</summary>
+    internal ChipHost? Chip => _chip;
 
     /// <summary>Opens the Settings window, once (null before the services are built).</summary>
     internal SettingsHost? Settings => _settingsHost;
@@ -127,6 +132,10 @@ internal sealed class AppShell
 
             // The engine is up and has sent its first state: the held second launch opens the flyout and the stored shortcut is registered.
             await _flyout.CompleteStartupAsync();
+
+            // The countdown chip starts after the first state and with the presentation store loaded (it is Off until the person turns it on).
+            _chip = Services.GetRequiredService<ChipHost>();
+            _chip.Start();
             if (showWelcome)
             {
                 ShowWelcome();
@@ -209,6 +218,9 @@ internal sealed class AppShell
     /// <summary>The flyout closes and stays closed (no click, second launch or shortcut opens it again), and the Settings window closes with it.</summary>
     private void CloseFlyout()
     {
+        // The chip goes first: it is the thing on screen that opens the flyout from outside the tray.
+        _chip?.Dispose();
+        _chip = null;
         _flyout?.Retire();
         _flyoutHost?.Dispose();
         if (_flyoutHost is { } flyout)

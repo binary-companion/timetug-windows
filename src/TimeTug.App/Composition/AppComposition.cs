@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Dispatching;
+using TimeTug.App.Chip;
 using TimeTug.App.Flyout;
 using TimeTug.App.Settings;
 using TimeTug.App.Theming;
@@ -9,6 +10,7 @@ using TimeTug.App.Tug;
 using TimeTug.Engine;
 using TimeTug.Platform;
 using TimeTug.Platform.Auth;
+using TimeTug.Platform.Chip;
 using TimeTug.Platform.Clipboard;
 using TimeTug.Platform.Diagnostics;
 using TimeTug.Platform.Hotkey;
@@ -19,6 +21,7 @@ using TimeTug.Platform.Tray;
 using TimeTug.Platform.Tug;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Accounts;
+using TimeTug.Presentation.Chip;
 using TimeTug.Presentation.Diagnostics;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
@@ -150,6 +153,41 @@ internal static class AppComposition
             sp.GetRequiredService<IFlyoutSurfaceFactory>(), sp.GetRequiredService<ITugPresence>(), sp.GetRequiredService<IUiSettings>(),
             sp.GetRequiredService<ITrayAnchor>(), sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiDispatcher>(),
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IDiagnostics>(), sp.GetRequiredService<IPresentationSettingsStore>()));
+        // ---- the countdown chip (the shell starts it once the engine's first state is in; Off by default) ----------------------------
+        services.AddSingleton<IPollTicker>(sp => new PollTicker(sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton(sp => new ChipViewModel(
+            sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IPresentationSettingsStore>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<IMinuteTicker>(), sp.GetRequiredService<ILocalizer>(), diagnostics: sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton(sp => new ChipWindowFactory(
+            sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<IPresentationSettingsStore>(), sp.GetRequiredService<ILocalizer>(),
+            sp.GetRequiredService<IUiDispatcher>()));
+        services.AddSingleton<IChipWindowFactory>(sp => sp.GetRequiredService<ChipWindowFactory>());
+        services.AddSingleton<IChipActions>(sp =>
+        {
+            var flyout = sp.GetRequiredService<FlyoutHost>();
+            var flyoutModel = sp.GetRequiredService<FlyoutViewModel>();
+            var settings = sp.GetRequiredService<SettingsHost>();
+            return new ChipActions(
+                flyout.Toggle,
+                async eventId =>
+                {
+                    await flyoutModel.JoinAsync(eventId);
+                    // A link that could not be opened is kept on the flyout's card so the person can copy it: show the flyout.
+                    var failed = flyoutModel.Rows.Any(r => r.EventId == eventId && r.HasJoinFailed);
+                    if (failed)
+                    {
+                        flyout.Show();
+                    }
+
+                    return !failed;
+                },
+                () => settings.Show(SettingsPane.Appearance, AppearanceViewModel.Ids.Chip));
+        });
+        services.AddSingleton(sp => new ChipHost(
+            sp.GetRequiredService<ChipViewModel>(), sp.GetRequiredService<IChipWindowFactory>(), sp.GetRequiredService<IChipActions>(),
+            sp.GetRequiredService<ITugPresence>(), sp.GetRequiredService<INotificationState>(), sp.GetRequiredService<IPollTicker>(),
+            sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<ITrayAnchor>(), sp.GetRequiredService<IPresentationSettingsStore>(),
+            sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<IDiagnostics>()));
         // ---- the Settings window (the tray's Settings row and the flyout's gear call SettingsHost.Show) ------------------------
         services.AddSingleton(sp => new SettingsPaneModels(
             tugRules: () => new TugRulesViewModel(
