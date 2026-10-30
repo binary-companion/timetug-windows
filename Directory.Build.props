@@ -28,6 +28,10 @@
   <PropertyGroup>
     <Flavour Condition="'$(Flavour)' == ''">Dev</Flavour>
   </PropertyGroup>
+  <!-- DEVFLAVOUR marks code that exists only in the Dev flavour (the developer OAuth file, the developer shortcut file): a release assembly has no trace of it. -->
+  <PropertyGroup Condition="'$(Flavour)' == 'Dev'">
+    <DefineConstants>$(DefineConstants);DEVFLAVOUR</DefineConstants>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Flavour)' == 'Store'">
     <DefineConstants>$(DefineConstants);STORE</DefineConstants>
   </PropertyGroup>

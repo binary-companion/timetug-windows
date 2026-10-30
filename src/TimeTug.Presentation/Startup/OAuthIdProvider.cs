@@ -23,7 +23,8 @@ public interface IOAuthIdProvider
 /// <summary>The values the release script wrote into the generated <see cref="ReleaseOAuthIds"/> class; all null in every other build.</summary>
 public sealed record EmbeddedOAuthValues(string? GoogleClientId, string? GoogleClientSecret, string? MicrosoftClientId);
 
-/// <summary>Development and CI builds only: the file on this machine (<see cref="DevOAuthFile"/>).</summary>
+#if DEVFLAVOUR
+/// <summary>Development and CI builds only: the file on this machine (<see cref="DevOAuthFile"/>). Not compiled into Store or Direct builds.</summary>
 public sealed class DevFileOAuthIdProvider(string path, IDiagnostics diagnostics) : IOAuthIdProvider
 {
     private IReadOnlyDictionary<string, Pkg.OAuthClient>? _clients;
@@ -34,6 +35,8 @@ public sealed class DevFileOAuthIdProvider(string path, IDiagnostics diagnostics
         return _clients.GetValueOrDefault(OAuthIdProviders.Family(provider));
     }
 }
+
+#endif
 
 /// <summary>
 /// Store and Direct builds: the ids the release job injected at build time. Google needs both its id and its secret (as the Mac build does:
@@ -95,11 +98,22 @@ public static partial class ReleaseOAuthIds
 
 public static class OAuthIdProviders
 {
-    /// <summary>The provider for a flavour: the file on this machine for Dev, the embedded values for Store and Direct (which never look at the file).</summary>
-    public static IOAuthIdProvider Create(Flavour flavour, string devFilePath, EmbeddedOAuthValues embedded, IDiagnostics diagnostics) =>
-        BuildFlavour.HasDevelopmentScaffolding(flavour)
+    /// <summary>
+    /// The provider for a flavour: the file on this machine for Dev, the embedded values for Store and Direct (which never look at the file).
+    /// In a release build the file reader is not compiled at all, so <paramref name="devFilePath"/> is unused there.
+    /// </summary>
+    public static IOAuthIdProvider Create(Flavour flavour, string devFilePath, EmbeddedOAuthValues embedded, IDiagnostics diagnostics)
+    {
+#if DEVFLAVOUR
+        return BuildFlavour.HasDevelopmentScaffolding(flavour)
             ? new DevFileOAuthIdProvider(devFilePath, diagnostics)
             : new EmbeddedOAuthIdProvider(embedded, diagnostics);
+#else
+        _ = devFilePath;
+        _ = flavour;
+        return new EmbeddedOAuthIdProvider(embedded, diagnostics);
+#endif
+    }
 
     /// <summary>The clients in the shape the engine takes at start (keyed by connector family); empty when the build has none.</summary>
     public static IReadOnlyDictionary<string, Pkg.OAuthClient> ToClients(IOAuthIdProvider provider)

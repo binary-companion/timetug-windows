@@ -258,11 +258,12 @@ internal static class AppComposition
     {
         // Dev: the git-ignored file on this machine. Store and Direct: the ids the release job generated into the build (none in pull-request and
         // merge builds, so Google and Microsoft then show as not set up). A release build never looks at the file.
-        var provider = OAuthIdProviders.Create(
-            BuildFlavour.Current,
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TimeTug", DevOAuthFile.FileName),
-            ReleaseOAuthIds.Values(),
-            diagnostics);
+#if DEVFLAVOUR
+        var devFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TimeTug", DevOAuthFile.FileName);
+#else
+        var devFile = string.Empty;
+#endif
+        var provider = OAuthIdProviders.Create(BuildFlavour.Current, devFile, ReleaseOAuthIds.Values(), diagnostics);
         return new EngineStartup(EngineStartup.DefaultDataDirectory(), Testing: false, OAuthIdProviders.ToClients(provider));
     }
 }

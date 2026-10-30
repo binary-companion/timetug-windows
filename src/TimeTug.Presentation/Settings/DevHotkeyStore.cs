@@ -1,3 +1,4 @@
+#if DEVFLAVOUR
 namespace TimeTug.Presentation.Settings;
 
 /// <summary>
@@ -36,3 +37,4 @@ public sealed class DevHotkeyStore(IHotkeyStore inner, string path, TimeProvider
         }
     }
 }
+#endif

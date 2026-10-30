@@ -1,3 +1,4 @@
+#if DEVFLAVOUR
 using System.Text.Json;
 using TimeTug.Presentation.Abstractions;
 using Pkg = global::TimeTug.Engine;
@@ -107,3 +108,4 @@ public static class DevOAuthFile
 
     private static Dictionary<string, Pkg.OAuthClient> Empty() => new(StringComparer.Ordinal);
 }
+#endif
