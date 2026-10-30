@@ -28,6 +28,10 @@
 .PARAMETER IdentityName, Publisher, PublisherDisplayName, AppName
   Partner Center values (Product identity). Default: the environment variables PARTNER_CENTER_PACKAGE_NAME, PARTNER_CENTER_PUBLISHER,
   PARTNER_CENTER_PUBLISHER_DISPLAY_NAME and PARTNER_CENTER_APP_NAME, else what is in the manifest (the placeholders, which fail the build).
+.PARAMETER LocalSign
+  Direct flavour only: sign with a throwaway self-signed certificate made here (never exported with its key) whose subject is the manifest's publisher, and
+  write its public half to local.cer. For trying the Direct package on a test machine (scripts/vm/vm-cross-flavour.sh); a real Direct package is signed
+  in CI with the Binary Companion certificate, which does not exist yet. Never used by the release workflow (a repository check enforces it).
 .PARAMETER BundleWindowsAppSdk
   Store flavour only: bundle the Windows App SDK runtime too (the fallback if the Store cannot resolve the framework dependency; see
   docs/spikes/2026-10-store-packaging.md). The Direct flavour always bundles it.
@@ -54,6 +58,7 @@ param(
     [switch]$BundleWindowsAppSdk,
     [switch]$RequireOAuthIds,
     [switch]$DryRun,
+    [switch]$LocalSign,
     [switch]$SkipCheck
 )
 
@@ -110,6 +115,7 @@ function Invoke-Step([string]$Name, [scriptblock]$Body) {
 if ($MyInvocation.InvocationName -ne '.') {
     $parsed = ConvertTo-PackageVersion $Version -Prerelease:$Prerelease
     if ($DryRun -and $Flavour -ne 'Store') { throw '-DryRun builds the Store flavour only' }
+    if ($LocalSign -and ($Flavour -ne 'Direct' -or $DryRun)) { throw '-LocalSign is for the Direct flavour (the Store flavour has -DryRun)' }
     if (-not $OutputFolder) { $OutputFolder = Join-Path $script:Repo ("build\release\" + $Flavour.ToLowerInvariant() + '-' + $Platform.ToLowerInvariant()) }
     $OutputFolder = [System.IO.Path]::GetFullPath($OutputFolder)
     if (Test-Path $OutputFolder) { Remove-Item -Recurse -Force $OutputFolder }
@@ -151,11 +157,12 @@ if ($MyInvocation.InvocationName -ne '.') {
 
         # ---- signing (dry run only) ----
         $signing = @('-p:AppxPackageSigningEnabled=false')
-        if ($DryRun) {
-            $cert = New-SelfSignedCertificate -Type Custom -Subject $script:DryRunIdentity.Publisher -KeyUsage DigitalSignature `
-                -FriendlyName 'TimeTug release dry run (throwaway)' -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(3) `
+        if ($DryRun -or $LocalSign) {
+            $subject = if ($DryRun) { $script:DryRunIdentity.Publisher } else { ([xml]$manifestText).Package.Identity.Publisher }
+            $cert = New-SelfSignedCertificate -Type Custom -Subject $subject -KeyUsage DigitalSignature `
+                -FriendlyName 'TimeTug release test (throwaway)' -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(3) `
                 -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')
-            Export-Certificate -Cert $cert -FilePath (Join-Path $OutputFolder 'dryrun.cer') | Out-Null
+            Export-Certificate -Cert $cert -FilePath (Join-Path $OutputFolder $(if ($DryRun) { 'dryrun.cer' } else { 'local.cer' })) | Out-Null
             $signing = @('-p:AppxPackageSigningEnabled=true', "-p:PackageCertificateThumbprint=$($cert.Thumbprint)")
         }
 
@@ -192,7 +199,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     $commit = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { (git -C $script:Repo rev-parse HEAD 2>$null) }
     @(
         "flavour: $Flavour", "version: $($parsed.Package)", "architecture: $Platform", "flight: $([bool]$parsed.Suffix)", "commit: $commit",
-        "signed: $([bool]$DryRun) (dry run only; a real release package is unsigned)"
+        "signed: $([bool]($DryRun -or $LocalSign)) (a throwaway test certificate; a real release package is unsigned)"
     ) | Set-Content -LiteralPath (Join-Path $OutputFolder 'build-info.txt')
     Remove-Item -Recurse -Force -LiteralPath $manifestFolder
     Write-Host ('Package: {0} ({1:n1} MB)' -f $msix, ((Get-Item $msix).Length / 1MB))
