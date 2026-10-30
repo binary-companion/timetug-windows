@@ -58,7 +58,7 @@ public sealed class EmbeddedOAuthIdProvider : IOAuthIdProvider
         }
         else if (googleId is not null || googleSecret is not null)
         {
-            diagnostics.Record("warning", "oauth", "google sign-in needs both its id and its secret in this build; it stays unconfigured");
+            diagnostics.Record("warning", "oauth", "google sign-in needs both of its client values in this build; it stays unconfigured");
         }
 
         var microsoftId = Clean(values.MicrosoftClientId);
