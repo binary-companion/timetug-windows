@@ -187,16 +187,81 @@ for path in tracked_files():
     if path.suffix in ('.ps1', '.sh', '.yml', '.yaml'):
         require(not KEY_EXPORT.search(text), f'{relative}: exports or names a signing key file (the throwaway key must never leave the job)')
 
-# Pull-request code never meets secrets: no pull_request_target, and only the automatic token anywhere.
+# Pull-request code never meets secrets: no pull_request_target, and only the automatic token anywhere, with ONE exception: the jobs of
+# windows-release.yml that run in the `release` environment (owner approval required) may read the three OAuth client values.
+RELEASE_WORKFLOW = 'windows-release.yml'
+DRYRUN_WORKFLOW = 'windows-release-dryrun.yml'
+RELEASE_SECRETS = {'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID'}
+
+def environment_name(job):
+    environment = job.get('environment') if isinstance(job, dict) else None
+    return environment.get('name') if isinstance(environment, dict) else environment
+
 for workflow in workflows:
     data = load(workflow)
     triggers = data.get(True, data.get('on')) or {}
     names = triggers if isinstance(triggers, (list, dict)) else [triggers]
     require('pull_request_target' not in names, f'{workflow.name}: pull_request_target is banned')
-    used, whole = secret_use(data)
-    for secret in sorted(used - {'GITHUB_TOKEN'}):
-        require(False, f'{workflow.name}: uses secret {secret} (only GITHUB_TOKEN is allowed in this repository)')
-    require(not whole, f'{workflow.name}: uses the whole secrets context')
+    jobs = data.get('jobs') or {}
+    outside_jobs = {key: value for key, value in data.items() if key != 'jobs'}
+    scopes = [('workflow level', outside_jobs, {'GITHUB_TOKEN'})]
+    for job_name, job in jobs.items():
+        allowed = {'GITHUB_TOKEN'}
+        if workflow.name == RELEASE_WORKFLOW and environment_name(job) == 'release':
+            allowed |= RELEASE_SECRETS
+        scopes.append((f'job {job_name}', job, allowed))
+    for scope, node, allowed in scopes:
+        used, whole = secret_use(node)
+        for secret in sorted(used - allowed):
+            where = '' if scope == 'workflow level' else f' in {scope}'
+            hint = ' (release secrets only in a windows-release.yml job that runs in the `release` environment)' if secret in RELEASE_SECRETS else ''
+            require(False, f'{workflow.name}: uses secret {secret}{where} (only GITHUB_TOKEN is allowed in this repository){hint}')
+        require(not whole, f'{workflow.name}: uses the whole secrets context')
+
+# The Windows release workflow builds and uploads a workflow artifact; it never submits anywhere and never runs without the owner's approval.
+release = root / '.github' / 'workflows' / RELEASE_WORKFLOW
+require(release.is_file(), f'missing documented path: .github/workflows/{RELEASE_WORKFLOW}')
+if release.is_file():
+    data = load(release)
+    triggers = data.get(True, data.get('on')) or {}
+    trigger_names = set(triggers) if isinstance(triggers, (list, dict)) else {triggers}
+    require(trigger_names == {'release', 'workflow_dispatch'},
+            f'{RELEASE_WORKFLOW}: must run only on a published release or by hand (found {sorted(map(str, trigger_names))})')
+    require(data.get('permissions') == {'contents': 'read'}, f'{RELEASE_WORKFLOW}: workflow permissions must be exactly contents: read (no id-token, no write)')
+    jobs = data.get('jobs') or {}
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        require(not job.get('permissions') or job.get('permissions') == {'contents': 'read'}, f'{RELEASE_WORKFLOW}: job {job_name} widens the permissions')
+        commands = ' '.join(str(step.get('run', '')) for step in job.get('steps') or [] if isinstance(step, dict))
+        if 'build-release-msix.ps1' in commands:
+            require(environment_name(job) == 'release', f'{RELEASE_WORKFLOW}: job {job_name} builds the release package, so it must run in the `release` environment')
+            require('-RequireOAuthIds' in commands, f'{RELEASE_WORKFLOW}: job {job_name} must pass -RequireOAuthIds')
+            require('-DryRun' not in commands, f'{RELEASE_WORKFLOW}: job {job_name} must not be a dry run')
+        else:
+            require(environment_name(job) in (None, 'release'), f'{RELEASE_WORKFLOW}: job {job_name} uses an environment other than release')
+    plan_commands = ' '.join(str(step.get('run', '')) for step in (jobs.get('plan') or {}).get('steps') or [] if isinstance(step, dict))
+    for script in ('resolve-release.ps1', 'assert-on-default-branch.ps1'):
+        require(script in plan_commands, f'{RELEASE_WORKFLOW}: the plan job must run {script}')
+    commands_and_actions = []
+    for job in jobs.values():
+        for step in (job.get('steps') or []) if isinstance(job, dict) else []:
+            if isinstance(step, dict):
+                commands_and_actions += [str(step.get('run', '')), str(step.get('uses', ''))]
+    forbidden = re.compile(r'storebroker|msstore|devcenter|partner\.microsoft|submission|gh\s+release|Invoke-RestMethod|Invoke-WebRequest|\bcurl\b|\bwinget\b', re.I)
+    for text in commands_and_actions:
+        match = forbidden.search(text)
+        require(not match, f'{RELEASE_WORKFLOW}: a step talks to a store or publishes ({match.group(0) if match else ""}); this workflow only builds and uploads a workflow artifact')
+
+dryrun = root / '.github' / 'workflows' / DRYRUN_WORKFLOW
+require(dryrun.is_file(), f'missing documented path: .github/workflows/{DRYRUN_WORKFLOW}')
+if dryrun.is_file():
+    data = load(dryrun)
+    for job_name, job in (data.get('jobs') or {}).items():
+        require(isinstance(job, dict) and not environment_name(job), f'{DRYRUN_WORKFLOW}: job {job_name} must not use an environment (a dry run has no secrets)')
+    text = dryrun.read_text()
+    require('-DryRun' in text, f'{DRYRUN_WORKFLOW}: must build with -DryRun')
+    require('-RequireOAuthIds' not in text, f'{DRYRUN_WORKFLOW}: must not require real OAuth ids')
 
 if errors:
     for error in errors:
