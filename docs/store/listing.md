@@ -39,9 +39,9 @@ Built to interrupt you on purpose
 - One switch to go quiet. Turn off Enable Tug to stop every takeover at once.
 
 Always in reach
-- The tray icon shows the minutes to your next meeting; click it for today's agenda.
+- The tray icon counts the last minutes to your next meeting (or stays a plain icon if you prefer), its tooltip names the next meeting, and a click opens today's agenda.
 - A small countdown chip above the notification area, if you want one (Off by default).
-- Right-click the TimeTug taskbar button for Open today's meetings, Join next meeting, Test tug and Settings.
+- Right-click the TimeTug taskbar button for Open today's meetings, Test tug and Settings, and Join next meeting while the next meeting has a link.
 - An optional global keyboard shortcut for today's meetings, and an option to start TimeTug when you sign in (off until you turn it on).
 - Light, Dark or your Windows setting; follows contrast themes, transparency and animation settings.
 

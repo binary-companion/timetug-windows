@@ -11,7 +11,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidateSet('Build', 'Install', 'Cleanup')][string]$Stage,
-    [string]$Folder = 'C:\Users\Public\timetug-vm\cross-flavour'
+    [string]$Folder = 'C:\Users\Public\timetug-vm\cross-flavour',
+    # Cleanup only: leave the Direct package installed (the id file and the trusted certificate still go).
+    [switch]$KeepPackage
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,10 +48,27 @@ switch ($Stage) {
         Write-Host "Installed $($package.PackageFullName)"
     }
     'Cleanup' {
-        Get-Process -Name TimeTug -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*$name`_*" } | Stop-Process -Force -ErrorAction SilentlyContinue
-        Get-AppxPackage -Name $name | Remove-AppxPackage -ErrorAction SilentlyContinue
+        $problems = @()
+        if (-not $KeepPackage) {
+            $package = Get-AppxPackage -Name $name
+            if ($package) {
+                Get-Process -Name TimeTug -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($package.InstallLocation, [System.StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue
+                try { $package | Remove-AppxPackage } catch { $problems += "the Direct package could not be removed: $($_.Exception.Message)" }
+                if (Get-AppxPackage -Name $name) { $problems += 'the Direct package is still installed' }
+            }
+        }
         Remove-Item -LiteralPath $idFile -Force -ErrorAction SilentlyContinue
-        try { Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Subject -eq 'CN=Binary Companion' } | Remove-Item } catch { Write-Host 'Not elevated: the throwaway certificate was left in place.' }
+        if (Test-Path -LiteralPath $idFile) { $problems += 'the id file is still there' }
+        # Only the certificate this test made (its thumbprint, read from the public file it left), never another with the same subject.
+        $cer = Join-Path $Folder 'local.cer'
+        if (Test-Path -LiteralPath $cer) {
+            $thumbprint = (New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 -ArgumentList $cer).Thumbprint
+            $trusted = @(Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Thumbprint -eq $thumbprint })
+            if ($trusted.Count -gt 0) {
+                try { $trusted | Remove-Item } catch { Write-Host 'Not elevated: the throwaway certificate is removed by the SYSTEM pass.' }
+            }
+        }
+        if ($problems.Count -gt 0) { throw ($problems -join '; ') }
         Write-Host 'Cleaned up.'
     }
 }
