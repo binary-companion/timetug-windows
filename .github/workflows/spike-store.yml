@@ -24,6 +24,8 @@ jobs:
         shell: pwsh
         run: |
           Test-Path 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe'
+          Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit' -Recurse -File | Select-Object -First 15 FullName
+          Get-Command appcert.exe -ErrorAction SilentlyContinue | Select-Object Source
           Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10' -Directory | % Name
           Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin' -Directory | % Name
       - name: Variants
@@ -39,7 +41,12 @@ jobs:
             @{ n = 'v4'; a = 'WindowsAppSDKSelfContained=true;SelfContained=true' },
             @{ n = 'v5'; a = 'SelfContained=true' }
           )
-          foreach ($v in $variants) {
+          # v1: the development package as CI builds it today (CI configuration, alias kept).
+          Write-Host "=== v1: dev package"
+          & ./spike/spike-pack.ps1 -Name v1 -Config CI -Platform '${{ matrix.platform }}' -Source $src -Work $work
+          & ./spike/spike-install.ps1 -Name v1 -Work $work -Wack
+          $global:LASTEXITCODE = 0
+          foreach ($v in $variants | Select-Object -First 0) {
             Write-Host "=== $($v.n): $($v.a)"
             & ./spike/spike-pack.ps1 -Name $v.n -Config Release -DropAlias -Platform '${{ matrix.platform }}' -Source $src -Work $work -AppProps $v.a
             & ./spike/spike-install.ps1 -Name $v.n -Work $work -Wack
