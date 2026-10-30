@@ -17,13 +17,13 @@ public sealed class MutexInstanceRegistry(string identity) : IInstanceRegistry
     {
         public bool IsCurrent => guard is not null;
 
-        public event Action<ActivationKind>? ActivationReceived
+        public event Action<AppActivation>? ActivationReceived
         {
             add { }
             remove { }
         }
 
-        public Task RedirectToAsync(ActivationKind kind) => Task.CompletedTask;
+        public Task RedirectToAsync(AppActivation activation) => Task.CompletedTask;
 
         public void Dispose() => guard?.Dispose();
     }

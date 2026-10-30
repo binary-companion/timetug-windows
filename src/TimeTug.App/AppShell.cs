@@ -15,6 +15,7 @@ using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Chip;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
+using TimeTug.Presentation.JumpList;
 using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tray;
@@ -117,7 +118,7 @@ internal sealed class AppShell
             _flyoutHost.AccountsRequested += OpenAccounts;
             _flyout = new FlyoutComposition(
                 _instance, Services.GetRequiredService<HotkeyService>(), _flyoutHost, Services.GetRequiredService<ITugPresence>(),
-                Services.GetRequiredService<IUiDispatcher>(), _diagnostics);
+                Services.GetRequiredService<IUiDispatcher>(), _diagnostics, Services.GetRequiredService<JumpActionHandler>());
 
             // Before the engine starts: a second launch that comes in while this copy is starting is held, not lost.
             _flyout.ConnectActivation();

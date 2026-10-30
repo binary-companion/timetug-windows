@@ -1,6 +1,7 @@
 using TimeTug.Platform.Hotkey;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Flyout;
+using TimeTug.Presentation.JumpList;
 
 namespace TimeTug.Platform.Instance;
 
@@ -19,11 +20,32 @@ public static class FlyoutTriggers
         ArgumentNullException.ThrowIfNull(instance);
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(ui);
-        void OnActivated(ActivationKind kind)
+        void OnActivated(AppActivation activation)
         {
-            if (kind == ActivationKind.Flyout)
+            if (activation.Kind == ActivationKind.Flyout)
             {
                 ui.Post(() => host.Show());
+            }
+        }
+
+        instance.Activated += OnActivated;
+        return new Subscription(() => instance.Activated -= OnActivated);
+    }
+
+    /// <summary>
+    /// A jump list item chosen from the taskbar button (a launch with <c>--jump word</c>, handed to this copy) is carried out by
+    /// <paramref name="handler"/>. The activation arrives on an arbitrary thread; the action is posted to the UI thread.
+    /// </summary>
+    public static IDisposable RunJumpOnActivation(IAppInstance instance, JumpActionHandler handler, IUiDispatcher ui)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(ui);
+        void OnActivated(AppActivation activation)
+        {
+            if (activation.Jump is { } action)
+            {
+                ui.Post(() => _ = handler.HandleAsync(action).AsTask());
             }
         }
 

@@ -445,6 +445,10 @@
   <data name="Chip_Menu_Join" xml:space="preserve"><value>Join</value></data>
   <data name="Chip_Menu_Hide" xml:space="preserve"><value>Hide until the next meeting</value></data>
   <data name="Chip_Menu_Settings" xml:space="preserve"><value>Open Settings</value></data>
+  <data name="JumpList_Flyout" xml:space="preserve"><value>Open today's meetings</value><comment>A task in the taskbar button's jump list (right-click the TimeTug button): opens the flyout.</comment></data>
+  <data name="JumpList_JoinNext" xml:space="preserve"><value>Join next meeting</value><comment>A jump list task, present only while the meeting in progress or the next one has a join link: opens that link. Generic on purpose, because Windows keeps the list on disk.</comment></data>
+  <data name="JumpList_TestTug" xml:space="preserve"><value>Test tug</value><comment>A jump list task: shows a test tug screen.</comment></data>
+  <data name="JumpList_Settings" xml:space="preserve"><value>Settings</value><comment>A jump list task: opens the Settings window.</comment></data>
   <data name="SettingsText_countdown-chip" xml:space="preserve"><value>Countdown chip</value></data>
   <data name="SettingsKeywords_countdown-chip" xml:space="preserve"><value>chip;countdown;next meeting;always on top;floating;desktop;overlay;timer;minutes</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
   <data name="Appearance_Chip_Off" xml:space="preserve"><value>Off</value></data>

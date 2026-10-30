@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Dispatching;
 using TimeTug.App.Chip;
 using TimeTug.App.Flyout;
+using TimeTug.App.JumpList;
 using TimeTug.App.Settings;
 using TimeTug.App.Theming;
 using TimeTug.App.Tray;
@@ -14,6 +15,7 @@ using TimeTug.Platform.Chip;
 using TimeTug.Platform.Clipboard;
 using TimeTug.Platform.Diagnostics;
 using TimeTug.Platform.Hotkey;
+using TimeTug.Platform.JumpList;
 using TimeTug.Platform.OsState;
 using TimeTug.Platform.Settings;
 using TimeTug.Platform.Startup;
@@ -25,6 +27,7 @@ using TimeTug.Presentation.Chip;
 using TimeTug.Presentation.Diagnostics;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
+using TimeTug.Presentation.JumpList;
 using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tug;
@@ -162,32 +165,27 @@ internal static class AppComposition
             sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<IPresentationSettingsStore>(), sp.GetRequiredService<ILocalizer>(),
             sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton<IChipWindowFactory>(sp => sp.GetRequiredService<ChipWindowFactory>());
-        services.AddSingleton<IChipActions>(sp =>
-        {
-            var flyout = sp.GetRequiredService<FlyoutHost>();
-            var flyoutModel = sp.GetRequiredService<FlyoutViewModel>();
-            var settings = sp.GetRequiredService<SettingsHost>();
-            return new ChipActions(
-                flyout.Toggle,
-                async eventId =>
-                {
-                    await flyoutModel.JoinAsync(eventId);
-                    // A link that could not be opened is kept on the flyout's card so the person can copy it: show the flyout.
-                    var failed = flyoutModel.Rows.Any(r => r.EventId == eventId && r.HasJoinFailed);
-                    if (failed)
-                    {
-                        flyout.Show();
-                    }
-
-                    return !failed;
-                },
-                () => settings.Show(SettingsPane.Appearance, AppearanceViewModel.Ids.Chip));
-        });
+        services.AddSingleton<IChipActions>(sp => new ChipActions(
+            sp.GetRequiredService<FlyoutHost>().Toggle,
+            JoinThroughFlyout(sp),
+            () => sp.GetRequiredService<SettingsHost>().Show(SettingsPane.Appearance, AppearanceViewModel.Ids.Chip)));
         services.AddSingleton(sp => new ChipHost(
             sp.GetRequiredService<ChipViewModel>(), sp.GetRequiredService<IChipWindowFactory>(), sp.GetRequiredService<IChipActions>(),
             sp.GetRequiredService<ITugPresence>(), sp.GetRequiredService<INotificationState>(), sp.GetRequiredService<IPollTicker>(),
             sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<ITrayAnchor>(), sp.GetRequiredService<IPresentationSettingsStore>(),
             sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<IDiagnostics>()));
+        // ---- the jump list (the taskbar button's right-click menu; the hosted service saves it at startup and on quit, see JumpListHostedService) ----
+        services.AddSingleton<IJumpListPlatform>(_ => new WindowsJumpListPlatform());
+        services.AddSingleton(sp => new JumpListService(
+            sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IJumpListPlatform>(), sp.GetRequiredService<ILocalizer>(),
+            sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IDiagnostics>()));
+        services.AddSingleton<IJumpActions>(sp => new JumpActions(
+            () => sp.GetRequiredService<FlyoutHost>().Show(),
+            JoinThroughFlyout(sp),
+            () => sp.GetRequiredService<AppRuntime>().TestTugAsync(),
+            () => sp.GetRequiredService<SettingsHost>().Show()));
+        services.AddSingleton(sp => new JumpActionHandler(
+            sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IJumpActions>(), sp.GetRequiredService<ITugPresence>(), sp.GetRequiredService<IDiagnostics>()));
         // ---- the Settings window (the tray's Settings row and the flyout's gear call SettingsHost.Show) ------------------------
         services.AddSingleton(sp => new SettingsPaneModels(
             tugRules: () => new TugRulesViewModel(
@@ -234,7 +232,26 @@ internal static class AppComposition
             sp.GetRequiredService<INotificationState>(), sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<ILocalizer>(),
             sp.GetRequiredService<IDiagnostics>(), sp.GetRequiredService<TimeProvider>()));
         services.AddHostedService<AppRuntimeService>();
+        services.AddHostedService<JumpListHostedService>();
     }
+
+    /// <summary>
+    /// Opens a meeting's link the way the flyout's Join button does. A link that could not be opened is kept on the flyout's card so the
+    /// person can copy it, so the flyout is shown then. The result is false when the link failed.
+    /// </summary>
+    private static Func<string, ValueTask<bool>> JoinThroughFlyout(IServiceProvider sp) => async eventId =>
+    {
+        var flyout = sp.GetRequiredService<FlyoutHost>();
+        var flyoutModel = sp.GetRequiredService<FlyoutViewModel>();
+        await flyoutModel.JoinAsync(eventId);
+        var failed = flyoutModel.Rows.Any(r => r.EventId == eventId && r.HasJoinFailed);
+        if (failed)
+        {
+            flyout.Show();
+        }
+
+        return !failed;
+    };
 
     /// <summary>A development or CI build (the <c>SELFTEST</c> configurations): not in the Store, so the Software Update page shows its commit.</summary>
     private const bool IsDevelopmentBuild =

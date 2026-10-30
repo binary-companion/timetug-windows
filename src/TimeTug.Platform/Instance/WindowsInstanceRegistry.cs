@@ -1,4 +1,5 @@
 using Microsoft.Windows.AppLifecycle;
+using Windows.ApplicationModel.Activation;
 
 namespace TimeTug.Platform.Instance;
 
@@ -29,12 +30,13 @@ public sealed class WindowsInstanceRegistry : IInstanceRegistry
 
         public bool IsCurrent => _instance.IsCurrent;
 
-        public event Action<ActivationKind>? ActivationReceived;
+        public event Action<AppActivation>? ActivationReceived;
 
-        public async Task RedirectToAsync(ActivationKind kind)
+        public async Task RedirectToAsync(AppActivation activation)
         {
-            // Every launch asks for the flyout, whatever the launch was (the Start menu, the alias, a file association later). The
-            // arguments are read here, on the launching thread; the call itself must not block the UI thread, so it runs on the pool.
+            // The real activation is handed over as it came (the Start menu, the alias, a jump list item), and the primary reads what it
+            // asks for from its arguments (OnActivated), so the request passed in is not needed here. The arguments are read here, on the
+            // launching thread; the call itself must not block the UI thread, so it runs on the pool.
             var arguments = AppInstance.GetCurrent().GetActivatedEventArgs();
             await Task.Run(() => _instance.RedirectActivationToAsync(arguments).AsTask()).ConfigureAwait(false);
         }
@@ -57,6 +59,24 @@ public sealed class WindowsInstanceRegistry : IInstanceRegistry
             }
         }
 
-        private void OnActivated(object? sender, AppActivationArguments arguments) => ActivationReceived?.Invoke(ActivationKind.Flyout);
+        /// <summary>A launch that carried <c>--jump word</c> asks for that action; every other launch asks for the flyout.</summary>
+        private void OnActivated(object? sender, AppActivationArguments arguments) => ActivationReceived?.Invoke(Read(arguments));
+
+        private static AppActivation Read(AppActivationArguments arguments)
+        {
+            try
+            {
+                if (arguments.Kind == ExtendedActivationKind.Launch && arguments.Data is ILaunchActivatedEventArgs launch)
+                {
+                    return ActivationParser.FromCommandLine(launch.Arguments);
+                }
+            }
+            catch (Exception e) when (e is System.Runtime.InteropServices.COMException or InvalidCastException or InvalidOperationException)
+            {
+                // The arguments could not be read: it is still a second launch.
+            }
+
+            return AppActivation.Flyout;
+        }
     }
 }

@@ -5,7 +5,10 @@ using TimeTug.Platform.Instance;
 using TimeTug.Platform.Tests.Hotkey;
 using TimeTug.Platform.Tests.Instance;
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
+using TimeTug.Presentation.JumpList;
+using TimeTug.Platform.Tests.OsState;
 using TimeTug.Presentation.Settings;
 
 namespace TimeTug.Platform.Tests.Flyout;
@@ -53,7 +56,7 @@ public sealed class FlyoutCompositionTests : IAsyncDisposable
     private async Task SecondLaunchAsync()
     {
         using var second = new AppInstanceService(_registry, AppInstanceService.MainKey, _time, _log);
-        await second.RedirectAsync(ActivationKind.Flyout);
+        await second.RedirectAsync(AppActivation.Flyout);
     }
 
     // ---- startup order ------------------------------------------------------------------------------------------
@@ -271,6 +274,152 @@ public sealed class FlyoutCompositionTests : IAsyncDisposable
         _registrar.Press();
 
         _windows.Created.Should().Be(1);
+    }
+
+    // ---- jump list actions --------------------------------------------------------------------------------------
+
+    private sealed class RecordingActions : IJumpActions
+    {
+        public List<string> Calls { get; } = [];
+
+        public void ShowFlyout() => Calls.Add("flyout");
+
+        public ValueTask JoinAsync(string eventId)
+        {
+            Calls.Add("join:" + eventId);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask TestTugAsync()
+        {
+            Calls.Add("test-tug");
+            return ValueTask.CompletedTask;
+        }
+
+        public void OpenSettings() => Calls.Add("settings");
+    }
+
+    private sealed class NoState : IObservable<AppState>
+    {
+        public IDisposable Subscribe(IObserver<AppState> observer) => new Nothing();
+
+        private sealed class Nothing : IDisposable
+        {
+            public void Dispose()
+            {
+            }
+        }
+    }
+
+    private (FlyoutComposition Composition, RecordingActions Actions, JumpActionHandler Handler) WithJump()
+    {
+        var actions = new RecordingActions();
+        var handler = new JumpActionHandler(new RecordingEngineClient { StateSource = new NoState() }, actions, _tug, _log);
+        return (new FlyoutComposition(_primary, _hotkey, _host, _tug, new ImmediateDispatcher(), _log, handler), actions, handler);
+    }
+
+    private async Task JumpLaunchAsync(JumpAction action)
+    {
+        using var second = new AppInstanceService(_registry, AppInstanceService.MainKey, _time, _log);
+        await second.RedirectAsync(AppActivation.ForJump(action));
+    }
+
+    [Fact]
+    public async Task A_jump_launch_runs_its_action_once_and_does_not_open_the_flyout()
+    {
+        var (composition, actions, handler) = WithJump();
+        using var _ = composition;
+        using var __ = handler;
+        composition.ConnectActivation();
+        await composition.CompleteStartupAsync();
+
+        await JumpLaunchAsync(JumpAction.Settings);
+        await Task.Yield();
+
+        actions.Calls.Should().Equal("settings");
+        _windows.Created.Should().Be(0, "a jump action is not a request for the flyout");
+    }
+
+    [Fact]
+    public async Task A_jump_launch_that_arrived_before_the_first_state_is_held_then_run_once()
+    {
+        var (composition, actions, handler) = WithJump();
+        using var _ = composition;
+        using var __ = handler;
+        composition.ConnectActivation();
+
+        await JumpLaunchAsync(JumpAction.TestTug);
+        await Task.Yield();
+        actions.Calls.Should().BeEmpty();
+
+        await composition.CompleteStartupAsync();
+        await Task.Yield();
+
+        actions.Calls.Should().Equal("test-tug");
+    }
+
+    [Fact]
+    public async Task The_primarys_own_jump_arguments_are_run_once_after_the_first_state()
+    {
+        var (composition, actions, handler) = WithJump();
+        using var _ = composition;
+        using var __ = handler;
+        composition.ConnectActivation();
+        _primary.AcceptLaunch(AppActivation.ForJump(JumpAction.Flyout));
+
+        actions.Calls.Should().BeEmpty();
+        await composition.CompleteStartupAsync();
+        await Task.Yield();
+
+        actions.Calls.Should().Equal("flyout");
+    }
+
+    [Fact]
+    public async Task A_plain_second_launch_still_opens_the_flyout_and_runs_no_jump_action()
+    {
+        var (composition, actions, handler) = WithJump();
+        using var _ = composition;
+        using var __ = handler;
+        composition.ConnectActivation();
+        await composition.CompleteStartupAsync();
+
+        await SecondLaunchAsync();
+        await Task.Yield();
+
+        actions.Calls.Should().BeEmpty();
+        _host.IsOpen.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_jump_launch_while_the_tug_shows_runs_nothing()
+    {
+        var (composition, actions, handler) = WithJump();
+        using var _ = composition;
+        using var __ = handler;
+        composition.ConnectActivation();
+        await composition.CompleteStartupAsync();
+        _tug.IsTugShowing = true;
+
+        await JumpLaunchAsync(JumpAction.Settings);
+        await Task.Yield();
+
+        actions.Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task After_retiring_a_jump_launch_runs_nothing()
+    {
+        var (composition, actions, handler) = WithJump();
+        using var _ = composition;
+        using var __ = handler;
+        composition.ConnectActivation();
+        await composition.CompleteStartupAsync();
+        composition.Retire();
+
+        await JumpLaunchAsync(JumpAction.Settings);
+        await Task.Yield();
+
+        actions.Calls.Should().BeEmpty();
     }
 
     // ---- fakes --------------------------------------------------------------------------------------------------

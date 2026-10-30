@@ -50,9 +50,9 @@ internal sealed class FakeInstanceRegistry : IInstanceRegistry
 
         public bool IsCurrent { get; } = isCurrent;
 
-        public event Action<ActivationKind>? ActivationReceived;
+        public event Action<AppActivation>? ActivationReceived;
 
-        public async Task RedirectToAsync(ActivationKind kind)
+        public async Task RedirectToAsync(AppActivation kind)
         {
             owner.CountRedirect();
             if (owner.RedirectFails is { } failure)
