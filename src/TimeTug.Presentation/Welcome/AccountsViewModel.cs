@@ -28,6 +28,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     private string? _explainedError;
     private string? _brokeredReconnect;
     private bool _brokeredReconnectSawWorking;
+    private bool _windowsStopping;
 
     /// <summary>The search catalog's ids for the Accounts pane (an account's highlight id is the prefix plus its connection id).</summary>
     public static class Ids
@@ -182,7 +183,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         : _state?.Activity?.WaitingStyle == "inApp" ? _text.GetString("WaitingInApp") : _text.GetString("WaitingBrowser");
 
     // The engine says "browser" for the brokered kind (its waiting style cannot know better), so the text follows the kind that was asked for.
-    private bool WaitingOnWindows => _attempt?.KindId == BrokeredKinds.Brokered || _brokeredReconnect is not null;
+    private bool WaitingOnWindows => _attempt?.KindId == BrokeredKinds.Brokered || _brokeredReconnect is not null || _windowsStopping;
 
     public string NextMeetingText
     {
@@ -246,6 +247,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // A Windows sign-in being cancelled is still "Waiting for Windows…" until the engine says it is done.
+        _windowsStopping = _attempt?.KindId == BrokeredKinds.Brokered || _brokeredReconnect is not null;
         EndAttempt();
         _brokeredReconnect = null;
         Refresh();
@@ -271,7 +274,15 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             _brokeredReconnectSawWorking = false;
         }
 
-        await _engine.ReconnectAccountAsync(connectionId);
+        try
+        {
+            await _engine.ReconnectAccountAsync(connectionId);
+        }
+        catch
+        {
+            _brokeredReconnect = null;
+            throw;
+        }
     }
 
     /// <summary>Opens the question "Remove this account?" for a listed account (not while a sign-in runs).</summary>
@@ -332,9 +343,9 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         {
             email = await source.GetEmailAsync(CancellationToken.None);
         }
-        catch (Exception e) when (e is not OperationCanceledException)
+        catch (Exception)
         {
-            // Naming the account is a courtesy; the card keeps its plain text.
+            // Naming the account is a courtesy (and this task is not awaited): whatever goes wrong, the card keeps its plain text.
         }
 
         OnUi(() =>
@@ -400,6 +411,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     // "Waiting for Windows…" follows a brokered reconnect until the engine is done with it: it worked (the account no longer needs the person) or it stopped.
     private void EvaluateBrokeredReconnect(AppState state)
     {
+        if (state.Activity?.IsWorking != true)
+        {
+            _windowsStopping = false;
+        }
+
         if (_brokeredReconnect is not { } connectionId)
         {
             return;
@@ -409,7 +425,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         {
             _brokeredReconnectSawWorking = true;
         }
-        else if (_brokeredReconnectSawWorking || state.Accounts.FirstOrDefault(a => a.ConnectionId == connectionId)?.Status != "authExpired")
+        else if (_brokeredReconnectSawWorking || !string.IsNullOrEmpty(state.Activity?.ErrorMessage)
+            || state.Accounts.FirstOrDefault(a => a.ConnectionId == connectionId)?.Status != "authExpired")
         {
             _brokeredReconnect = null;
         }

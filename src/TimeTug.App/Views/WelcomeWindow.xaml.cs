@@ -23,6 +23,7 @@ public sealed partial class WelcomeWindow : Window
     private bool _syncing;
 
     private readonly BrokerParentWindow? _brokerParent;
+    private readonly nint _handle;
 
     /// <param name="brokerParent">Where this window registers itself while open, so the Windows sign-in dialog opens in front of it.</param>
     public WelcomeWindow(WelcomeViewModel viewModel, AccountFormService forms, ILocalizer text, ThemeService? theme = null, BrokerParentWindow? brokerParent = null)
@@ -31,7 +32,8 @@ public sealed partial class WelcomeWindow : Window
         _forms = forms;
         _brokerParent = brokerParent;
         InitializeComponent();
-        _brokerParent?.Register(WinRT.Interop.WindowNative.GetWindowHandle(this));
+        _handle = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        _brokerParent?.Register(_handle);
         _theme = theme?.Attach(this, Root);
         Title = text.GetString("WelcomeWindowTitle");
         ViewModel.CloseRequested += (_, _) => Close();
@@ -152,7 +154,7 @@ public sealed partial class WelcomeWindow : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
-        _brokerParent?.Unregister(WinRT.Interop.WindowNative.GetWindowHandle(this));
+        _brokerParent?.Unregister(_handle);
         _forms.XamlRoot = null;
         _theme?.Dispose();
         // Closing the window mid sign-in cancels it, so the engine is not left waiting for a browser or a form.

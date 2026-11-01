@@ -277,6 +277,53 @@ public class AccountsBrokeredTests
         model.WaitingText.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task A_brokered_reconnect_that_fails_with_no_working_state_does_not_mislabel_the_next_sign_in()
+    {
+        var expired = Account("b", "microsoft-brokered", "me@example.com", "authExpired");
+        var (engine, model, _) = Create(With(null, expired));
+        await model.ReauthorizeAsync("b");
+
+        // The engine refuses at once: an error, the account still needs the person, and no working state was ever published.
+        engine.Push(With(new AccountActivity(false, "Sign-in failed: Windows sign-in is not available.", "browser"), expired));
+        await model.ConnectAsync("google");
+
+        model.WaitingText.Should().Be("Waiting for your browser…");
+    }
+
+    [Fact]
+    public async Task Cancelling_a_windows_sign_in_keeps_waiting_for_windows_until_the_engine_is_done()
+    {
+        var (engine, model, _) = Create();
+        await model.ConnectBrokeredAsync(BrokerIntent.WindowsAccount);
+        engine.Push(States.Empty(KindsWithBrokered, new AccountActivity(true, null, "browser")));
+
+        await model.CancelAsync();
+        model.IsBusy.Should().BeTrue("the engine has not said it stopped");
+        model.WaitingText.Should().Be("Waiting for Windows…");
+
+        engine.Push(Idle());
+        model.IsBusy.Should().BeFalse();
+        await model.ConnectAsync("google");
+        model.WaitingText.Should().Be("Waiting for your browser…");
+    }
+
+    [Fact]
+    public async Task A_windows_account_source_that_throws_cancellation_does_not_fault_the_unobserved_lookup()
+    {
+        var (_, model, _) = Create();
+        model.WindowsAccounts = new CancelledAccounts();
+
+        await model.RefreshWindowsAccountAsync();
+
+        model.Providers[0].Name.Should().Be("Microsoft account on this PC");
+    }
+
+    private sealed class CancelledAccounts : IWindowsAccountSource
+    {
+        public ValueTask<string?> GetEmailAsync(CancellationToken cancellationToken) => throw new OperationCanceledException();
+    }
+
     // ---- connected rows -----------------------------------------------------------------------------------------------------------
 
     [Fact]
