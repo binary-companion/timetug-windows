@@ -22,11 +22,16 @@ public sealed partial class WelcomeWindow : Window
     private readonly IDisposable? _theme;
     private bool _syncing;
 
-    public WelcomeWindow(WelcomeViewModel viewModel, AccountFormService forms, ILocalizer text, ThemeService? theme = null)
+    private readonly BrokerParentWindow? _brokerParent;
+
+    /// <param name="brokerParent">Where this window registers itself while open, so the Windows sign-in dialog opens in front of it.</param>
+    public WelcomeWindow(WelcomeViewModel viewModel, AccountFormService forms, ILocalizer text, ThemeService? theme = null, BrokerParentWindow? brokerParent = null)
     {
         ViewModel = viewModel;
         _forms = forms;
+        _brokerParent = brokerParent;
         InitializeComponent();
+        _brokerParent?.Register(WinRT.Interop.WindowNative.GetWindowHandle(this));
         _theme = theme?.Attach(this, Root);
         Title = text.GetString("WelcomeWindowTitle");
         ViewModel.CloseRequested += (_, _) => Close();
@@ -131,8 +136,23 @@ public sealed partial class WelcomeWindow : Window
         first?.Focus(FocusState.Programmatic);
     }
 
+    /// <summary>The card the first-run window pre-selects (the Windows account) takes the accent colour; keyboard focus starts on the first card anyway.</summary>
+    private void OnProviderButtonLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: ProviderItem { IsPreselected: true } } button)
+        {
+            button.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
+            // The hint is secondary-grey on a normal card; on the accent fill it must follow the button's own (light) text colour to stay readable.
+            if (button.Content is StackPanel { Children: [_, TextBlock hint] })
+            {
+                hint.ClearValue(TextBlock.ForegroundProperty);
+            }
+        }
+    }
+
     private void OnClosed(object sender, WindowEventArgs args)
     {
+        _brokerParent?.Unregister(WinRT.Interop.WindowNative.GetWindowHandle(this));
         _forms.XamlRoot = null;
         _theme?.Dispose();
         // Closing the window mid sign-in cancels it, so the engine is not left waiting for a browser or a form.

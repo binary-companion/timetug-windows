@@ -8,7 +8,7 @@ namespace TimeTug.App;
 /// open the fallback is the hidden top-level message window, which the spike found not dependable (no dialog was seen when every window was hidden), so
 /// reconnecting is offered only from windows (Settings > Accounts, the welcome window), never from the flyout.
 /// </summary>
-internal sealed class BrokerParentWindow : IBrokerParentWindow
+public sealed class BrokerParentWindow : IBrokerParentWindow
 {
     private readonly Func<nint> _fallback;
     private readonly List<nint> _open = [];

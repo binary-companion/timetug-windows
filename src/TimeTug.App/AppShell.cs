@@ -8,10 +8,12 @@ using TimeTug.App.Theming;
 using TimeTug.App.Tray;
 using TimeTug.App.Tug;
 using TimeTug.App.Views;
+using TimeTug.Platform.Broker;
 using TimeTug.Platform.Flyout;
 using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.Instance;
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Accounts;
 using TimeTug.Presentation.Chip;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Flyout;
@@ -21,6 +23,7 @@ using TimeTug.Presentation.Startup;
 using TimeTug.Presentation.Tray;
 using TimeTug.Presentation.Tug;
 using TimeTug.Presentation.Welcome;
+using Pkg = TimeTug.Engine;
 
 namespace TimeTug.App;
 
@@ -194,7 +197,10 @@ internal sealed class AppShell
             () => ShowSettings(SettingsPane.Accounts),
             // The checkbox on the second step: unchecked until the person ticks it; Windows decides what comes of the tick.
             Services.GetRequiredService<LaunchAtLoginViewModel>(),
-            Services.GetRequiredService<ThemeService>());
+            Services.GetRequiredService<ThemeService>(),
+            Services.GetRequiredService<BrokerParentWindow>(),
+            Services.GetRequiredService<IBrokerSignInIntent>(),
+            Services.GetRequiredService<Pkg.IEngineHost>() is BrokeredEngineHost brokered ? brokered.WindowsAccounts : null);
         window.Closed += (_, _) => _welcome = null;
         _welcome = window;
         window.Activate();

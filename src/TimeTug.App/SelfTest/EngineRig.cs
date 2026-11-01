@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
 using TimeTug.App.Composition;
 using TimeTug.App.Tug;
+using TimeTug.Platform.Broker;
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Accounts;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
@@ -40,12 +42,17 @@ internal sealed class EngineRig : IAsyncDisposable
     private string _calendarList = "google-calendar-list.json";
     private string _events = "google-events-simple.json";
     private string? _teamEvents;
+    private bool _brokered;
 
     private EngineRig(ScenarioRun run, CancellationToken cancellation)
     {
         Run = run;
         _cancellation = cancellation;
+        Broker = new FakeBrokerClient(() => Clock.GetUtcNow());
     }
+
+    /// <summary>The Windows account broker of a brokered rig (<see cref="StartBrokeredAsync"/>): scripted, and it records what the app asked of it.</summary>
+    public FakeBrokerClient Broker { get; }
 
     public ScenarioRun Run { get; }
 
@@ -105,6 +112,18 @@ internal sealed class EngineRig : IAsyncDisposable
         string? teamEvents = null)
     {
         var rig = new EngineRig(new ScenarioRun(options), cancellation) { _calendarList = calendarList, _events = events, _teamEvents = teamEvents };
+        await rig.StartCoreAsync();
+        return rig;
+    }
+
+    /// <summary>
+    /// Starts the app with the real engine and no account at all, as on a first run, with a Microsoft sign-in that goes through the (scripted) Windows
+    /// account broker and recorded Microsoft Graph answers: the account <c>me@example.com</c> has three calendars and the meeting "Design review" at 14:30,
+    /// 90 minutes after the clocks start. The welcome window opens by itself, as it does for a person with no account.
+    /// </summary>
+    public static async Task<EngineRig> StartBrokeredAsync(SelfTestOptions options, CancellationToken cancellation)
+    {
+        var rig = new EngineRig(new ScenarioRun(options), cancellation) { _brokered = true };
         await rig.StartCoreAsync();
         return rig;
     }
@@ -215,17 +234,29 @@ internal sealed class EngineRig : IAsyncDisposable
         }
 
         Directory.CreateDirectory(folder);
-        SelfTestData.CopyTo("engine-accounts.json", folder, "accounts.json");
-        SelfTestData.CopyTo("engine-settings.json", folder, "settings.json");
-
-        Host.Secrets.Seed("conn-1", "refresh_token", "test-refresh-token");
-        Host.Answers.Answer("https://oauth2.googleapis.com/token", "google-token.json", "POST");
-        Host.Answers.Answer("https://www.googleapis.com/calendar/v3/users/me/calendarList", _calendarList);
-        Host.Answers.Answer("https://www.googleapis.com/calendar/v3/calendars/", "google-events-empty.json");
-        Host.Answers.Answer(EventsUrl, _events);
-        if (_teamEvents is not null)
+        if (_brokered)
         {
-            Host.Answers.Answer(TeamEventsUrl, _teamEvents);
+            // A first run: no accounts file, so the welcome window opens. Microsoft Graph answers from recorded files (the newest, most specific prefix wins).
+            Host.Answers.Answer("https://graph.microsoft.com/v1.0/me?", "graph-me.json");
+            Host.Answers.Answer("https://graph.microsoft.com/v1.0/me/mailboxSettings/timeZone", "graph-timezone.json");
+            Host.Answers.Answer("https://graph.microsoft.com/v1.0/me/calendars?", "graph-calendars.json");
+            Host.Answers.Answer("https://graph.microsoft.com/v1.0/me/calendars/", "graph-events-empty.json");
+            Host.Answers.Answer("https://graph.microsoft.com/v1.0/me/calendars/cal-1/calendarView?", "graph-events-simple.json");
+        }
+        else
+        {
+            SelfTestData.CopyTo("engine-accounts.json", folder, "accounts.json");
+            SelfTestData.CopyTo("engine-settings.json", folder, "settings.json");
+
+            Host.Secrets.Seed("conn-1", "refresh_token", "test-refresh-token");
+            Host.Answers.Answer("https://oauth2.googleapis.com/token", "google-token.json", "POST");
+            Host.Answers.Answer("https://www.googleapis.com/calendar/v3/users/me/calendarList", _calendarList);
+            Host.Answers.Answer("https://www.googleapis.com/calendar/v3/calendars/", "google-events-empty.json");
+            Host.Answers.Answer(EventsUrl, _events);
+            if (_teamEvents is not null)
+            {
+                Host.Answers.Answer(TeamEventsUrl, _teamEvents);
+            }
         }
 
         var (main, second) = FakeMonitors.Layout();
@@ -236,10 +267,15 @@ internal sealed class EngineRig : IAsyncDisposable
             Diagnostics,
             services =>
             {
-                var clients = new Dictionary<string, Pkg.OAuthClient> { ["google"] = new("test-client", "test-secret") };
+                var clients = _brokered
+                    ? new Dictionary<string, Pkg.OAuthClient> { ["microsoft"] = new("test-client", null) }
+                    : new Dictionary<string, Pkg.OAuthClient> { ["google"] = new("test-client", "test-secret") };
                 services.AddSingleton(new EngineStartup(folder, Testing: true, clients, ClockStart));
                 services.AddSingleton<TimeProvider>(Clock);
-                services.AddSingleton<Pkg.IEngineHost>(Host);
+                // The brokered host is the real Windows one (a decorator that supplies tokens from the broker) over the scripted services and the fake broker.
+                services.AddSingleton<Pkg.IEngineHost>(sp => _brokered
+                    ? new BrokeredEngineHost(Host, new BrokeredTokenHost(Broker, sp.GetRequiredService<IBrokerSignInIntent>(), Diagnostics), new BrokerWindowsAccountSource(Broker))
+                    : Host);
                 services.AddSingleton<ISessionState>(Session);
                 services.AddSingleton<INotificationState>(Notifications);
                 services.AddSingleton<IMonitorService>(Monitors);
@@ -275,6 +311,14 @@ internal sealed class EngineRig : IAsyncDisposable
         Run.Info("state: " + (Latest is { } state
             ? $"{state.Accounts.Count} account(s) [{string.Join(", ", state.Accounts.Select(a => a.ConnectionId + "=" + a.Status + "/" + a.CalendarCount + " calendars"))}], {state.Events.Count} event(s), kinds [{string.Join(", ", state.AvailableKinds.Select(k => k.Id + (k.IsConfigured ? "+" : "-")))}]"
             : "none"));
+        if (_brokered)
+        {
+            Ready = Run.Check(
+                await WaitFor(() => Latest is { } first && first.AvailableKinds.Any(k => k.Id == "microsoft-brokered" && k.IsConfigured)),
+                "the engine offers \"Microsoft account on this PC\" because the host can supply tokens and the build has a Microsoft client");
+            return;
+        }
+
         var armed = Run.Check(await WaitFor(() => Latest is { NextTakeover: not null }), "the engine fetched the recorded calendar and armed a takeover for its meeting");
         var meeting = Latest is { Events.Count: > 0 } ? Latest.Events[0] : null;
         var known = Run.Check(meeting is { Title: "Design review" } && meeting.Id == MeetingId, "the meeting is Design review: " + meeting?.Id);

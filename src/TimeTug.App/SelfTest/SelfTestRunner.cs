@@ -92,6 +92,10 @@ internal static class SelfTestRunner
         [JumpListScenario.Name] = JumpListScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
         [BrokerProbeScenario.Name] = BrokerProbeScenario.RunAsync,
+        [WelcomeBrokeredScenario.Name] = WelcomeBrokeredScenario.RunAsync,
+        [AccountsBrokeredScenario.Name] = AccountsBrokeredScenario.RunAsync,
+        [BrokeredReconnectScenario.Name] = BrokeredReconnectScenario.RunAsync,
+        [BrokeredUnavailableScenario.Name] = BrokeredUnavailableScenario.RunAsync,
     };
 
     /// <summary>Runs the scenario, writes the result and exits.</summary>

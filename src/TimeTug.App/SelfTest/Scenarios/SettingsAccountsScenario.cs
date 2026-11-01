@@ -230,7 +230,7 @@ internal static class SettingsAccountsScenario
     private static Task<bool> OpenRemoveQuestionAsync(SettingsWindow window, TugRig rig, string accountName) =>
         OpenRemoveQuestionAsync(window, (condition, milliseconds) => rig.WaitFor(condition, milliseconds), accountName);
 
-    private static Task<bool> OpenRemoveQuestionAsync(SettingsWindow window, EngineRig rig, string accountName) =>
+    internal static Task<bool> OpenRemoveQuestionAsync(SettingsWindow window, EngineRig rig, string accountName) =>
         OpenRemoveQuestionAsync(window, (condition, milliseconds) => rig.WaitFor(condition, milliseconds), accountName);
 
     private static async Task<bool> OpenRemoveQuestionAsync(SettingsWindow window, Func<Func<bool>, int, Task<bool>> waitFor, string accountName)
@@ -258,7 +258,7 @@ internal static class SettingsAccountsScenario
     private static Task<bool> PressDialogAsync(SettingsWindow window, TugRig rig, string buttonName) =>
         PressDialogAsync(window, (condition, milliseconds) => rig.WaitFor(condition, milliseconds), buttonName);
 
-    private static Task<bool> PressDialogAsync(SettingsWindow window, EngineRig rig, string buttonName) =>
+    internal static Task<bool> PressDialogAsync(SettingsWindow window, EngineRig rig, string buttonName) =>
         PressDialogAsync(window, (condition, milliseconds) => rig.WaitFor(condition, milliseconds), buttonName);
 
     private static async Task<bool> PressDialogAsync(SettingsWindow window, Func<Func<bool>, int, Task<bool>> waitFor, string buttonName)

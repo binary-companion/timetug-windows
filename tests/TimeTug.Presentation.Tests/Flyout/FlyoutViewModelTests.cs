@@ -510,6 +510,40 @@ public sealed class FlyoutViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task An_expired_brokered_account_says_open_accounts_and_never_reconnects_from_the_flyout()
+    {
+        // Windows' dialog needs a stable parent window and the flyout closes when it loses focus (decision D3).
+        _engine.Push(States.Empty() with
+        {
+            Accounts = [new AccountInfo("7", "microsoft-brokered", "me@example.com", "authExpired", 2)],
+            Problems = [new SourceProblem("microsoft-brokered-7", "me@example.com", ProblemKind.AuthExpired, null, "7")],
+        });
+
+        var row = _model.Problems.Should().ContainSingle().Subject;
+        row.ActionText.Should().Be("Open Accounts");
+        row.OpensAccounts.Should().BeTrue();
+        row.ActionAutomationName.Should().Be("Open Accounts to look at me@example.com");
+        row.Message.Should().Be("me@example.com needs you to sign in again");
+
+        await _model.ReconnectAsync("7");
+        _engine.Sent.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void An_expired_browser_microsoft_account_still_says_sign_in_again()
+    {
+        _engine.Push(States.Empty() with
+        {
+            Accounts = [new AccountInfo("8", "microsoft", "me@example.com", "authExpired", 2)],
+            Problems = [new SourceProblem("microsoft-8", "me@example.com", ProblemKind.AuthExpired, null, "8")],
+        });
+
+        var row = _model.Problems.Should().ContainSingle().Subject;
+        row.ActionText.Should().Be("Sign in again");
+        row.OpensAccounts.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Sign_in_again_asks_the_engine_to_reconnect_that_account()
     {
         _engine.Push(State(problems: [new SourceProblem("google-1", "me@example.com", ProblemKind.AuthExpired, null, "1")]));

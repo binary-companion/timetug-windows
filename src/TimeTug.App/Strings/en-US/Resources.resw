@@ -51,6 +51,7 @@
   <data name="CredentialDialogTitle" xml:space="preserve"><value>Sign in</value></data>
   <data name="WaitingBrowser" xml:space="preserve"><value>Waiting for your browser…</value></data>
   <data name="WaitingInApp" xml:space="preserve"><value>Signing in…</value></data>
+  <data name="WaitingWindows" xml:space="preserve"><value>Waiting for Windows…</value><comment>Shown while the Windows sign-in dialog for a Microsoft account on this PC is open.</comment></data>
   <data name="TestTugTitle" xml:space="preserve"><value>Test meeting</value></data>
   <data name="TestTugCalendar" xml:space="preserve"><value>TimeTug</value></data>
   <data name="ConnectFailed" xml:space="preserve"><value>Couldn’t connect to {0}. Check your details and try again.</value></data>
@@ -75,6 +76,11 @@
   <data name="Provider_icloud" xml:space="preserve"><value>iCloud</value></data>
   <data name="Provider_caldav" xml:space="preserve"><value>Other (CalDAV)</value></data>
   <data name="Provider_icalsub" xml:space="preserve"><value>iCal link</value></data>
+  <data name="Provider_microsoft-brokered" xml:space="preserve"><value>Microsoft account on this PC</value><comment>Signs in with the Microsoft account Windows already knows, through the Windows account dialog (no browser).</comment></data>
+  <data name="Provider_microsoft-brokered-pick" xml:space="preserve"><value>Another Microsoft account</value><comment>Opens the Windows account picker, which lists every account on this PC and can add one.</comment></data>
+  <data name="Provider_microsoft-brokered-named" xml:space="preserve"><value>Use {0}</value><comment>'{0}' is the email address of the account Windows is signed in with.</comment></data>
+  <data name="Provider_microsoft-browser" xml:space="preserve"><value>Microsoft (browser)</value><comment>The Microsoft sign-in that opens the browser, shown beside "Microsoft account on this PC".</comment></data>
+  <data name="Provider_microsoft-brokered-hint" xml:space="preserve"><value>Windows will ask you to let TimeTug read your calendars. TimeTug stores no password and no sign-in token.</value></data>
   <data name="Toast_Join" xml:space="preserve"><value>Join</value></data>
   <data name="Toast_Snooze" xml:space="preserve"><value>Snooze</value></data>
   <data name="Toast_Dismiss" xml:space="preserve"><value>Dismiss</value></data>
@@ -374,6 +380,11 @@
   <data name="Accounts_Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Accounts_CancelAutomation" xml:space="preserve"><value>Cancel signing in</value></data>
   <data name="Accounts_Add" xml:space="preserve"><value>Add</value></data>
+  <data name="Accounts_OnThisPc" xml:space="preserve"><value>On this PC</value><comment>A tag on a connected Microsoft account that signs in through Windows.</comment></data>
+  <data name="Accounts_WithdrawConsent" xml:space="preserve"><value>To stop TimeTug reading a Microsoft account's calendars, remove its access at account.live.com/consent/Manage (personal accounts) or on your organization's My Apps page (work accounts).</value></data>
+  <data name="Accounts_WindowsUnavailable" xml:space="preserve"><value>Windows sign-in isn't available here</value></data>
+  <data name="Accounts_UseBrowserInstead" xml:space="preserve"><value>Use your browser instead</value></data>
+  <data name="Accounts_UseBrowserInsteadAutomation" xml:space="preserve"><value>Use your browser to sign in to Microsoft instead</value></data>
   <data name="Accounts_Unavailable" xml:space="preserve"><value>Unavailable</value></data>
   <data name="Accounts_UnavailableAutomation" xml:space="preserve"><value>{0}, unavailable in this build</value></data>
   <data name="Accounts_UnavailableNotice" xml:space="preserve"><value>This build is missing configuration for some account types, so they can’t be added right now.</value></data>

@@ -1,0 +1,28 @@
+{
+  "value": [
+    {
+      "id": "cal-1",
+      "name": "Calendar",
+      "hexColor": "#0078d4",
+      "isDefaultCalendar": true,
+      "canEdit": true,
+      "owner": { "name": "Me", "address": "me@example.com" }
+    },
+    {
+      "id": "cal-2",
+      "name": "Team",
+      "hexColor": "#107c10",
+      "isDefaultCalendar": false,
+      "canEdit": true,
+      "owner": { "name": "Me", "address": "me@example.com" }
+    },
+    {
+      "id": "cal-3",
+      "name": "Birthdays",
+      "hexColor": "#c239b3",
+      "isDefaultCalendar": false,
+      "canEdit": false,
+      "owner": { "name": "Me", "address": "me@example.com" }
+    }
+  ]
+}
