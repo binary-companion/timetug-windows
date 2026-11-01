@@ -42,6 +42,7 @@ public sealed partial class AccountsPage : UserControl
         Intro.Text = model.IntroText;
         ConnectedHeader.Text = model.ConnectedTitle;
         EmptyText.Text = model.EmptyText;
+        WithdrawConsentText.Text = model.WithdrawConsentText;
         AddHeader.Text = model.AddTitle;
         CancelButton.Content = model.CancelText;
         AutomationProperties.SetName(CancelButton, model.CancelAutomationName);
@@ -83,6 +84,9 @@ public sealed partial class AccountsPage : UserControl
 
     internal Border EmptyRowElement => EmptyRow;
 
+    /// <summary>How to withdraw the Windows consent (for the self-test).</summary>
+    internal TextBlock WithdrawConsent => WithdrawConsentText;
+
     internal StackPanel WaitingPanel => WaitingRow;
 
     internal TextBlock WaitingLabel => WaitingText;
@@ -112,6 +116,7 @@ public sealed partial class AccountsPage : UserControl
     private void Sync()
     {
         EmptyRow.Visibility = _model.IsEmpty ? Visibility.Visible : Visibility.Collapsed;
+        WithdrawConsentText.Visibility = _model.ShowWithdrawConsent ? Visibility.Visible : Visibility.Collapsed;
         if (!_builtAccounts.SequenceEqual(_model.ConnectedAccounts))
         {
             BuildAccounts();
@@ -291,6 +296,21 @@ public sealed partial class AccountsPage : UserControl
             AutomationProperties.SetName(Card, account.AutomationName);
 
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            if (account.IsOnThisPc)
+            {
+                // How this account signs in: through Windows, with no browser and no stored sign-in.
+                Tag = new Border
+                {
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(8, 2, 8, 3),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"],
+                    Child = new TextBlock { Text = model.OnThisPcText, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"] },
+                };
+                AutomationProperties.SetAccessibilityView(Tag, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+                actions.Children.Add(Tag);
+            }
+
             if (account.CanSignInAgain)
             {
                 _signIn = new Button { Content = model.SignInAgainText };
@@ -326,6 +346,9 @@ public sealed partial class AccountsPage : UserControl
         public Grid Host { get; }
 
         public Button Menu { get; }
+
+        /// <summary>The "On this PC" tag, or null for an account that does not sign in through Windows.</summary>
+        public Border? Tag { get; }
 
         public Button? SignInAgain => _signIn;
 
@@ -384,6 +407,7 @@ public sealed partial class AccountsPage : UserControl
         private readonly TextBlock _error;
         private readonly TextBlock _detail;
         private readonly StackPanel _errorRow;
+        private readonly Button _fallback;
 
         public ProviderCard(ProviderItem item, string addText)
         {
@@ -414,6 +438,9 @@ public sealed partial class AccountsPage : UserControl
             };
             description.Children.Add(_errorRow);
             description.Children.Add(_detail);
+            // After a Windows sign-in failed: the browser sign-in is one press away.
+            _fallback = new Button { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0) };
+            description.Children.Add(_fallback);
 
             Card = new SettingsCard
             {
@@ -439,10 +466,20 @@ public sealed partial class AccountsPage : UserControl
 
         public string DetailText => _detail.Text;
 
+        /// <summary>"Use your browser instead", shown after a Windows sign-in failed (for the self-test).</summary>
+        public Button BrowserFallback => _fallback;
+
         public void OnItemChanged(object? sender, PropertyChangedEventArgs e) => Update();
 
         public void Update()
         {
+            Card.Header = _item.Name;
+            AutomationProperties.SetName(Card, _item.AutomationName);
+            AutomationProperties.SetName(Add, _item.AutomationName);
+            _fallback.Content = _item.BrowserFallbackText;
+            _fallback.Command = _item.BrowserFallbackCommand;
+            AutomationProperties.SetName(_fallback, _item.BrowserFallbackAutomationName);
+            _fallback.Visibility = _item.OffersBrowserFallback ? Visibility.Visible : Visibility.Collapsed;
             Add.IsEnabled = _item.IsEnabled;
             _error.Text = _item.Error ?? string.Empty;
             _errorRow.Visibility = _item.HasError ? Visibility.Visible : Visibility.Collapsed;

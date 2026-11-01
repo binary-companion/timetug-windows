@@ -19,4 +19,7 @@ public sealed record ConnectedAccount(
     string RemoveAutomationName)
 {
     public bool HasNotice => NoticeText is not null;
+
+    /// <summary>The account signs in through Windows (a Microsoft account on this PC): the row carries the "On this PC" tag.</summary>
+    public bool IsOnThisPc { get; init; }
 }

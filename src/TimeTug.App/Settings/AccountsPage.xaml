@@ -15,6 +15,9 @@
           <TextBlock x:Name="ConnectedHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,8,0,0" AutomationProperties.HeadingLevel="Level2" />
           <!-- The account cards are built in code. -->
           <StackPanel x:Name="AccountList" Spacing="4" />
+          <!-- Windows (not TimeTug) holds the consent of a Microsoft account on this PC; this says how to withdraw it. -->
+          <TextBlock x:Name="WithdrawConsentText" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="2,2,0,0"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
           <Border x:Name="EmptyRow" Padding="16,14" CornerRadius="8" BorderThickness="1"
                   Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
             <TextBlock x:Name="EmptyText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

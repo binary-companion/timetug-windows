@@ -23,7 +23,14 @@ internal sealed class ScriptedCalendarHost : IEngineHost
 
     public IHttpTransport Http => Answers;
 
-    public IAuthorizationInteraction Authorization { get; } = new RefusedAuthorization();
+    public ScriptedCalendarHost() => Authorization = new RefusedAuthorization(() => Interlocked.Increment(ref _browserSignIns));
+
+    private int _browserSignIns;
+
+    /// <summary>How many times the engine asked to open the browser to sign in (the self-test opens none; it counts the asks).</summary>
+    public int BrowserSignInAttempts => Volatile.Read(ref _browserSignIns);
+
+    public IAuthorizationInteraction Authorization { get; }
 
     public ITextGenerator? TextGenerator => null;
 
@@ -144,10 +151,13 @@ internal sealed class ScriptedCalendarHost : IEngineHost
         }
     }
 
-    private sealed class RefusedAuthorization : IAuthorizationInteraction
+    private sealed class RefusedAuthorization(Action onBrowser) : IAuthorizationInteraction
     {
-        public ValueTask<RedirectSession> BeginRedirectAsync(CancellationToken cancellationToken) =>
+        public ValueTask<RedirectSession> BeginRedirectAsync(CancellationToken cancellationToken)
+        {
+            onBrowser();
             throw new EngineServiceException(ServiceErrorKind.Cancelled, "the self-test opens no browser");
+        }
 
         public ValueTask<string> AuthorizeAsync(string sessionID, string url, CancellationToken cancellationToken) =>
             throw new EngineServiceException(ServiceErrorKind.Cancelled, "the self-test opens no browser");

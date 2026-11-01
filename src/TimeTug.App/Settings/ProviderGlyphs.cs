@@ -13,6 +13,8 @@ internal static class ProviderGlyphs
         "icloud" => "",
         "caldav" => "",
         "icalsub" => "",
+        // Signs in through Windows: a PC (Segoe Fluent "TVMonitor").
+        "microsoft-brokered" or "microsoft-brokered:pick" => "\uE7F4",
         _ => Calendar,
     };
 }

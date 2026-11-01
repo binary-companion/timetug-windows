@@ -46,10 +46,10 @@ Always in reach
 - Light, Dark or your Windows setting; follows contrast themes, transparency and animation settings.
 
 Connect the calendars you already use
-- Google Calendar and Microsoft (Outlook) calendars: sign in with your browser; TimeTug reads events with read-only permission.
+- Google Calendar and Microsoft (Outlook) calendars: sign in with your browser, or for Microsoft with the account Windows already knows, in one Windows dialog; TimeTug reads events with read-only permission.
 - iCloud, with an app-specific password, and other CalDAV calendars such as Fastmail or Nextcloud.
 
-Your calendar data stays on your PC. TimeTug talks to your calendar provider directly, keeps its working data in its own folder on your PC and keeps sign-in tokens and passwords in Windows Credential Locker. There are no TimeTug accounts and no TimeTug servers that see your calendar. Removing the app removes its data.
+Your calendar data stays on your PC. TimeTug talks to your calendar provider directly, keeps its working data in its own folder on your PC and keeps sign-in tokens and passwords in Windows Credential Locker (a Microsoft account you sign in to through Windows needs neither: Windows holds that sign-in). There are no TimeTug accounts and no TimeTug servers that see your calendar. Removing the app removes its data.
 
 ## What's new in the first version
 
@@ -61,7 +61,7 @@ meetings, calendar, reminder, countdown, focus, join meeting, agenda
 
 ## Not in this version (do not promise)
 
-- Windows account sign-in and the accounts already on the PC (phase 6), Windows widgets (phase 7), on-device intelligence for duplicate meetings (phase 8). Duplicate meetings are merged by rules and by hand only.
+- Windows widgets (phase 7), on-device intelligence for duplicate meetings (phase 8). Duplicate meetings are merged by rules and by hand only.
 - Apple Calendar, Reminders-style local calendars, and Outlook classic PST calendars: there is no equivalent on Windows (`docs/parity.md`).
 - Automatic update choices inside the app: the Store updates the app.
 

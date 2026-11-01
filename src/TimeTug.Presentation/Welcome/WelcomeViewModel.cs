@@ -34,7 +34,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     {
         _openAccountsPane = openAccountsPane;
         LaunchAtLogin = launchAtLogin;
-        Accounts = new AccountsViewModel(engine, ui, text, clock);
+        Accounts = new AccountsViewModel(engine, ui, text, clock) { PreselectBrokered = true };
         Accounts.Connected += (_, _) => Step = WelcomeStep.Connected;
         AddAnotherCommand = new RelayCommand(AddAnother);
         DoneCommand = new RelayCommand(Done);

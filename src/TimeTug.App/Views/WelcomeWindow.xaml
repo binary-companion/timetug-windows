@@ -26,9 +26,9 @@
                 <StackPanel Spacing="4" Margin="0,0,0,10">
                   <Button Command="{x:Bind ConnectCommand}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="16,12"
-                          AutomationProperties.Name="{x:Bind AutomationName}">
+                          AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}" Loaded="OnProviderButtonLoaded">
                     <StackPanel Spacing="2">
-                      <TextBlock Text="{x:Bind Name}" FontWeight="SemiBold" />
+                      <TextBlock Text="{x:Bind Name, Mode=OneWay}" FontWeight="SemiBold" />
                       <TextBlock Text="{x:Bind Hint}" Style="{StaticResource CaptionTextBlockStyle}"
                                  TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
@@ -45,6 +45,10 @@
                                Style="{StaticResource CaptionTextBlockStyle}"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                   </StackPanel>
+                  <!-- After a Windows sign-in failed: the browser sign-in is one press away. -->
+                  <Button Content="{x:Bind BrowserFallbackText, Mode=OneWay}" Command="{x:Bind BrowserFallbackCommand, Mode=OneWay}"
+                          Visibility="{x:Bind OffersBrowserFallback, Mode=OneWay}" Margin="24,2,0,0"
+                          AutomationProperties.Name="{x:Bind BrowserFallbackAutomationName, Mode=OneWay}" />
                 </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

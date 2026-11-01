@@ -201,7 +201,12 @@ internal static class AppComposition
                 // Windows 1.0 registers no on-device text generator (WindowsEngineHost.TextGenerator is null); phase 8 changes this.
                 inferenceSupported: false),
             accounts: () => new AccountsViewModel(
-                sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>()),
+                sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>())
+            {
+                // The Windows account broker, when this build has one: the person's choice reaches the broker host and the card can name the Windows account.
+                BrokerIntents = sp.GetRequiredService<IBrokerSignInIntent>(),
+                WindowsAccounts = sp.GetRequiredService<IEngineHost>() is BrokeredEngineHost brokered ? brokered.WindowsAccounts : null,
+            },
             diagnostics: () => new DiagnosticsViewModel(
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IDiagnosticsReader>(), sp.GetRequiredService<IClipboardService>(),
                 sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>(),
@@ -223,7 +228,7 @@ internal static class AppComposition
         services.AddSingleton(sp => new SettingsWindowFactory(
             sp.GetRequiredService<SettingsText>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<IPresentationSettingsStore>(),
             sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<SettingsPaneModels>(),
-            sp.GetRequiredService<ThemeService>()));
+            sp.GetRequiredService<ThemeService>(), sp.GetRequiredService<BrokerParentWindow>()));
         services.AddSingleton<ISettingsWindowFactory>(sp => sp.GetRequiredService<SettingsWindowFactory>());
         services.AddSingleton(sp => new SettingsHost(
             sp.GetRequiredService<ISettingsWindowFactory>(),

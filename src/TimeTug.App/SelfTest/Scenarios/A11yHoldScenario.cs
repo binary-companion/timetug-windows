@@ -40,7 +40,8 @@ internal static class A11yHoldScenario
         run.Check(await HoldForScannerAsync(rig, 0, "canary: a button with no name", cancellation), "the scanner finished the canary round");
         canary.Close();
 
-        rig.Engine.Push(Scenes.Empty());
+        // The brokered kind is configured too, so the scan sees the pre-selected accent card, "Another Microsoft account" and the relabelled browser card.
+        rig.Engine.Push(Scenes.Empty() with { AvailableKinds = [.. Scenes.Kinds, new AccountKindInfo("microsoft-brokered", "Microsoft", true, "oauth")] });
         // The Connected step carries the launch-at-login checkbox: scanned while Windows blocks it (the checkbox disabled with its note and link).
         var welcomeStartup = new ScriptedStartupTask { State = StartupState.DisabledByUser };
         var welcomeLaunch = new LaunchAtLoginViewModel(
@@ -110,10 +111,16 @@ internal static class A11yHoldScenario
             run.Check(await HoldForScannerAsync(rig, 6, "the Calendars pane", cancellation), "the scanner finished round 6");
 
             // Round 7: the Accounts pane (an account in every status, the Add cards with one not set up in this build, the notice, Diagnostics).
-            rig.Engine.Push(SettingsRig.AccountsState(rig.Time.GetUtcNow()));
+            // Plus a Microsoft account on this PC that needs the person (the "On this PC" tag, Sign in again, the withdraw-consent text) and the brokered Add cards.
+            var accounts = SettingsRig.AccountsState(rig.Time.GetUtcNow());
+            rig.Engine.Push(accounts with
+            {
+                Accounts = [.. accounts.Accounts, new AccountInfo("conn-8", "microsoft-brokered", "me@example.com", "authExpired", 3)],
+                AvailableKinds = [.. accounts.AvailableKinds, new AccountKindInfo("microsoft-brokered", "Microsoft", true, "oauth")],
+            });
             settingsWindow.Shell.SelectedPane = SettingsPane.Accounts;
             await rig.Settle();
-            run.Check(settingsWindow.CurrentPage is AccountsPage { AccountCards.Count: 7 }, "the Accounts pane is showing the accounts");
+            run.Check(settingsWindow.CurrentPage is AccountsPage { AccountCards.Count: 8 }, "the Accounts pane is showing the accounts");
             run.Check(await HoldForScannerAsync(rig, 7, "the Accounts pane with an account in every status", cancellation), "the scanner finished round 7");
 
             // Round 8: the General pane (launch at login turned off by the person, the shortcut recorder reporting a conflict).

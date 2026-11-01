@@ -1,4 +1,5 @@
 using TimeTug.Engine;
+using TimeTug.Presentation.Accounts;
 
 namespace TimeTug.Platform.Broker;
 
@@ -7,8 +8,11 @@ namespace TimeTug.Platform.Broker;
 /// capability by <c>host is IExternalTokenHost</c> and a C# class either implements the interface or not: <see cref="WindowsEngineHost"/>.Create returns this
 /// only when the build has a Microsoft client id and the broker client could be built; otherwise the plain host is returned and the engine never offers the kind.
 /// </summary>
-public sealed class BrokeredEngineHost(IEngineHost inner, IExternalTokenHost tokens) : IEngineHost, IExternalTokenHost, IDisposable
+public sealed class BrokeredEngineHost(IEngineHost inner, IExternalTokenHost tokens, IWindowsAccountSource? windowsAccounts = null) : IEngineHost, IExternalTokenHost, IDisposable
 {
+    /// <summary>Names the Windows account for the welcome card; null when the host was built without one.</summary>
+    public IWindowsAccountSource? WindowsAccounts => windowsAccounts;
+
     public ICredentialStore Credentials => inner.Credentials;
 
     public IHttpTransport Http => inner.Http;

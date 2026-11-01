@@ -1,5 +1,6 @@
 using System.Globalization;
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Accounts;
 using TimeTug.Presentation.Engine;
 
 namespace TimeTug.Presentation.Flyout;
@@ -553,7 +554,11 @@ public sealed class FlyoutViewModel : IDisposable
 
         // Only an expired sign-in can be fixed from here, and only when the engine says which account it is. Any other problem of a known
         // account can be looked at in the Accounts pane (its status, Sign in again, Remove).
-        var canSignIn = problem is { Kind: ProblemKind.AuthExpired, ConnectionId: not null };
+        // The exception is an account that signs in through Windows: its dialog needs a stable parent window and the flyout closes when it loses focus,
+        // so the row sends the person to Settings > Accounts, where "Sign in again" opens that dialog.
+        var viaWindows = problem.ConnectionId is { } connectionId
+            && _state?.Accounts.Any(a => a.ConnectionId == connectionId && a.KindId == BrokeredKinds.Brokered) == true;
+        var canSignIn = problem is { Kind: ProblemKind.AuthExpired, ConnectionId: not null } && !viaWindows;
         var opensAccounts = !canSignIn && problem.ConnectionId is not null;
         return new ProblemRow(
             problem.SourceId,
