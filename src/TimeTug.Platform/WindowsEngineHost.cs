@@ -1,5 +1,6 @@
 using TimeTug.Engine;
 using TimeTug.Platform.Auth;
+using TimeTug.Platform.Broker;
 using TimeTug.Platform.Credentials;
 using TimeTug.Platform.Http;
 using TimeTug.Presentation.Abstractions;
@@ -39,6 +40,35 @@ public sealed class WindowsEngineHost : IEngineHost, IDisposable
         var authorization = new CompositeAuthorization(loopback, new CredentialFormPrompter(forms));
         return new WindowsEngineHost(store, HttpClientTransport.CreateDefault(diagnostics), authorization, diagnostics,
                                      new CompositeDisposable(store, loopback));
+    }
+
+    /// <summary>
+    /// As <see cref="Create(IUrlLauncher, IAccountFormService, IDiagnostics)"/>, plus the Windows account broker: when the build has a Microsoft client id and
+    /// <paramref name="brokerFactory"/> (default <see cref="MsalBrokerClient.TryCreate"/>) builds a client, the result is also an
+    /// <see cref="IExternalTokenHost"/> and the engine offers "Microsoft account on this PC". Otherwise it is the plain host and the browser sign-in stands alone.
+    /// </summary>
+    public static IEngineHost Create(IUrlLauncher launcher, IAccountFormService forms, IDiagnostics diagnostics, string? microsoftClientId,
+                                     IBrokerParentWindow parent, IBrokerSignInIntent intent, Func<string, IBrokerParentWindow, IBrokerClient?>? brokerFactory = null)
+    {
+        var plain = Create(launcher, forms, diagnostics);
+        if (string.IsNullOrWhiteSpace(microsoftClientId))
+        {
+            return plain;
+        }
+
+        var factory = brokerFactory ?? ((id, window) => MsalBrokerClient.TryCreate(id, window, diagnostics));
+        IBrokerClient? client;
+        try
+        {
+            client = factory(microsoftClientId, parent);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            diagnostics.Record("warning", "broker", $"create: unavailable ({ex.GetType().Name})");
+            client = null;
+        }
+
+        return client is null ? plain : new BrokeredEngineHost(plain, new BrokeredTokenHost(client, intent, diagnostics));
     }
 
     public void Diagnostic(EngineDiagnostic diagnostic) => _diagnostics.Record(diagnostic.Level, diagnostic.Category, diagnostic.Message);

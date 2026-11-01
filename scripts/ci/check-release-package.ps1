@@ -8,6 +8,11 @@
       reserves the revision), and the logo files the manifest names are in the package.
     - Assemblies (TimeTug*.dll and TimeTug.exe): no self-test runner type or switch, no reference to the developer OAuth file, the developer
       shortcut file or the development alias.
+    - The Windows account broker (MSAL, phase 6): Microsoft.Identity.Client.dll, Microsoft.Identity.Client.Broker.dll and
+      Microsoft.Identity.Client.NativeInterop.dll, and the native runtime for the package's architecture: msalruntime.dll (x64) or
+      msalruntime_arm64.dll (ARM64) at the package root of a Store or Direct package (the manifest's ProcessorArchitecture says which), or, with
+      -Development, under runtimes\win-x64\native and runtimes\win-arm64\native (the development package is not RID-specific and carries
+      both; the other platforms' libraries in it are harmless). See docs/spikes/2026-11-wam-broker.md (S1).
     - With -Sentinel: none of the given texts appears in any file of the package except in -SentinelHome (the one assembly the release
       script embeds the ids in), and each appears there (so the check cannot pass because the injection silently did nothing).
   Exit code 0 when clean, 1 with one "FAIL:" line per problem.
@@ -17,6 +22,10 @@
   An unpacked package (instead of -Package).
 .PARAMETER ExpectedVersion
   The version the package must have (for example 1.2.3.0).
+.PARAMETER Development
+  The package is a development package (build-msix.ps1): the broker's native libraries are looked for in runtimes\<rid>\native.
+.PARAMETER OnlyBroker
+  Run only the broker file check (for the development package, which fails the other checks by design).
 .PARAMETER Sentinel
   Fake OAuth values that the build was given; they must not leak (see above). Never pass a real id.
 .PARAMETER SentinelHome
@@ -27,6 +36,8 @@ param(
     [string]$Package,
     [string]$Folder,
     [string]$ExpectedVersion,
+    [switch]$Development,
+    [switch]$OnlyBroker,
     [string[]]$Sentinel = @(),
     [string]$SentinelHome = 'TimeTug.Presentation.dll'
 )
@@ -140,6 +151,31 @@ function Get-AssemblyProblems([string]$Root) {
     return $problems
 }
 
+# The managed MSAL files, and the native runtime for the package's architecture (spike S1). $Root is the unpacked package.
+function Get-BrokerProblems([string]$Root, [bool]$DevelopmentLayout) {
+    $problems = New-Object System.Collections.Generic.List[string]
+    foreach ($name in 'Microsoft.Identity.Client.dll', 'Microsoft.Identity.Client.Broker.dll', 'Microsoft.Identity.Client.NativeInterop.dll') {
+        if (-not (Test-Path -LiteralPath (Join-Path $Root $name))) { $problems.Add("$name is missing (the Windows account broker needs it)") }
+    }
+    if ($DevelopmentLayout) {
+        foreach ($native in 'runtimes\win-x64\native\msalruntime.dll', 'runtimes\win-arm64\native\msalruntime_arm64.dll') {
+            if (-not (Test-Path -LiteralPath (Join-Path $Root $native))) { $problems.Add("$native is missing (the Windows account broker needs it)") }
+        }
+        return $problems
+    }
+    $path = Join-Path $Root 'AppxManifest.xml'
+    $architecture = ''
+    if (Test-Path -LiteralPath $path) {
+        [xml]$manifest = Get-Content -LiteralPath $path -Raw
+        $identity = $manifest.SelectNodes('//*') | Where-Object { $_.LocalName -eq 'Identity' } | Select-Object -First 1
+        if ($identity) { $architecture = $identity.GetAttribute('ProcessorArchitecture').ToLowerInvariant() }
+    }
+    $native = switch ($architecture) { 'x64' { 'msalruntime.dll' } 'arm64' { 'msalruntime_arm64.dll' } default { $null } }
+    if (-not $native) { $problems.Add("the manifest's ProcessorArchitecture is '$architecture', so the check cannot tell which msalruntime the package needs (expected x64 or arm64)") }
+    elseif (-not (Test-Path -LiteralPath (Join-Path $Root $native))) { $problems.Add("$native is missing from the package root (the Windows account broker needs it on $architecture)") }
+    return $problems
+}
+
 function Get-SentinelProblems([string]$Root, [string[]]$Sentinels, [string]$AllowedFile) {
     $problems = New-Object System.Collections.Generic.List[string]
     $files = @(Get-ChildItem -LiteralPath $Root -Recurse -File)
@@ -174,12 +210,16 @@ if ($MyInvocation.InvocationName -ne '.') {
     try {
         $Folder = (Resolve-Path -LiteralPath $Folder).Path
         $all = @()
-        $all += @(Get-ManifestProblems $Folder $ExpectedVersion)
-        $all += @(Get-AssemblyProblems $Folder)
+        if (-not $OnlyBroker) {
+            $all += @(Get-ManifestProblems $Folder $ExpectedVersion)
+            $all += @(Get-AssemblyProblems $Folder)
+        }
+        $all += @(Get-BrokerProblems $Folder $Development.IsPresent)
         if ($Sentinel.Count -gt 0) { $all += @(Get-SentinelProblems $Folder $Sentinel $SentinelHome) }
         foreach ($problem in $all) { Write-Host "FAIL: $problem" }
         if ($all.Count -gt 0) { Write-Host "$($all.Count) problem(s) in the release package"; exit 1 }
-        Write-Host 'PASS: the release package carries no development scaffolding'
+        if ($OnlyBroker) { Write-Host 'PASS: the Windows account broker files are in the package' }
+        else { Write-Host 'PASS: the release package carries no development scaffolding' }
         $global:LASTEXITCODE = 0
     }
     finally { if ($cleanup -and (Test-Path -LiteralPath $cleanup)) { Remove-Item -Recurse -Force -LiteralPath $cleanup } }

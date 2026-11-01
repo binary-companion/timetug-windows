@@ -41,4 +41,5 @@ taskbar-buttons          0  180  selftest
 chip-modes                6  240  selftest
 chip-interaction          1  240  selftest
 jump-list                 1  240  selftest
+broker-probe              0  120  selftest
 a11y-hold                0  420  a11y

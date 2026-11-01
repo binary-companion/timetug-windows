@@ -57,6 +57,10 @@ $msix = Get-ChildItem -LiteralPath $layout -Recurse -Filter '*.msix' -File |
     Where-Object { $_.FullName -notmatch '[\\/]Dependencies[\\/]' } | Select-Object -First 1
 if (-not $msix) { throw "no package under $layout; run build-msix.ps1 first" }
 
+# The Windows account broker must have come along (managed files, and msalruntime for both architectures in the not-RID-specific development package).
+& (Join-Path $PSScriptRoot 'check-release-package.ps1') -Package $msix.FullName -Development -OnlyBroker
+if ($LASTEXITCODE -ne 0) { throw 'the development package is missing files the Windows account broker needs' }
+
 if (Test-Path $Destination) { Remove-Item -Recurse -Force $Destination }
 New-Item -ItemType Directory -Force -Path $Destination | Out-Null
 Copy-Item -LiteralPath $msix.FullName -Destination $Destination

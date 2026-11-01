@@ -91,6 +91,7 @@ internal static class SelfTestRunner
         [ChipInteractionScenario.Name] = ChipInteractionScenario.RunAsync,
         [JumpListScenario.Name] = JumpListScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
+        [BrokerProbeScenario.Name] = BrokerProbeScenario.RunAsync,
     };
 
     /// <summary>Runs the scenario, writes the result and exits.</summary>
