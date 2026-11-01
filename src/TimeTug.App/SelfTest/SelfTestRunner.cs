@@ -12,18 +12,23 @@ using WinRT.Interop;
 namespace TimeTug.App.SelfTest;
 
 /// <summary>Parsed <c>--selftest &lt;scenario&gt; [--out &lt;folder&gt;] [--hold &lt;seconds&gt;]</c> switch. <c>--hold</c> keeps the first thing a scenario shows on screen that long, for a person or a screen capture to look at.</summary>
-internal sealed record SelfTestOptions(string Scenario, string OutputFolder, int HoldSeconds = 0)
+internal sealed record SelfTestOptions(string Scenario, string OutputFolder, int HoldSeconds = 0, string Probe = "")
 {
     public static SelfTestOptions? Parse(IReadOnlyList<string> args)
     {
         string? scenario = null;
         string? output = null;
         var hold = 0;
+        var probe = "";
         for (var i = 1; i < args.Count; i++)
         {
             if (args[i] == "--selftest" && i + 1 < args.Count)
             {
                 scenario = args[++i];
+            }
+            else if (args[i] == "--probe" && i + 1 < args.Count)
+            {
+                probe = args[++i];
             }
             else if (args[i] == "--out" && i + 1 < args.Count)
             {
@@ -37,7 +42,7 @@ internal sealed record SelfTestOptions(string Scenario, string OutputFolder, int
 
         return scenario is null
             ? null
-            : new SelfTestOptions(scenario, output ?? Path.Combine(Path.GetTempPath(), "timetug-selftest"), hold);
+            : new SelfTestOptions(scenario, output ?? Path.Combine(Path.GetTempPath(), "timetug-selftest"), hold, probe);
     }
 }
 
@@ -91,6 +96,7 @@ internal static class SelfTestRunner
         [ChipInteractionScenario.Name] = ChipInteractionScenario.RunAsync,
         [JumpListScenario.Name] = JumpListScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
+        [WamProbeScenario.Name] = WamProbeScenario.RunAsync,
     };
 
     /// <summary>Runs the scenario, writes the result and exits.</summary>

@@ -8,6 +8,8 @@
     <!-- The shared engine, from nuget.org (built in binary-companion/timetug-shared). -->
     <PackageVersion Include="TimeTug.Engine" Version="1.7.0" />
 
+    <PackageVersion Include="Microsoft.Identity.Client" Version="4.91.0" />
+    <PackageVersion Include="Microsoft.Identity.Client.Broker" Version="4.91.0" />
     <!-- App -->
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
     <!-- The Foundation component Microsoft.WindowsAppSDK 2.5.1 depends on (AppNotificationManager), referenced alone by TimeTug.Platform. -->
