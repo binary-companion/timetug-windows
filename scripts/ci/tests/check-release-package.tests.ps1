@@ -19,7 +19,7 @@ $manifestTemplate = @'
 <?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
-  <Identity Name="__NAME__" Publisher="__PUBLISHER__" Version="__VERSION__" />
+  <Identity Name="__NAME__" Publisher="__PUBLISHER__" Version="__VERSION__" ProcessorArchitecture="__ARCH__" />
   <Properties><DisplayName>TimeTug</DisplayName><PublisherDisplayName>Binary Companion LLC</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
   <Applications><Application Id="App" Executable="TimeTug.exe" EntryPoint="Windows.FullTrustApplication">
     <uap:VisualElements DisplayName="TimeTug" Description="TimeTug" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
@@ -31,14 +31,19 @@ $manifestTemplate = @'
 $aliasXml = '<Extensions><uap5:Extension Category="windows.appExecutionAlias" Executable="TimeTug.exe" EntryPoint="Windows.FullTrustApplication"><uap5:AppExecutionAlias><uap5:ExecutionAlias Alias="timetug-dev.exe" /></uap5:AppExecutionAlias></uap5:Extension></Extensions>'
 
 function New-Fixture([hashtable]$Options) {
-    $values = @{ Name = 'BinaryCompanion.TimeTug'; Publisher = 'CN=Binary Companion'; Version = '1.2.3.0'; Alias = ''; Capability = ''; Assemblies = @{ 'TimeTug.dll' = 'plain'; 'TimeTug.Presentation.dll' = 'plain' }; Logos = $true }
+    $values = @{ Name = 'BinaryCompanion.TimeTug'; Publisher = 'CN=Binary Companion'; Version = '1.2.3.0'; Alias = ''; Capability = ''; Assemblies = @{ 'TimeTug.dll' = 'plain'; 'TimeTug.Presentation.dll' = 'plain' }; Logos = $true; Arch = 'x64'; Broker = @('Microsoft.Identity.Client.dll', 'Microsoft.Identity.Client.Broker.dll', 'Microsoft.Identity.Client.NativeInterop.dll', 'msalruntime.dll') }
     foreach ($key in $Options.Keys) { $values[$key] = $Options[$key] }
     $root = Join-Path ([IO.Path]::GetTempPath()) ('release-check-fixture-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path (Join-Path $root 'Assets') | Out-Null
-    $xml = $manifestTemplate.Replace('__NAME__', $values.Name).Replace('__PUBLISHER__', $values.Publisher).Replace('__VERSION__', $values.Version).Replace('__ALIAS__', $values.Alias).Replace('__CAPABILITY__', $values.Capability)
+    $xml = $manifestTemplate.Replace('__NAME__', $values.Name).Replace('__PUBLISHER__', $values.Publisher).Replace('__VERSION__', $values.Version).Replace('__ALIAS__', $values.Alias).Replace('__CAPABILITY__', $values.Capability).Replace('__ARCH__', $values.Arch)
     Set-Content -LiteralPath (Join-Path $root 'AppxManifest.xml') -Value $xml -Encoding UTF8
     if ($values.Logos) {
         foreach ($logo in 'StoreLogo.png', 'Square150x150Logo.scale-200.png', 'Square44x44Logo.png') { Set-Content -LiteralPath (Join-Path $root "Assets/$logo") -Value 'png' }
+    }
+    foreach ($file in $values.Broker) {
+        $target = Join-Path $root $file
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+        [System.IO.File]::WriteAllBytes($target, [byte[]](77, 90, 1, 2))
     }
     foreach ($name in $values.Assemblies.Keys) {
         [System.IO.File]::WriteAllBytes((Join-Path $root $name), [System.Text.Encoding]::UTF8.GetBytes('MZ-----' + $values.Assemblies[$name] + '-----'))
@@ -46,7 +51,7 @@ function New-Fixture([hashtable]$Options) {
     return $root
 }
 function Problems([string]$Root, [string]$ExpectedVersion = '', [string[]]$Sentinels = @()) {
-    $all = @(Get-ManifestProblems $Root $ExpectedVersion) + @(Get-AssemblyProblems $Root)
+    $all = @(Get-ManifestProblems $Root $ExpectedVersion) + @(Get-AssemblyProblems $Root) + @(Get-BrokerProblems $Root $false)
     if ($Sentinels.Count -gt 0) { $all += @(Get-SentinelProblems $Root $Sentinels 'TimeTug.Presentation.dll') }
     return $all
 }
@@ -144,6 +149,49 @@ Check 'a sentinel that is not in its home assembly fails the check (a blind chec
     Remove-Item -Recurse -Force $root
 }
 
+$managed = @('Microsoft.Identity.Client.dll', 'Microsoft.Identity.Client.Broker.dll', 'Microsoft.Identity.Client.NativeInterop.dll')
+
+Check 'an x64 package without msalruntime.dll at its root is refused, naming the file' {
+    $root = New-Fixture @{ Broker = $managed }
+    Assert-HasProblem (Problems $root) 'msalruntime\.dll is missing from the package root'
+    Remove-Item -Recurse -Force $root
+}
+
+Check 'an ARM64 package needs msalruntime_arm64.dll, and the x64 library does not stand in for it' {
+    $root = New-Fixture @{ Arch = 'arm64'; Broker = $managed + 'msalruntime.dll' }
+    Assert-HasProblem (Problems $root) 'msalruntime_arm64\.dll is missing from the package root'
+    Remove-Item -Recurse -Force $root
+    $ok = New-Fixture @{ Arch = 'arm64'; Broker = $managed + 'msalruntime_arm64.dll' }
+    $problems = @(Problems $ok)
+    Assert-True ($problems.Count -eq 0) ("unexpected problems: " + ($problems -join ' | '))
+    Remove-Item -Recurse -Force $ok
+}
+
+Check 'a package whose architecture the manifest does not state cannot be checked and is refused' {
+    $root = New-Fixture @{ Arch = 'neutral' }
+    Assert-HasProblem (Problems $root) 'cannot tell which msalruntime'
+    Remove-Item -Recurse -Force $root
+}
+
+Check 'each managed MSAL file is required' {
+    foreach ($missing in $managed) {
+        $root = New-Fixture @{ Broker = @($managed | Where-Object { $_ -ne $missing }) + 'msalruntime.dll' }
+        Assert-HasProblem (Problems $root) ([regex]::Escape($missing) + ' is missing')
+        Remove-Item -Recurse -Force $root
+    }
+}
+
+Check 'a development package needs both native libraries under runtimes' {
+    $dev = $managed + 'runtimes\win-x64\native\msalruntime.dll' + 'runtimes\win-arm64\native\msalruntime_arm64.dll'
+    $root = New-Fixture @{ Arch = 'neutral'; Broker = $dev }
+    $problems = @(Get-BrokerProblems $root $true)
+    Assert-True ($problems.Count -eq 0) ("unexpected problems: " + ($problems -join ' | '))
+    Remove-Item -Recurse -Force $root
+    $root = New-Fixture @{ Arch = 'neutral'; Broker = $managed + 'runtimes\win-x64\native\msalruntime.dll' }
+    Assert-HasProblem (Get-BrokerProblems $root $true) 'win-arm64'
+    Remove-Item -Recurse -Force $root
+}
+
 Check 'the script exits 1 on a bad package and 0 on a clean one' {
     $shell = (Get-Process -Id $PID).Path
     $bad = New-Fixture @{ Alias = $aliasXml }
@@ -152,7 +200,13 @@ Check 'the script exits 1 on a bad package and 0 on a clean one' {
     $good = New-Fixture @{}
     $null = & $shell -NoProfile -ExecutionPolicy Bypass -File $scriptPath -Folder $good 2>&1
     Assert-True ($LASTEXITCODE -eq 0) "exit code was $LASTEXITCODE"
-    Remove-Item -Recurse -Force $bad, $good
+    $noNative = New-Fixture @{ Broker = $managed }
+    $null = & $shell -NoProfile -ExecutionPolicy Bypass -File $scriptPath -Folder $noNative 2>&1
+    Assert-True ($LASTEXITCODE -eq 1) "a package without msalruntime exited $LASTEXITCODE"
+    $dev = New-Fixture @{ Alias = $aliasXml; Arch = 'neutral'; Broker = $managed + 'runtimes\win-x64\native\msalruntime.dll' + 'runtimes\win-arm64\native\msalruntime_arm64.dll' }
+    $null = & $shell -NoProfile -ExecutionPolicy Bypass -File $scriptPath -Folder $dev -Development -OnlyBroker 2>&1
+    Assert-True ($LASTEXITCODE -eq 0) "-Development -OnlyBroker exited $LASTEXITCODE"
+    Remove-Item -Recurse -Force $bad, $good, $noNative, $dev
 }
 
 if ($script:failures -gt 0) { Write-Host "$($script:failures) failed"; exit 1 }

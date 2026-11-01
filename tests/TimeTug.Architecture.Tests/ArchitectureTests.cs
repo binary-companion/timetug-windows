@@ -27,6 +27,41 @@ public partial class ArchitectureTests
     }
 
     [Fact]
+    public void Only_the_platform_project_references_msal()
+    {
+        // MSAL and the WAM broker are confined to TimeTug.Platform behind IBrokerClient (phase 6): Presentation and the app see only our own
+        // result types, and no test project but the platform tests mentions them.
+        foreach (var project in new[] { "src/TimeTug.Presentation/TimeTug.Presentation.csproj", "src/TimeTug.App/TimeTug.App.csproj" })
+        {
+            File.ReadAllText(Path.Combine(Root, project.Replace('/', Path.DirectorySeparatorChar))).Should().NotContain("Microsoft.Identity", project);
+        }
+
+        var checkedFiles = 0;
+        foreach (var file in SourceFiles("src/TimeTug.Presentation").Concat(SourceFiles("src/TimeTug.App")).Concat(SourceFiles("tests").Where(f => !IsPlatformTest(f))))
+        {
+            checkedFiles++;
+            // This file names the namespace in order to forbid it.
+            if (Path.GetFileName(file) == nameof(ArchitectureTests) + ".cs")
+            {
+                continue;
+            }
+
+            File.ReadAllText(file).Should().NotContain("Microsoft.Identity", Path.GetRelativePath(Root, file));
+        }
+
+        checkedFiles.Should().BeGreaterThan(100, "the scan found the presentation, app and test sources");
+        foreach (var project in Directory.EnumerateFiles(Path.Combine(Root, "tests"), "*.csproj", SearchOption.AllDirectories).Where(f => !IsPlatformTest(f)))
+        {
+            File.ReadAllText(project).Should().NotContain("Microsoft.Identity", project);
+        }
+
+        File.ReadAllText(Path.Combine(Root, "src", "TimeTug.Platform", "TimeTug.Platform.csproj")).Should().Contain("Microsoft.Identity.Client.Broker");
+    }
+
+    private static bool IsPlatformTest(string path) =>
+        path.Contains($"{Path.DirectorySeparatorChar}TimeTug.Platform.Tests{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
+
+    [Fact]
     public void No_scheduling_or_default_logic_in_csharp()
     {
         // The engine owns lead time, snooze choices and rules. Timers are allowed only in the platform

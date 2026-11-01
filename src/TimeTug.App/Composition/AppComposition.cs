@@ -11,6 +11,7 @@ using TimeTug.App.Tug;
 using TimeTug.Engine;
 using TimeTug.Platform;
 using TimeTug.Platform.Auth;
+using TimeTug.Platform.Broker;
 using TimeTug.Platform.Chip;
 using TimeTug.Platform.Clipboard;
 using TimeTug.Platform.Diagnostics;
@@ -66,8 +67,13 @@ internal static class AppComposition
         services.AddSingleton(sp => new AccountFormService(queue, sp.GetRequiredService<ILocalizer>()));
         services.AddSingleton<IAccountFormService>(sp => sp.GetRequiredService<AccountFormService>());
         services.AddSingleton(sp => DefaultEngineStartup(sp.GetRequiredService<IDiagnostics>()));
+        // Sign-in through the Windows account broker (phase 6): the intent is what the person chose, the parent window is what the Windows dialog opens in front of.
+        services.AddSingleton<IBrokerSignInIntent, BrokerSignInIntent>();
+        services.AddSingleton(sp => new BrokerParentWindow(() => sp.GetRequiredService<IWindowMessageSource>().Handle));
+        services.AddSingleton<IBrokerParentWindow>(sp => sp.GetRequiredService<BrokerParentWindow>());
         services.AddSingleton<IEngineHost>(sp => WindowsEngineHost.Create(
-            new SystemBrowserLauncher(), sp.GetRequiredService<IAccountFormService>(), sp.GetRequiredService<IDiagnostics>()));
+            new SystemBrowserLauncher(), sp.GetRequiredService<IAccountFormService>(), sp.GetRequiredService<IDiagnostics>(),
+            MicrosoftClientId(sp.GetRequiredService<EngineStartup>()), sp.GetRequiredService<IBrokerParentWindow>(), sp.GetRequiredService<IBrokerSignInIntent>()));
         services.AddSingleton<Pkg.IEngine>(sp =>
         {
             var startup = sp.GetRequiredService<EngineStartup>();
@@ -253,6 +259,10 @@ internal static class AppComposition
 
         return !failed;
     };
+
+    /// <summary>The Microsoft client id this build was given (null when none): the Windows account broker is offered only with one.</summary>
+    private static string? MicrosoftClientId(EngineStartup startup) =>
+        startup.OAuthClients.TryGetValue("microsoft", out var client) ? client.ClientID : null;
 
     private static EngineStartup DefaultEngineStartup(IDiagnostics diagnostics)
     {
