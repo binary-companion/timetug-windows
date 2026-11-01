@@ -190,9 +190,22 @@ internal static class SettingsShellScenario
         // watched: the opacity is sampled every 20 ms for up to 5 s, each sample stamped with the time since the reveal, and the three
         // statements below are read off those samples. A slow runner delays the samples; it does not move a one-shot read past the end
         // of the tint.
+        var firstSample = revealed.ElapsedMilliseconds;
+        var revealedAgain = false;
         var samples = await SampleTintAsync(window, revealed, 5000, cancellation);
+        if (samples.Overlay is null && firstSample > 1000)
+        {
+            // The UI thread was stalled for longer than the tint lasts (a loaded runner: main CI run 41320643305 saw no tint at all after
+            // 'Choose' took this long), so the whole effect ended before the first sample. Reveal it again and watch that one. A tint that never
+            // appears still fails: the second reveal is watched from the moment it is requested, and the reduced-motion check below reveals it a third time.
+            window.Shell.Open(SettingsPane.General, "about", GeneralDestination.About);
+            revealed.Restart();
+            revealedAgain = true;
+            samples = await SampleTintAsync(window, revealed, 5000, cancellation);
+        }
+
         var overlay = samples.Overlay;
-        run.Check(overlay is not null && samples.Points.Any(p => p.Opacity > 0.01), "the revealed control is tinted");
+        run.Check(overlay is not null && samples.Points.Any(p => p.Opacity > 0.01), $"the revealed control is tinted (the first sample was taken {firstSample} ms after the reveal{(revealedAgain ? ", so it was revealed again" : string.Empty)})");
         var mid = samples.Points.Where(p => p.Elapsed >= 450 && p.Elapsed <= 1250).ToList();
         run.Check(mid.Count > 0 && mid.All(p => p.Opacity > 0.01), $"the tint is still there half a second later ({mid.Count} samples between 0.45 s and 1.25 s, lowest {(mid.Count == 0 ? double.NaN : mid.Min(p => p.Opacity)):0.000})");
         await run.ShotAsync(window, "highlight");
