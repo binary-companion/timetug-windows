@@ -68,6 +68,5 @@
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
     <Capability Name="internetClient" />
-    <uap:Capability Name="appointments" />
   </Capabilities>
 </Package>
