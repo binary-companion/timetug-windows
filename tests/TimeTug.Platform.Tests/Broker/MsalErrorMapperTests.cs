@@ -59,6 +59,20 @@ public class MsalErrorMapperTests
     }
 
     [Fact]
+    public void A_ui_required_exception_with_no_known_cause_is_ui_required_other()
+    {
+        Map(new MsalUiRequiredException("failed_to_acquire_token_silently_from_broker", "Error Code: 2148073516 something policy")).Outcome
+            .Should().Be(new BrokerOutcome.UiRequired(BrokerReason.Other));
+    }
+
+    [Fact]
+    public void An_admin_consent_refusal_is_blocked_whichever_msal_exception_type_carries_it()
+    {
+        Map(new MsalUiRequiredException("consent_required", "AADSTS90094: The grant requires admin permission."), "interactive").Outcome
+            .Should().Be(new BrokerOutcome.Blocked(BrokerReason.AdminConsentRequired));
+    }
+
+    [Fact]
     public void A_closed_dialog_is_cancelled()
     {
         Map(new MsalClientException("authentication_canceled", "User canceled authentication")).Outcome.Should().BeOfType<BrokerOutcome.Cancelled>();

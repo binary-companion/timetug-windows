@@ -31,14 +31,16 @@ public static partial class MsalErrorMapper
                 return new BrokerOutcome.Cancelled();
             case MsalClientException { ErrorCode: MsalError.AuthenticationCanceledError }:
                 return new BrokerOutcome.Cancelled();
+            // The tenant's own refusal is checked before the type: it is a specific AADSTS code, and MsalUiRequiredException derives from MsalServiceException,
+            // so whichever of the two MSAL raises for it, the person is told an administrator has to approve (a sign-in cannot fix it).
+            case MsalServiceException service when IsAdminApprovalRequired(service):
+                return new BrokerOutcome.Blocked(BrokerReason.AdminConsentRequired);
             case MsalUiRequiredException ui:
                 return new BrokerOutcome.UiRequired(UiRequiredReason(ui));
             case MsalClientException { ErrorCode: "network_not_available" }:
                 return new BrokerOutcome.Network();
             case MsalServiceException service when IsNoNetwork(service):
                 return new BrokerOutcome.Network();
-            case MsalServiceException service when IsAdminApprovalRequired(service):
-                return new BrokerOutcome.Blocked(BrokerReason.AdminConsentRequired);
             case HttpRequestException or SocketException or IOException:
                 return new BrokerOutcome.Network();
             case DllNotFoundException or BadImageFormatException or TypeInitializationException or PlatformNotSupportedException or EntryPointNotFoundException:
@@ -62,7 +64,9 @@ public static partial class MsalErrorMapper
             UiRequiredExceptionClassification.UserPasswordExpired => BrokerReason.SignedOut,
             UiRequiredExceptionClassification.AdditionalAction => BrokerReason.Mfa,
             _ when wam == WamScopeNotGranted => BrokerReason.Consent,
-            _ => BrokerReason.SignedOut,
+            _ when wam == WamInteractionRequired => BrokerReason.SignedOut,
+            // Not in the tested set: the person still has to act, but the cause is unknown.
+            _ => BrokerReason.Other,
         };
     }
 
