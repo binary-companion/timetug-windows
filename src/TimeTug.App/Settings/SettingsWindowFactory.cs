@@ -1,4 +1,5 @@
 using TimeTug.App.Theming;
+using TimeTug.Platform.Broker;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Settings;
 
@@ -42,6 +43,14 @@ internal sealed class SettingsWindowFactory(
             var handle = window.Handle;
             brokerParent.Register(handle);
             window.WindowClosed += () => brokerParent.Unregister(handle);
+            // The window the person last used is the one a returning browser sign-in brings forward.
+            window.Activated += (_, args) =>
+            {
+                if (args.WindowActivationState != Microsoft.UI.Xaml.WindowActivationState.Deactivated)
+                {
+                    brokerParent.Touch(handle);
+                }
+            };
         }
 
         var surface = new SettingsWindowSurface(window);

@@ -477,4 +477,10 @@
   <data name="Appearance_ChipLead_Option" xml:space="preserve"><value>{0} min</value></data>
   <data name="Appearance_ChipLead_Name" xml:space="preserve"><value>Show the chip {0} minutes before a meeting</value></data>
   <data name="Appearance_ChipNote" xml:space="preserve"><value>A small box that stays on top near the taskbar with the next meeting and how long until it starts. Drag it where you like; double-click it to put it back. Click it to open today's meetings. It never takes the keyboard and steps aside for the tug and for full-screen apps.</value></data>
+  <!-- The page the browser shows after Google or Microsoft sign-in returns to TimeTug (served by the loopback listener; no script, no images). -->
+  <data name="Landing_PageTitle" xml:space="preserve"><value>TimeTug</value><comment>The browser tab's title on the page shown after signing in through the browser. Keep it the product name.</comment></data>
+  <data name="Landing_ConnectedTitle" xml:space="preserve"><value>You're connected</value><comment>Main heading of the page the browser shows when sign-in came back to TimeTug successfully. Shown right before the person returns to the app.</comment></data>
+  <data name="Landing_ConnectedBody" xml:space="preserve"><value>Return to TimeTug.</value><comment>One sentence under the heading: tells the person to switch back to the TimeTug window. The browser tab stays open; a page cannot close it.</comment></data>
+  <data name="Landing_FailedTitle" xml:space="preserve"><value>Sign-in didn't finish</value><comment>Main heading of the page the browser shows when the provider sent the person back with an error (for example they pressed Cancel).</comment></data>
+  <data name="Landing_FailedBody" xml:space="preserve"><value>Return to TimeTug and try again.</value><comment>One sentence under the failure heading: tells the person to switch back to TimeTug and start again.</comment></data>
 </root>

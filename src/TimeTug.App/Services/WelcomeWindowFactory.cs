@@ -1,6 +1,7 @@
 using Microsoft.UI.Dispatching;
 using TimeTug.App.Theming;
 using TimeTug.App.Views;
+using TimeTug.Platform.Broker;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Accounts;
 using TimeTug.Presentation.Engine;

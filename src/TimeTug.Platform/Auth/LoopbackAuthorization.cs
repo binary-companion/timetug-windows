@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -15,20 +16,20 @@ namespace TimeTug.Platform.Auth;
 public sealed class LoopbackAuthorization : IDisposable
 {
     private const int Attempts = 5;
-    private const string ClosePage =
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>TimeTug</title>" +
-        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head>" +
-        "<body style=\"font-family:Segoe UI,sans-serif;text-align:center;margin-top:20vh\">" +
-        "<h1>You can close this tab</h1><p>Return to TimeTug to finish signing in.</p></body></html>";
-
     private readonly IUrlLauncher _launcher;
     private readonly IDiagnostics? _diagnostics;
+    private readonly ILocalizer? _localizer;
+    private readonly ISignInReturnNotifier? _notifier;
     private readonly ConcurrentDictionary<string, Session> _sessions = new();
 
-    public LoopbackAuthorization(IUrlLauncher launcher, IDiagnostics? diagnostics = null)
+    /// <param name="localizer">Where the landing page gets its words (the <c>Landing_*</c> keys); without one the English words are used.</param>
+    /// <param name="notifier">Told once when a redirect (a code or an error) has been captured, so the app can bring itself forward.</param>
+    public LoopbackAuthorization(IUrlLauncher launcher, IDiagnostics? diagnostics = null, ILocalizer? localizer = null, ISignInReturnNotifier? notifier = null)
     {
         _launcher = launcher;
         _diagnostics = diagnostics;
+        _localizer = localizer;
+        _notifier = notifier;
     }
 
     public ValueTask<RedirectSession> BeginRedirectAsync(CancellationToken cancellationToken)
@@ -112,14 +113,18 @@ public sealed class LoopbackAuthorization : IDisposable
                 throw new EngineServiceException(ServiceErrorKind.NotFound, "The sign-in session was closed while waiting.", ex);
             }
 
+            // Only a request that carries a code or an error is the redirect. A bare request, the favicon or a port scan gets a 404 and the wait goes on,
+            // so a stray local request cannot burn the sign-in (the engine still checks the state value).
             var rawUrl = context.Request.RawUrl ?? "/";
-            if (rawUrl.StartsWith("/favicon", StringComparison.Ordinal))
+            var outcome = SignInLandingPage.Classify(rawUrl);
+            if (outcome == LandingOutcome.NotARedirect)
             {
                 Respond(context, 404, "");
                 continue;
             }
 
-            Respond(context, 200, ClosePage);
+            Respond(context, 200, SignInLandingPage.Render(outcome, LandingTextNow()));
+            RaiseReturned();
             return session.Prefix.TrimEnd('/') + rawUrl;
         }
     }
@@ -159,6 +164,36 @@ public sealed class LoopbackAuthorization : IDisposable
         }
     }
 
+    private LandingText LandingTextNow()
+    {
+        if (_localizer is null)
+        {
+            return LandingText.English;
+        }
+
+        try
+        {
+            return LandingText.From(_localizer, CultureInfo.CurrentUICulture);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _diagnostics?.Record("warning", "signin", $"landing: strings unavailable ({ex.GetType().Name})");
+            return LandingText.English;
+        }
+    }
+
+    private void RaiseReturned()
+    {
+        try
+        {
+            _notifier?.SignInReturned();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _diagnostics?.Record("warning", "signin", $"foreground: notice failed ({ex.GetType().Name})");
+        }
+    }
+
     private static void Respond(HttpListenerContext context, int status, string html)
     {
         try
@@ -166,7 +201,11 @@ public sealed class LoopbackAuthorization : IDisposable
             var bytes = Encoding.UTF8.GetBytes(html);
             context.Response.StatusCode = status;
             context.Response.ContentType = "text/html; charset=utf-8";
-            context.Response.Headers["Cache-Control"] = "no-store";
+            foreach (var (name, value) in SignInLandingPage.Headers)
+            {
+                context.Response.Headers[name] = value;
+            }
+
             context.Response.ContentLength64 = bytes.Length;
             context.Response.OutputStream.Write(bytes);
             context.Response.Close();

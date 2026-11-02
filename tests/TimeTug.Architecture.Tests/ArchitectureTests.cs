@@ -62,6 +62,19 @@ public partial class ArchitectureTests
         path.Contains($"{Path.DirectorySeparatorChar}TimeTug.Platform.Tests{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
 
     [Fact]
+    public void The_foreground_requester_uses_no_simulated_input_and_no_thread_attachment()
+    {
+        // Bringing TimeTug forward after a browser sign-in is the ordinary activate call and may be refused; no key presses, no input-queue tricks.
+        var file = Path.Combine(Root, "src", "TimeTug.Platform", "Auth", "SignInForegroundRequester.cs");
+        File.Exists(file).Should().BeTrue();
+        var text = File.ReadAllText(file);
+        foreach (var forbidden in new[] { "AttachThreadInput", "keybd_event", "SendInput", "SendKeys", "LockSetForegroundWindow", "AllowSetForegroundWindow", "SystemParametersInfo" })
+        {
+            text.Should().NotContain(forbidden);
+        }
+    }
+
+    [Fact]
     public void No_scheduling_or_default_logic_in_csharp()
     {
         // The engine owns lead time, snooze choices and rules. Timers are allowed only in the platform
