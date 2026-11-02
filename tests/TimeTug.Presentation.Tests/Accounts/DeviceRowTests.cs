@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using TimeTug.Presentation.Accounts;
+using TimeTug.Presentation.Engine;
 using static TimeTug.Presentation.Tests.Accounts.ListRig;
 
 namespace TimeTug.Presentation.Tests.Accounts;
@@ -68,10 +69,9 @@ public class DeviceRowTests
         ((INotifyPropertyChanged)rig.Model.DeviceRow).PropertyChanged += (_, e) => changes.Add(e.PropertyName);
 
         rig.Source.Gate!.SetResult(Named);
-        await Eventually(() => rig.Model.DeviceRow.IsVisible);
+        await Eventually(() => changes.Contains(nameof(DeviceRowModelProbe.IsVisible)));
 
         rig.Model.DeviceRow.IsVisible.Should().BeTrue();
-        changes.Should().Contain(nameof(DeviceRowModelProbe.IsVisible));
     }
 
     // ---- Settings mode ------------------------------------------------------------------------------------------------------------
@@ -256,6 +256,38 @@ public class DeviceRowTests
 
         changes.Should().Contain(nameof(DeviceRowModelProbe.IsOn));
         rig.Model.DeviceRow.IsOn.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_refused_removal_re_announces_the_switch_so_the_control_follows_the_model()
+    {
+        var rig = Create(Named);
+        var pinned = Account("p", "microsoft-brokered", "me@example.com");
+        rig.Push(pinned);
+        await rig.Model.DeviceRow.SetOnAsync(false);
+        await rig.Model.ConfirmRemoveAsync();
+        var changes = new List<string?>();
+        ((INotifyPropertyChanged)rig.Model.DeviceRow).PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        rig.PushActivity(new AccountActivity(false, "Could not remove the account.", "browser"), pinned);
+
+        rig.Model.DeviceRow.IsOn.Should().BeTrue();
+        changes.Should().Contain(nameof(DeviceRowModelProbe.IsOn));
+    }
+
+    [Fact]
+    public async Task A_failed_switch_on_re_announces_the_switch_when_the_attempt_ends()
+    {
+        var rig = Create(Named);
+        await rig.Model.DeviceRow.SetOnAsync(true);
+        rig.PushActivity(Working);
+        var changes = new List<string?>();
+        ((INotifyPropertyChanged)rig.Model.DeviceRow).PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        rig.PushActivity(new AccountActivity(false, "Sign-in failed (network).", "browser"));
+
+        rig.Model.DeviceRow.IsOn.Should().BeFalse();
+        changes.Should().Contain(nameof(DeviceRowModelProbe.IsOn));
     }
 
     [Fact]

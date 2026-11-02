@@ -756,6 +756,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     private void Refresh()
     {
+        var wasBusy = IsBusy;
         IsBusy = _attempt is not null || _state?.Activity?.IsWorking == true;
         foreach (var provider in Providers)
         {
@@ -768,6 +769,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             || Providers.Any(p => p.ErrorDetail == engineError);
         ErrorText = shown ? null : engineError;
         UpdateDeviceRow();
+        if (wasBusy && !IsBusy)
+        {
+            // A switch-started action (connect, remove) has ended. If it changed nothing, the control the person already toggled must be told what the model says.
+            DeviceRow.Resync();
+        }
     }
 
     private void RebuildProviders(AppState state)
@@ -958,10 +964,14 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         _deviceConflict = _deviceEmail is not null && _pinned is null && ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Browser && SameEmail(a.Email, _deviceEmail));
 
         ReconcileListAccounts(ConnectedAccounts.Where(a => !ReferenceEquals(a, _pinned) && a.ConnectionId != _pinned?.ConnectionId).ToList());
-        ReconcileSelection(previousIds);
+        var removalRefused = ReconcileSelection(previousIds);
         OnPropertyChanged(nameof(ShowListEmptyText));
         OnPropertyChanged(nameof(RemoveSelectedAutomationName));
         UpdateDeviceRow();
+        if (removalRefused)
+        {
+            DeviceRow.Resync();
+        }
     }
 
     // Updates the collection in place: a row that did not change is not touched, a changed row is replaced where it stands.
@@ -1019,22 +1029,30 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     // After a removal the engine confirmed, selection and focus go to the row now in its place, else the previous one, else the "+" button. A selection whose row
     // vanished for any other reason is simply cleared: nothing the engine publishes moves focus.
-    private void ReconcileSelection(IReadOnlyList<string> previousIds)
+    // Returns true when the engine refused a removal in this publication (the row is still there and it reported an error).
+    private bool ReconcileSelection(IReadOnlyList<string> previousIds)
     {
-        if (_removingId is { } removing && ListAccounts.Any(a => a.ConnectionId == removing) && _state?.Activity?.ErrorMessage is { Length: > 0 } error && error != _removingBaselineError)
+        var refused = false;
+        if (_removingId is { } gone && ConnectedAccounts.All(a => a.ConnectionId != gone) && SelectedAccountId != gone)
+        {
+            _removingId = null;   // the removed account was not the selected row (the pinned one): nothing to move
+        }
+
+        if (_removingId is { } removing && ConnectedAccounts.Any(a => a.ConnectionId == removing) && _state?.Activity?.ErrorMessage is { Length: > 0 } error && error != _removingBaselineError)
         {
             _removingId = null;   // the engine refused: the row stays, the message shows
+            refused = true;
         }
 
         if (SelectedAccountId is not { } selected || ListAccounts.Any(a => a.ConnectionId == selected))
         {
-            return;
+            return refused;
         }
 
         if (selected != _removingId)
         {
             SetSelected(null);
-            return;
+            return refused;
         }
 
         _removingId = null;
@@ -1042,6 +1060,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         var next = index >= 0 && index < ListAccounts.Count ? ListAccounts[index] : index > 0 && index - 1 < ListAccounts.Count ? ListAccounts[index - 1] : null;
         SetSelected(next?.ConnectionId);
         FocusRequested?.Invoke(this, next is null ? new FocusTarget(FocusKind.AddButton, null) : new FocusTarget(FocusKind.Row, next.ConnectionId));
+        return refused;
     }
 
     private void SetSelected(string? id)
