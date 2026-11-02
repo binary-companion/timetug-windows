@@ -13,11 +13,43 @@ public static class BrokeredKinds
     public const string PickItem = "microsoft-brokered:pick";
 }
 
+/// <summary>What Windows says about its signed-in Microsoft accounts (the broker's account listing: no token, no dialog).</summary>
+public enum WindowsListingKind
+{
+    /// <summary>The broker is not offered, the listing threw, or it did not answer in time. The pinned "This PC's Windows account" row stays hidden.</summary>
+    Unavailable,
+
+    /// <summary>Zero accounts: a local-only Windows account.</summary>
+    None,
+
+    /// <summary>Exactly one account, and its user name is an email address.</summary>
+    OneNamed,
+
+    /// <summary>One or more accounts otherwise (one without an <c>@</c>, or several).</summary>
+    Unnamed,
+}
+
+/// <param name="Kind">What the listing came to.</param>
+/// <param name="Email">The email address of the one account for <see cref="WindowsListingKind.OneNamed"/>; null otherwise.</param>
+public sealed record WindowsAccountListing(WindowsListingKind Kind, string? Email = null);
+
 /// <summary>
-/// The Microsoft account Windows is signed in with, so the welcome card can say "Use name@example.com". Implemented by the platform over the broker's
-/// account listing, which asks for no token and shows nothing. Returns null when Windows names no account or exactly one cannot be told.
+/// The Microsoft accounts Windows is signed in with, for the pinned "This PC's Windows account" row. Implemented by the platform over the broker's account
+/// listing, which asks for no token and shows nothing.
 /// </summary>
 public interface IWindowsAccountSource
 {
+    /// <summary>The listing, mapped to the cases the pinned row needs. Never throws except for the caller's own cancellation.</summary>
+    ValueTask<WindowsAccountListing> GetListingAsync(CancellationToken cancellationToken) => GetListingFromEmailAsync(this, cancellationToken);
+
+    /// <summary>
+    /// The email of the one listed account, or null when Windows names none or the account cannot be told. The cards of the shipped window use this; it goes
+    /// away with them.
+    /// </summary>
     ValueTask<string?> GetEmailAsync(CancellationToken cancellationToken);
+
+    private static async ValueTask<WindowsAccountListing> GetListingFromEmailAsync(IWindowsAccountSource source, CancellationToken cancellationToken) =>
+        await source.GetEmailAsync(cancellationToken).ConfigureAwait(false) is { } email
+            ? new WindowsAccountListing(WindowsListingKind.OneNamed, email)
+            : new WindowsAccountListing(WindowsListingKind.None);
 }
