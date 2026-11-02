@@ -44,6 +44,9 @@ internal sealed class EngineRig : IAsyncDisposable
     private string? _teamEvents;
     private bool _brokered;
 
+    /// <summary>Where the app remembers that the Windows account was removed, in memory (never the package's real settings).</summary>
+    public MemoryDismissalStore Dismissals { get; private init; } = new();
+
     private EngineRig(ScenarioRun run, CancellationToken cancellation)
     {
         Run = run;
@@ -122,9 +125,11 @@ internal sealed class EngineRig : IAsyncDisposable
     /// 90 minutes after the clocks start. The welcome window opens by itself, as it does for a person with no account.
     /// </summary>
     /// <param name="listed">What the broker lists for Windows (the Windows sign-in account); by default one named account, <c>me@example.com</c>. Empty is a local-only Windows account.</param>
-    public static async Task<EngineRig> StartBrokeredAsync(SelfTestOptions options, CancellationToken cancellation, IReadOnlyList<TimeTug.Platform.Broker.BrokerAccount>? listed = null)
+    /// <param name="dismissed">The person removed the Windows account earlier (the first-run Continue then never adds it automatically).</param>
+    public static async Task<EngineRig> StartBrokeredAsync(
+        SelfTestOptions options, CancellationToken cancellation, IReadOnlyList<TimeTug.Platform.Broker.BrokerAccount>? listed = null, bool dismissed = false)
     {
-        var rig = new EngineRig(new ScenarioRun(options), cancellation) { _brokered = true };
+        var rig = new EngineRig(new ScenarioRun(options), cancellation) { _brokered = true, Dismissals = new MemoryDismissalStore(dismissed) };
         if (listed is not null)
         {
             rig.Broker.Accounts = listed;
@@ -290,6 +295,7 @@ internal sealed class EngineRig : IAsyncDisposable
                 services.AddSingleton<IUrlLauncher>(Launcher);
                 // The Settings window remembers its place in memory, not in the package's real settings.
                 services.AddSingleton<IPresentationSettingsStore>(new MemoryPresentationSettingsStore());
+                services.AddSingleton<TimeTug.Presentation.Accounts.IWindowsAccountDismissalStore>(Dismissals);
                 services.AddSingleton<IEngineClient>(sp => new RecordingEngineClient(sp.GetRequiredService<EngineClient>()));
             },
             withTray: false);

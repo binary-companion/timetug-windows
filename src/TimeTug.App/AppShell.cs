@@ -200,7 +200,8 @@ internal sealed class AppShell
             Services.GetRequiredService<ThemeService>(),
             Services.GetRequiredService<BrokerParentWindow>(),
             Services.GetRequiredService<IBrokerSignInIntent>(),
-            Services.GetRequiredService<Pkg.IEngineHost>() is BrokeredEngineHost brokered ? brokered.WindowsAccounts : null);
+            Services.GetRequiredService<Pkg.IEngineHost>() is BrokeredEngineHost brokered ? brokered.WindowsAccounts : null,
+            Services.GetRequiredService<IWindowsAccountDismissalStore>());
         window.Closed += (_, _) => _welcome = null;
         _welcome = window;
         window.Activate();

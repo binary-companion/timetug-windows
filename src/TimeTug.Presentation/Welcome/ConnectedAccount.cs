@@ -1,3 +1,5 @@
+using TimeTug.Presentation.Accounts;
+
 namespace TimeTug.Presentation.Welcome;
 
 /// <summary>
@@ -20,14 +22,17 @@ public sealed record ConnectedAccount(
 {
     public bool HasNotice => NoticeText is not null;
 
-    /// <summary>The account signs in through Windows (a Microsoft account on this PC): the row carries the "On this PC" tag.</summary>
-    public bool IsOnThisPc { get; init; }
+    /// <summary>The account is a Microsoft account, however it signs in: Microsoft holds the consent, so the removal question says where to withdraw it.</summary>
+    public bool IsMicrosoft { get; init; }
 
-    /// <summary>The account's email address when its name is one (used to tell which account stands for the pinned Windows row); null otherwise.</summary>
+    /// <summary>The account's email address when its name is one (used to tell whether the Windows account is connected already); null otherwise.</summary>
     public string? Email { get; init; }
 
-    /// <summary>"On this PC" for an account that signs in through Windows; null otherwise.</summary>
-    public string? TagText { get; init; }
+    /// <summary>The vendor logo the row shows; <see cref="ProviderMark.None"/> when the kind has none.</summary>
+    public ProviderMark Mark { get; init; }
+
+    /// <summary>"Microsoft logo" or "Google logo": the logo image's name for a screen reader; empty when there is no vendor logo.</summary>
+    public string LogoAutomationName { get; init; } = "";
 
     /// <summary>The words of the "Sign in again" button in the row.</summary>
     public string SignInText { get; init; } = "";

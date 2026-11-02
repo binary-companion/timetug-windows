@@ -40,7 +40,7 @@ internal static class A11yHoldScenario
         run.Check(await HoldForScannerAsync(rig, 0, "canary: a button with no name", cancellation), "the scanner finished the canary round");
         canary.Close();
 
-        // The brokered kind is configured too, and Windows lists an account, so the scan sees the pinned "This PC's Windows account" row and the single Microsoft menu entry.
+        // The brokered kind is configured too, and Windows lists an account, so Continue has the Windows account to add and the menu has its single Microsoft entry.
         rig.Engine.Push(Scenes.Empty() with { AvailableKinds = [.. Scenes.Kinds, new AccountKindInfo("microsoft-brokered", "Microsoft", true, "oauth")] });
         // The Connected step carries the launch-at-login checkbox: scanned while Windows blocks it (the checkbox disabled with its note and link).
         var welcomeStartup = new ScriptedStartupTask { State = StartupState.DisabledByUser };
@@ -51,7 +51,7 @@ internal static class A11yHoldScenario
         await SelfTestRunner.WaitForFrameAsync(welcome, cancellation);
         run.Check(welcome.ViewModel.Step == WelcomeStep.Intro, "the welcome window starts on the welcome step");
         run.Check(ScenarioUi.Invoke(welcome, "Get started"), "Get started is pressed");
-        run.Check(await rig.WaitFor(() => welcome.ViewModel.Step == WelcomeStep.Connect && welcome.AccountsList.DeviceRowPanel.Visibility == Visibility.Visible), "the welcome window shows the Connect step with the pinned row");
+        run.Check(await rig.WaitFor(() => welcome.ViewModel.Step == WelcomeStep.Connect && welcome.ViewModel.Accounts.WindowsAccountOffered), "the welcome window shows the Connect step with the Windows account offered");
 
         run.Check(await rig.PresentAsync(rig.Request("e-a11y", "Design review", TimeSpan.FromSeconds(240))), "the tug opens");
         await rig.Settle();
@@ -115,7 +115,7 @@ internal static class A11yHoldScenario
             run.Check(await HoldForScannerAsync(rig, 6, "the Calendars pane", cancellation), "the scanner finished round 6");
 
             // Round 7: the Accounts pane (an account in every status, the Add cards with one not set up in this build, the notice, Diagnostics).
-            // Plus a Microsoft account on this PC that needs the person (the "On this PC" tag, Sign in again, the withdraw-consent text) and the brokered Add cards.
+            // Plus a Microsoft account that signs in through Windows and needs the person (an ordinary Microsoft row: its logo, Sign in again, the withdraw-consent text) and the single Microsoft menu entry.
             var accounts = SettingsRig.AccountsState(rig.Time.GetUtcNow());
             rig.Engine.Push(accounts with
             {
@@ -127,9 +127,7 @@ internal static class A11yHoldScenario
             run.Check(await rig.WaitFor(() => settingsWindow.CurrentPage is AccountsPage { AccountsList.Accounts.ListAccounts.Count: 8 }), "the Accounts pane is showing the accounts");
             if (settingsWindow.CurrentPage is AccountsPage accountsPage)
             {
-                // Windows lists another account than the connected one, so the pinned row shows too; one row is selected so the scan sees the selected state.
-                accountsPage.AccountsList.Accounts!.WindowsAccounts = ScriptedWindowsAccountSource.Named("windows-user@example.test");
-                await rig.Settle();
+                // One row is selected so the scan sees the selected state.
                 AccountsListUi.Select(accountsPage.AccountsList, "conn-2");
                 await rig.Settle();
             }

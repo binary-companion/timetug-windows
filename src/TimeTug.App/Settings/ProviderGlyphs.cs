@@ -1,6 +1,6 @@
 namespace TimeTug.App.Settings;
 
-/// <summary>The Segoe Fluent glyph that stands for an account kind (the Mac's <c>ProviderIcon</c>).</summary>
+/// <summary>The Segoe Fluent glyph that stands for an account kind that has no vendor logo (see <see cref="ProviderLogos"/>; the Mac draws its own marks, <c>ProviderIcon</c>).</summary>
 internal static class ProviderGlyphs
 {
     public const string Calendar = "";
@@ -13,8 +13,6 @@ internal static class ProviderGlyphs
         "icloud" => "",
         "caldav" => "",
         "icalsub" => "",
-        // Signs in through Windows: a PC (Segoe Fluent "TVMonitor").
-        "microsoft-brokered" or "microsoft-brokered:pick" => "\uE7F4",
         _ => Calendar,
     };
 }

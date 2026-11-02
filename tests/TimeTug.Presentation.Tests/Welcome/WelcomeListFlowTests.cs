@@ -9,17 +9,19 @@ using static TimeTug.Presentation.Tests.Accounts.ListRig;
 
 namespace TimeTug.Presentation.Tests.Welcome;
 
-/// <summary>The first-run window: an intro step, the accounts list with the pinned Windows row, and the Continue rule (Q1, Q4, Q5; D1, D9, D10).</summary>
+/// <summary>The first-run window: an intro step, the accounts list, and the Continue rule that adds the Windows account (Q1, Q4, Q5; D10, D16, D17; spec A1.2).</summary>
 public class WelcomeListFlowTests
 {
-    private sealed record Rig(FakeEngineClient Engine, WelcomeViewModel Model, AccountsBrokeredTests.FakeIntent Intent, FakeListing Source);
+    private sealed record Rig(FakeEngineClient Engine, WelcomeViewModel Model, AccountsBrokeredTests.FakeIntent Intent, FakeListing Source, FakeDismissals Dismissals);
 
-    private static Rig Create(WindowsAccountListing? listing = null, bool gated = false, AppState? first = null)
+    private static Rig Create(WindowsAccountListing? listing = null, bool gated = false, AppState? first = null, bool dismissed = false)
     {
         var engine = new FakeEngineClient();
         var model = new WelcomeViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), new FakeTimeProvider(States.Noon));
         var intent = new AccountsBrokeredTests.FakeIntent(engine.Sent);
         model.Accounts.BrokerIntents = intent;
+        var dismissals = new FakeDismissals(dismissed);
+        model.Accounts.Dismissals = dismissals;
         var source = new FakeListing(listing ?? Named);
         if (gated)
         {
@@ -28,7 +30,7 @@ public class WelcomeListFlowTests
 
         engine.Push(first ?? ListRig.Empty());
         model.Accounts.WindowsAccounts = source;
-        return new Rig(engine, model, intent, source);
+        return new Rig(engine, model, intent, source, dismissals);
     }
 
     private static async Task Start(Rig rig)
@@ -38,7 +40,7 @@ public class WelcomeListFlowTests
     }
 
     [Fact]
-    public void List_flow_starts_on_the_intro_step()
+    public void The_flow_starts_on_the_intro_step()
     {
         var rig = Create();
 
@@ -46,7 +48,6 @@ public class WelcomeListFlowTests
         rig.Model.IsIntroStep.Should().BeTrue();
         rig.Model.IsConnectStep.Should().BeFalse();
         rig.Model.IsConnectedStep.Should().BeFalse();
-        rig.Model.Accounts.DeviceRowIsPending.Should().BeTrue();
     }
 
     [Fact]
@@ -58,9 +59,10 @@ public class WelcomeListFlowTests
         await Start(rig);
 
         rig.Model.Step.Should().Be(WelcomeStep.Connect);
-        rig.Model.IsConnectStep.Should().BeTrue();
         rig.Source.Calls.Should().Equal("listing");
-        rig.Model.Accounts.DeviceRow.IsVisible.Should().BeTrue("the answer was ready before step 2 opened");
+        rig.Model.Accounts.WindowsAccountOffered.Should().BeTrue("the answer was ready before step 2 opened");
+        rig.Model.Accounts.ListAccounts.Should().BeEmpty("nothing is added until Continue");
+        rig.Model.Accounts.ShowListEmptyText.Should().BeTrue();
     }
 
     [Fact]
@@ -71,17 +73,23 @@ public class WelcomeListFlowTests
         rig.Model.GetStartedCommand.CanExecute(null).Should().BeFalse();
     }
 
-    [Fact]
-    public async Task Continue_is_disabled_while_the_listing_is_pending_and_a_late_answer_enables_it_without_changing_the_step()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Continue_is_disabled_while_the_listing_is_pending_and_a_late_answer_enables_it_without_changing_the_step(bool withAnAccount)
     {
         var rig = Create(gated: true);
         await Start(rig);
+        if (withAnAccount)
+        {
+            rig.Engine.Push(With(Idle, Account("g", "google", "you@example.com")));
+        }
+
         var changed = new List<string?>();
         ((INotifyPropertyChanged)rig.Model).PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
-        rig.Model.CanContinue.Should().BeFalse();
+        rig.Model.CanContinue.Should().BeFalse("Continue never goes on before the Windows offer is known");
         rig.Model.ContinueCommand.CanExecute(null).Should().BeFalse();
-        rig.Model.Accounts.DeviceRow.IsVisible.Should().BeFalse();
 
         rig.Source.Gate!.SetResult(Named);
         await Eventually(() => rig.Model.CanContinue);
@@ -93,20 +101,7 @@ public class WelcomeListFlowTests
     }
 
     [Fact]
-    public async Task Continue_is_disabled_with_the_switch_off_and_no_account()
-    {
-        var rig = Create();
-        await Start(rig);
-        rig.Model.CanContinue.Should().BeTrue();
-
-        await rig.Model.Accounts.DeviceRow.SetOnAsync(false);
-
-        rig.Model.CanContinue.Should().BeFalse();
-        rig.Model.ContinueCommand.CanExecute(null).Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task Continue_with_the_switch_on_connects_the_windows_account_and_goes_to_connected()
+    public async Task Continue_connects_the_windows_account_and_goes_to_connected_with_an_ordinary_row()
     {
         var rig = Create();
         await Start(rig);
@@ -123,10 +118,11 @@ public class WelcomeListFlowTests
 
         rig.Model.Step.Should().Be(WelcomeStep.Connected);
         rig.Model.Accounts.Accounts.Should().ContainSingle().Which.Summary.Should().Be("Microsoft · me@example.com · 2 calendars");
+        rig.Model.Accounts.ListAccounts.Should().ContainSingle().Which.AutomationName.Should().Be("Microsoft, me@example.com, Connected");
     }
 
     [Fact]
-    public async Task Declining_stays_on_connect_with_the_switch_on_no_error_and_the_link()
+    public async Task Declining_stays_on_connect_with_no_error_and_the_link()
     {
         var rig = Create();
         await Start(rig);
@@ -136,17 +132,55 @@ public class WelcomeListFlowTests
         rig.Engine.Push(ListRig.Empty(Idle));
 
         rig.Model.Step.Should().Be(WelcomeStep.Connect);
-        rig.Model.Accounts.DeviceRow.IsOn.Should().BeTrue();
+        rig.Model.Accounts.ListAccounts.Should().BeEmpty();
         rig.Model.Accounts.ErrorText.Should().BeNull();
         rig.Model.Accounts.SignInFailureText.Should().BeNull();
         rig.Model.Accounts.ShowBrowserFallbackLink.Should().BeTrue();
         rig.Model.Accounts.IsBusy.Should().BeFalse();
         rig.Model.CanContinue.Should().BeTrue("the person may press Continue again");
         rig.Intent.Current.Should().Be(BrokerIntent.WindowsAccount);
+        rig.Dismissals.DismissCalls.Should().Be(0, "a decline is not remembered");
     }
 
     [Fact]
-    public async Task A_failure_stays_on_connect_and_shows_the_engines_text()
+    public async Task Declining_then_Continue_with_an_empty_list_asks_windows_again()
+    {
+        var rig = Create();
+        await Start(rig);
+        await Press(rig.Model.ContinueCommand);
+        rig.Engine.Push(ListRig.Empty(Working));
+        rig.Engine.Push(ListRig.Empty(Idle));
+        rig.Engine.Sent.Clear();
+
+        await Press(rig.Model.ContinueCommand);
+
+        rig.Engine.Sent.Should().Equal("add:microsoft-brokered");
+        rig.Model.Step.Should().Be(WelcomeStep.Connect);
+    }
+
+    [Fact]
+    public async Task Declining_then_Continue_with_an_account_in_the_list_goes_on_without_asking()
+    {
+        var rig = Create();
+        await Start(rig);
+        await Press(rig.Model.ContinueCommand);
+        rig.Engine.Push(ListRig.Empty(Working));
+        rig.Engine.Push(ListRig.Empty(Idle));
+        await Press(rig.Model.Accounts.MenuEntries.Single(e => e.Name == "Google").ConnectCommand);
+        rig.Engine.Push(ListRig.Empty(Working));
+        rig.Engine.Push(With(Idle, Account("g", "google", "you@example.com")));
+        rig.Engine.Sent.Clear();
+        rig.Intent.Armed.Clear();
+
+        await Press(rig.Model.ContinueCommand);
+
+        rig.Model.Step.Should().Be(WelcomeStep.Connected);
+        rig.Engine.Sent.Should().BeEmpty();
+        rig.Intent.Armed.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_failure_stays_on_connect_and_shows_the_engines_text_and_the_link()
     {
         var rig = Create();
         await Start(rig);
@@ -158,7 +192,7 @@ public class WelcomeListFlowTests
         rig.Model.Step.Should().Be(WelcomeStep.Connect);
         rig.Model.Accounts.SignInFailureDetail.Should().Be("Sign-in failed (network).");
         rig.Model.Accounts.ShowBrowserFallbackLink.Should().BeTrue();
-        rig.Model.Accounts.DeviceRow.IsOn.Should().BeTrue();
+        rig.Model.CanContinue.Should().BeTrue();
     }
 
     [Fact]
@@ -196,20 +230,17 @@ public class WelcomeListFlowTests
     }
 
     [Fact]
-    public async Task Continue_with_the_switch_off_and_a_google_account_makes_no_broker_call()
+    public async Task Continue_with_a_google_account_in_the_list_still_asks_windows_once()
     {
         var rig = Create();
         await Start(rig);
         rig.Engine.Push(With(Idle, Account("g", "google", "you@example.com")));
-        await rig.Model.Accounts.DeviceRow.SetOnAsync(false);
         rig.Engine.Sent.Clear();
 
         await Press(rig.Model.ContinueCommand);
 
-        rig.Model.Step.Should().Be(WelcomeStep.Connected);
-        rig.Engine.Sent.Should().BeEmpty();
-        rig.Intent.Armed.Should().BeEmpty();
-        rig.Source.Calls.Should().Equal("listing");
+        rig.Engine.Sent.Should().Equal("add:microsoft-brokered");
+        rig.Intent.Armed.Should().Equal((BrokerIntent.WindowsAccount, 0));
     }
 
     [Fact]
@@ -228,26 +259,10 @@ public class WelcomeListFlowTests
     }
 
     [Fact]
-    public async Task Plus_then_Continue_with_the_switch_on_still_asks_windows()
-    {
-        var rig = Create();
-        await Start(rig);
-        rig.Engine.Push(With(Idle, Account("g", "google", "you@example.com")));
-        rig.Engine.Sent.Clear();
-
-        await Press(rig.Model.ContinueCommand);
-
-        rig.Engine.Sent.Should().Equal("add:microsoft-brokered");
-        rig.Intent.Armed.Should().Equal((BrokerIntent.WindowsAccount, 0));
-    }
-
-    [Fact]
     public async Task No_broker_call_other_than_the_listing_happens_before_Continue()
     {
         var rig = Create();
         await Start(rig);
-        await rig.Model.Accounts.DeviceRow.SetOnAsync(false);
-        await rig.Model.Accounts.DeviceRow.SetOnAsync(true);
         rig.Engine.Push(With(Idle, Account("g", "google", "you@example.com")));
 
         rig.Source.Calls.Should().Equal("listing");
@@ -256,31 +271,57 @@ public class WelcomeListFlowTests
     }
 
     [Fact]
-    public async Task A_local_only_windows_account_hides_the_row_disables_Continue_and_Skip_closes()
+    public async Task A_local_only_windows_account_disables_Continue_with_an_empty_list_and_Skip_closes()
     {
         var rig = Create(None);
         await Start(rig);
         var closed = 0;
         rig.Model.CloseRequested += (_, _) => closed++;
 
-        rig.Model.Accounts.DeviceRow.IsVisible.Should().BeFalse();
         rig.Model.Accounts.ShowListEmptyText.Should().BeTrue();
         rig.Model.CanContinue.Should().BeFalse();
 
         await Press(rig.Model.SkipCommand);
 
         closed.Should().Be(1);
+        rig.Engine.Sent.Should().BeEmpty();
+        rig.Intent.Armed.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task A_conflicting_browser_account_enables_Continue_through_the_list_not_the_switch()
+    public async Task A_local_only_windows_account_with_a_google_account_continues_without_asking()
+    {
+        var rig = Create(None);
+        await Start(rig);
+        rig.Engine.Push(With(Idle, Account("g", "google", "you@example.com")));
+
+        rig.Model.CanContinue.Should().BeTrue();
+        await Press(rig.Model.ContinueCommand);
+
+        rig.Model.Step.Should().Be(WelcomeStep.Connected);
+        rig.Engine.Sent.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_recorded_dismissal_makes_no_listing_call_and_Continue_stays_disabled_with_an_empty_list()
+    {
+        var rig = Create(dismissed: true);
+        await Start(rig);
+
+        rig.Source.Calls.Should().BeEmpty();
+        rig.Model.CanContinue.Should().BeFalse();
+        rig.Model.Accounts.ShowListEmptyText.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_browser_account_with_the_windows_email_enables_Continue_through_the_list_and_asks_nothing()
     {
         var rig = Create();
         await Start(rig);
 
         rig.Engine.Push(With(Idle, Account("b", "microsoft", "me@example.com")));
 
-        rig.Model.Accounts.DeviceRow.IsOn.Should().BeFalse();
+        rig.Model.Accounts.WindowsAccountOffered.Should().BeFalse();
         rig.Model.CanContinue.Should().BeTrue("the browser account is in the list");
         await Press(rig.Model.ContinueCommand);
         rig.Model.Step.Should().Be(WelcomeStep.Connected);

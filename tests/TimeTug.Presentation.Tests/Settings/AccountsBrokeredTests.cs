@@ -5,7 +5,7 @@ using TimeTug.Presentation.Welcome;
 
 namespace TimeTug.Presentation.Tests.Settings;
 
-/// <summary>The brokered Microsoft kind in the accounts view model: intents, waiting text, reconnect, the "On this PC" tag, the withdraw-consent text and removal. (The menu entry, the pinned row and the fallback link are in the <c>Accounts</c> tests.)</summary>
+/// <summary>The brokered Microsoft kind in the accounts view model: intents, waiting text, reconnect, the withdraw-consent text and removal. (The menu entry, the pinned row and the fallback link are in the <c>Accounts</c> tests.)</summary>
 public class AccountsBrokeredTests
 {
     internal static readonly AccountActivity Working = new(true, null, "browser");
@@ -224,7 +224,7 @@ public class AccountsBrokeredTests
 
         await model.RefreshWindowsAccountAsync();
 
-        model.DeviceRow.IsVisible.Should().BeFalse("a listing that was cancelled hides the row and faults nothing");
+        model.WindowsAccountOffered.Should().BeFalse("a listing that was cancelled offers nothing and faults nothing");
     }
 
     private sealed class CancelledAccounts : IWindowsAccountSource
@@ -235,14 +235,12 @@ public class AccountsBrokeredTests
     // ---- connected rows -----------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void A_connected_brokered_row_shows_the_on_this_pc_tag_and_a_browser_row_does_not()
+    public void A_connected_brokered_row_looks_like_a_browser_row()
     {
         var (_, model, _) = Create(With(null, Account("a", "microsoft-brokered", "me@example.com"), Account("b", "microsoft", "other@example.com")));
 
-        model.ConnectedAccounts.Select(a => a.IsOnThisPc).Should().Equal(true, false);
-        model.OnThisPcText.Should().Be("On this PC");
         model.ConnectedAccounts.Select(a => a.KindName).Should().Equal("Microsoft", "Microsoft");
-        model.ConnectedAccounts[0].AutomationName.Should().Be("Microsoft, me@example.com, Connected, On this PC");
+        model.ConnectedAccounts[0].AutomationName.Should().Be("Microsoft, me@example.com, Connected");
         model.ConnectedAccounts[1].AutomationName.Should().Be("Microsoft, other@example.com, Connected");
     }
 
@@ -257,13 +255,16 @@ public class AccountsBrokeredTests
     }
 
     [Fact]
-    public void The_withdraw_consent_text_shows_only_while_a_brokered_account_is_connected()
+    public void The_withdraw_consent_text_shows_while_any_microsoft_account_is_connected()
     {
         var (engine, model, _) = Create();
         model.ShowWithdrawConsent.Should().BeFalse();
 
         engine.Push(With(null, Account("b", "microsoft", "other@example.com")));
-        model.ShowWithdrawConsent.Should().BeFalse("a browser account is not covered by the Windows consent");
+        model.ShowWithdrawConsent.Should().BeTrue("Microsoft holds the consent for a browser account too");
+
+        engine.Push(With(null, Account("g", "google", "you@example.com")));
+        model.ShowWithdrawConsent.Should().BeFalse();
 
         engine.Push(With(null, Account("a", "microsoft-brokered", "me@example.com")));
         model.ShowWithdrawConsent.Should().BeTrue();

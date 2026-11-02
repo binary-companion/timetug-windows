@@ -14,8 +14,8 @@ using Windows.System;
 namespace TimeTug.App.Controls;
 
 /// <summary>
-/// The one accounts control, shared by the welcome window and Settings > Accounts: a box with the pinned "This PC's Windows account" row (when Windows lists an
-/// account the broker can use), the signed-in accounts as a selectable list, and a bar with "+" (a menu of what can be added) and "-" (removes the selected row
+/// The one accounts control, shared by the welcome window and Settings > Accounts: a box with the signed-in accounts as a selectable list (each with its
+/// service logo; a Microsoft account that signs in through Windows is a row like any other), and a bar with "+" (a menu of what can be added) and "-" (removes the selected row
 /// after a question). Under the box: the waiting row with Cancel, the error line, "Use your browser instead", the configuration warning and how to withdraw a
 /// Windows consent. The behaviour contract is L1 to L10 of the shared accounts list spec; the values all come from <see cref="AccountsViewModel"/>.
 /// The engine publishes often, so everything here is updated where it stands: rows come and go through the collection's own changes, nothing is rebuilt, and
@@ -34,8 +34,6 @@ public sealed partial class AccountsListBox : UserControl
     private bool _asking;
     private string? _removedId;
     private string? _removedName;
-    private bool _deviceWasVisible;
-    private bool _seenFirstSync;
 
     public AccountsListBox()
     {
@@ -60,20 +58,6 @@ public sealed partial class AccountsListBox : UserControl
     internal Button RemoveMinus => RemoveButton;
 
     internal MenuFlyout Menu => AddMenu;
-
-    internal ToggleSwitch DeviceToggle => DeviceSwitch;
-
-    internal Button DeviceSignInAgain => DeviceSignIn;
-
-    internal FrameworkElement DeviceRowPanel => DevicePanel;
-
-    internal TextBlock DeviceTitleText => DeviceTitle;
-
-    internal TextBlock DeviceEmailText => DeviceEmail;
-
-    internal TextBlock DeviceDescriptionText => DeviceDescription;
-
-    internal TextBlock DeviceStatusText => DeviceStatus;
 
     internal TextBlock EmptyLineText => EmptyLine;
 
@@ -125,8 +109,6 @@ public sealed partial class AccountsListBox : UserControl
         AutomationProperties.SetName(List, model.Text("Accounts_ListAutomation"));
         AutomationProperties.SetName(AddButton, model.Text("Accounts_AddAutomation"));
         ToolTipService.SetToolTip(AddButton, model.Text("Accounts_AddAutomation"));
-        AutomationProperties.SetName(DeviceSwitch, model.DeviceRow.SwitchAutomationName);
-        DeviceTitle.Text = model.DeviceRow.Title;
         EmptyLine.Text = model.ListEmptyText;
         WithdrawText.Text = model.WithdrawConsentText;
         BrowserLink.Content = model.BrowserFallbackText;
@@ -136,7 +118,6 @@ public sealed partial class AccountsListBox : UserControl
         model.ListAccounts.CollectionChanged += OnRowsChanging;
         List.ItemsSource = model.ListAccounts;
         model.PropertyChanged += OnModelChanged;
-        model.DeviceRow.PropertyChanged += OnDeviceChanged;
         model.MenuEntries.CollectionChanged += OnMenuChanged;
         model.FocusRequested += OnFocusRequested;
         Sync();
@@ -154,7 +135,6 @@ public sealed partial class AccountsListBox : UserControl
         List.ItemsSource = null;
         _syncing = false;
         model.PropertyChanged -= OnModelChanged;
-        model.DeviceRow.PropertyChanged -= OnDeviceChanged;
         model.MenuEntries.CollectionChanged -= OnMenuChanged;
         model.FocusRequested -= OnFocusRequested;
         _wired = null;
@@ -162,8 +142,6 @@ public sealed partial class AccountsListBox : UserControl
     }
 
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e) => Sync();
-
-    private void OnDeviceChanged(object? sender, PropertyChangedEventArgs e) => Sync();
 
     private void OnMenuChanged(object? sender, NotifyCollectionChangedEventArgs e) => Sync();
 
@@ -189,7 +167,6 @@ public sealed partial class AccountsListBox : UserControl
         _syncing = true;
         try
         {
-            SyncDeviceRow(model);
             SyncList(model);
             SyncBar(model);
             SyncUnderBox(model);
@@ -201,35 +178,6 @@ public sealed partial class AccountsListBox : UserControl
         }
 
         SyncDialog(model);
-        _seenFirstSync = true;
-    }
-
-    private void SyncDeviceRow(AccountsViewModel model)
-    {
-        var row = model.DeviceRow;
-        DevicePanel.Visibility = row.IsVisible ? Visibility.Visible : Visibility.Collapsed;
-        DeviceDivider.Visibility = row.IsVisible ? Visibility.Visible : Visibility.Collapsed;
-        DeviceEmail.Text = row.Email ?? string.Empty;
-        DeviceEmail.Visibility = row.Email is null ? Visibility.Collapsed : Visibility.Visible;
-        DeviceDescription.Text = row.Description;
-        DeviceDescription.Visibility = row.Description.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-        DeviceStatus.Text = row.StatusText;
-        DeviceStatusLine.Visibility = row.StatusText.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-        DeviceStatusIcon.Visibility = row.NeedsSignIn ? Visibility.Visible : Visibility.Collapsed;
-        DeviceSwitch.IsOn = row.IsOn;
-        DeviceSwitch.IsEnabled = row.IsSwitchEnabled;
-        DeviceSignIn.Visibility = row.NeedsSignIn ? Visibility.Visible : Visibility.Collapsed;
-        DeviceSignIn.IsEnabled = !model.IsBusy;
-        DeviceSignIn.Content = model.SignInAgainText;
-        AutomationProperties.SetName(DeviceSignIn, model.Text("Accounts_DeviceRowSignInAutomation"));
-        AutomationProperties.SetName(DeviceSwitch, row.SwitchAutomationName);
-        if (row.IsVisible && !_deviceWasVisible && _seenFirstSync && ActualWidth > 0)
-        {
-            // The listing answered after the control was on screen (not while an earlier step still hides it): Narrator hears it, and nothing takes focus.
-            Announce(DeviceSwitch, row.Email is { } email ? $"{row.Title}, {email}" : row.Title, "device-row");
-        }
-
-        _deviceWasVisible = row.IsVisible;
     }
 
     private void SyncList(AccountsViewModel model)
@@ -270,7 +218,7 @@ public sealed partial class AccountsListBox : UserControl
                 {
                     Text = entry.Name,
                     IsEnabled = entry.IsConfigured,
-                    Icon = new FontIcon { Glyph = ProviderGlyphs.Of(entry.Id) },
+                    Icon = ProviderLogos.Icon(entry.Id),
                     // The second line (why it is off, or "Use your browser instead") sits at the right edge of the item.
                     KeyboardAcceleratorTextOverride = entry.Hint,
                     Command = entry.ConnectCommand,
@@ -372,26 +320,6 @@ public sealed partial class AccountsListBox : UserControl
         }
     }
 
-    private async void OnDeviceToggled(object sender, RoutedEventArgs e)
-    {
-        if (_syncing || _wired is not { } model)
-        {
-            return;
-        }
-
-        await RunAsync(() => model.DeviceRow.SetOnAsync(DeviceSwitch.IsOn));
-        // The switch shows what the model says, which can differ from what the person asked for (a refused or cancelled action).
-        Sync();
-    }
-
-    private async void OnDeviceSignInAgain(object sender, RoutedEventArgs e)
-    {
-        if (_wired is { } model && model.DeviceRow.SignInAgainCommand.CanExecute(null))
-        {
-            await RunAsync(() => model.DeviceRow.SignInAgainCommand.ExecuteAsync(null));
-        }
-    }
-
     private async void OnRowSignInAgain(object sender, RoutedEventArgs e)
     {
         if (_wired is { } model && ((FrameworkElement)sender).Tag is string id)
@@ -421,7 +349,7 @@ public sealed partial class AccountsListBox : UserControl
     {
         if (args.ItemContainer is ListViewItem container && args.Item is ConnectedAccount account)
         {
-            // What Narrator reads for the row: "Provider, name, status" plus ", On this PC" for a Windows account.
+            // What Narrator reads for the row: "Provider, name, status" and nothing more: a Windows-signed-in account reads like any other.
             AutomationProperties.SetName(container, account.AutomationName);
         }
 

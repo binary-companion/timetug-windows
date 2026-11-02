@@ -15,7 +15,7 @@ internal static class AccountsListUi
 {
     public delegate Task<bool> Wait(Func<bool> condition, int milliseconds);
 
-    /// <summary>The rows' automation names, in order ("Provider, name, status[, On this PC]").</summary>
+    /// <summary>The rows' automation names, in order ("Provider, name, status").</summary>
     public static List<string> RowNames(AccountsListBox box) =>
         [.. (box.Accounts?.ListAccounts ?? []).Select(a => ItemPeer(box, a.ConnectionId)?.GetName() ?? "(no peer)")];
 
@@ -29,6 +29,20 @@ internal static class AccountsListUi
 
     public static ListViewItem? Container(AccountsListBox box, string connectionId) =>
         box.Accounts?.ListAccounts.FirstOrDefault(a => a.ConnectionId == connectionId) is { } item ? box.Rows.ContainerFromItem(item) as ListViewItem : null;
+
+    /// <summary>
+    /// The logo image the row shows: its automation name and whether it is really on screen (visible, with a source that loaded and a size); null when the row shows
+    /// no vendor logo (a generic glyph) or is not realized.
+    /// </summary>
+    public static (string Name, bool Drawn)? RowLogo(AccountsListBox box, string connectionId)
+    {
+        if (Container(box, connectionId) is not { } container || Find<Image>(container, i => i.Visibility == Visibility.Visible) is not { } image)
+        {
+            return null;
+        }
+
+        return (AutomationProperties.GetName(image), image.Source is not null && image.ActualWidth >= 20 && image.ActualHeight >= 20);
+    }
 
     /// <summary>Selects a row through its SelectionItem pattern.</summary>
     public static bool Select(AccountsListBox box, string connectionId)

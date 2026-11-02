@@ -9,7 +9,7 @@ using TimeTug.Presentation.Settings;
 namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
-/// Scenario <c>brokered-reconnect</c>: a connected Microsoft account on this PC whose Windows sign-in needs the person again (the clock passes the token's
+/// Scenario <c>brokered-reconnect</c>: a connected Microsoft account that signs in through Windows (an ordinary Microsoft row) whose Windows sign-in needs the person again (the clock passes the token's
 /// expiry and the scripted broker answers that interaction is required). The account becomes "Sign in again", the flyout's problem row says "Open Accounts"
 /// (the Windows dialog needs a stable window, so it is never opened from the flyout), Settings > Accounts offers Sign in again, and pressing it opens the
 /// Windows dialog for that account and recovers the account without a restart.
@@ -20,7 +20,7 @@ internal static class BrokeredReconnectScenario
 
     public static async Task<SelfTestResult> RunAsync(SelfTestOptions options, CancellationToken cancellation)
     {
-        // Windows lists another account than the one connected here, so the connected account is an ordinary row (with the "On this PC" tag and its own button).
+        // Windows lists another account than the one connected here; the connected account is an ordinary Microsoft row with its own Sign in again button.
         await using var rig = await EngineRig.StartBrokeredAsync(options, cancellation, listed: [new BrokerAccount(FakeBrokerClient.AccountId, "windows-user@example.test")]);
         if (!rig.Ready)
         {
@@ -65,8 +65,8 @@ internal static class BrokeredReconnectScenario
         var box = page.AccountsList;
         run.Check(await rig.WaitFor(() => box.Accounts!.ListAccounts.Count == 1 && box.RowSignInAgain(box.Accounts.ListAccounts[0].ConnectionId) is not null), "the account's row offers Sign in again");
         var account = box.Accounts!.ListAccounts[0];
-        run.Check(account.StatusText == "Sign in again" && account.IsOnThisPc, "and says so, with the \"On this PC\" tag");
-        run.Check(AccountsListUi.RowNames(box).SequenceEqual(["Microsoft, me@example.com, Sign in again, On this PC"]), "the row reads: " + string.Join(" | ", AccountsListUi.RowNames(box)));
+        run.Check(account.StatusText == "Sign in again" && account.Mark == TimeTug.Presentation.Accounts.ProviderMark.Microsoft, "and says so, with the Microsoft logo and no tag");
+        run.Check(AccountsListUi.RowNames(box).SequenceEqual(["Microsoft, me@example.com, Sign in again"]), "the row reads: " + string.Join(" | ", AccountsListUi.RowNames(box)));
         run.Check(ScenarioUi.Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", ScenarioUi.Unnamed(window)));
         await rig.Run.ShotAsync(window, "sign-in-again");
 

@@ -26,6 +26,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 {
     private readonly Action? _openAccountsPane;
     private bool _continuing;
+    private bool _windowsDialogDeclined;
 
     /// <param name="openAccountsPane">
     /// Opens the Settings window on its Accounts pane. When the app gives one, "Add another" goes there (and this window closes) instead of
@@ -40,10 +41,9 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     {
         _openAccountsPane = openAccountsPane;
         LaunchAtLogin = launchAtLogin;
-        Accounts = new AccountsViewModel(engine, ui, text, clock) { DeviceRowIsPending = true };
+        Accounts = new AccountsViewModel(engine, ui, text, clock);
         Accounts.Connected += (_, _) => OnAccountConnected();
         Accounts.PropertyChanged += OnAccountsChanged;
-        Accounts.DeviceRow.PropertyChanged += (_, _) => RefreshContinue();
         Accounts.ListAccounts.CollectionChanged += (_, _) => RefreshContinue();
         GetStartedCommand = new RelayCommand(GetStarted, () => Step == WelcomeStep.Intro);
         ContinueCommand = new AsyncRelayCommand(ContinueAsync, () => CanContinue);
@@ -102,18 +102,19 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     public IRelayCommand GetStartedCommand { get; }
 
     /// <summary>
-    /// "Continue" on the connect step. With the Windows row's switch on and the account not yet connected it asks Windows (the first time anything is requested from
-    /// Windows); success goes to the connected step, and declining, closing or failing the dialog stays here with the switch still on. With the Windows account
-    /// connected already, or the switch off and an account in the list, it goes on and asks Windows for nothing.
+    /// "Continue" on the connect step. When Windows lists a Microsoft account that is not connected and was not removed before (<see cref="AccountsViewModel.WindowsAccountOffered"/>)
+    /// it adds that account as an ordinary row: Windows' own consent dialog is the first and only request to Windows. Success goes to the connected step; declining,
+    /// closing or failing the dialog stays here, and a second Continue with an account in the list goes on without asking again. With nothing offered it goes on and
+    /// asks Windows for nothing.
     /// </summary>
     public IAsyncRelayCommand ContinueCommand { get; }
 
     /// <summary>
-    /// Continue can be pressed: no sign-in runs, and the Windows row is shown with its switch on or the list has an account. False while the listing is pending with an
-    /// empty list, with the switch off and an empty list, and outside the connect step.
+    /// Continue can be pressed: no sign-in runs, the Windows listing has answered, and the list has an account or the Windows account is offered. False while the
+    /// listing is pending, with nothing offered and an empty list, and outside the connect step.
     /// </summary>
     public bool CanContinue => Step == WelcomeStep.Connect && !Accounts.IsBusy
-        && (Accounts.DeviceRow is { IsVisible: true, IsOn: true } || Accounts.ListAccounts.Count > 0);
+        && !Accounts.ListingPending && (Accounts.WindowsAccountOffered || Accounts.ListAccounts.Count > 0);
 
     public IRelayCommand AddAnotherCommand { get; }
 
@@ -145,13 +146,15 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (Accounts.DeviceRow is { IsVisible: true, IsOn: true } && !Accounts.WindowsAccountConnected)
+        if (Accounts.WindowsAccountOffered && !(_windowsDialogDeclined && Accounts.ListAccounts.Count > 0))
         {
             _continuing = true;
             await Accounts.ConnectBrokeredAsync(BrokerIntent.WindowsAccount);
             if (!Accounts.IsBusy)
             {
-                _continuing = false;   // nothing started, or it already ended
+                // Nothing started, or it already ended without an account (declined or closed): either way this window has asked once.
+                _windowsDialogDeclined |= _continuing;
+                _continuing = false;
             }
 
             return;
@@ -177,8 +180,13 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
             if (_continuing && !Accounts.IsBusy)
             {
                 _continuing = false;   // the Windows dialog was declined, closed or failed: stay on this step
+                _windowsDialogDeclined = true;
             }
 
+            RefreshContinue();
+        }
+        else if (e.PropertyName is nameof(AccountsViewModel.WindowsAccountOffered) or nameof(AccountsViewModel.ListingPending))
+        {
             RefreshContinue();
         }
     }

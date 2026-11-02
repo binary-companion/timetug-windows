@@ -59,8 +59,8 @@ internal static class WelcomeScenario
         await Settle(400);
         Check(model.Step == WelcomeStep.Connect, "Get started moves to Connect your calendars");
 
-        // Step 2: the accounts control. The scripted engine knows no Windows account, so there is no pinned row; the box says it is empty.
-        Check(box.DeviceRowPanel.Visibility == Visibility.Collapsed, "no pinned Windows row: Windows lists no account here");
+        // Step 2: the accounts control. The scripted engine knows no Windows account, so nothing is offered; the box says it is empty.
+        Check(!model.Accounts.WindowsAccountOffered, "nothing is offered to Continue: Windows lists no account here");
         Check(box.EmptyLineText.Visibility == Visibility.Visible && box.EmptyLineText.Text == "No accounts yet. Choose + to add one.", "the empty box says how to add: " + box.EmptyLineText.Text);
         Check(!window.Continue.IsEnabled && window.Continue.Visibility == Visibility.Visible, "Continue is disabled: nothing to continue to");
         Check(box.RemoveMinus is { IsEnabled: false } && AutomationProperties.GetName(box.RemoveMinus) == "Remove account", "- is disabled and named Remove account");
