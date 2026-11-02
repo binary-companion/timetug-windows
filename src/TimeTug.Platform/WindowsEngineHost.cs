@@ -72,7 +72,7 @@ public sealed class WindowsEngineHost : IEngineHost, IDisposable
             client = null;
         }
 
-        return client is null ? plain : new BrokeredEngineHost(plain, new BrokeredTokenHost(client, intent, diagnostics), new BrokerWindowsAccountSource(client));
+        return client is null ? plain : new BrokeredEngineHost(plain, new BrokeredTokenHost(client, intent, diagnostics), new BrokerWindowsAccountSource(client, diagnostics));
     }
 
     public void Diagnostic(EngineDiagnostic diagnostic) => _diagnostics.Record(diagnostic.Level, diagnostic.Category, diagnostic.Message);

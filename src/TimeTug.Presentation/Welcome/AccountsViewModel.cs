@@ -29,6 +29,15 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     private string? _brokeredReconnect;
     private bool _brokeredReconnectSawWorking;
     private bool _windowsStopping;
+    private WindowsAccountListing? _listing;
+    private bool _pendingOn = true;
+    private bool _deviceOffered;
+    private string? _deviceEmail;
+    private bool _deviceConflict;
+    private ConnectedAccount? _pinned;
+    private string? _selectedAccountId;
+    private string? _removingId;
+    private string? _removingBaselineError;
 
     /// <summary>The search catalog's ids for the Accounts pane (an account's highlight id is the prefix plus its connection id).</summary>
     public static class Ids
@@ -46,6 +55,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         _clock = clock ?? TimeProvider.System;
         CancelCommand = new AsyncRelayCommand(CancelAsync);
         TestTugCommand = new AsyncRelayCommand(TestTugAsync);
+        RemoveSelectedCommand = new RelayCommand(RemoveSelected, () => CanRemoveSelected);
+        BrowserFallbackCommand = new AsyncRelayCommand(() => ConnectAsync(BrokeredKinds.Browser));
+        DeviceRow = new DeviceRowModel(
+            _text.GetString("Accounts_DeviceRowTitle"), _text.GetString("Accounts_DeviceRowSwitch"),
+            new AsyncRelayCommand(SignInPinnedAgainAsync, () => !IsBusy && _pinned is { CanSignInAgain: true }), SetDeviceRowOnAsync);
         _subscriptions.Add(engine.State.Subscribe(new ActionObserver<AppState>(state => OnUi(() => Apply(state)))));
         _subscriptions.Add(engine.Diagnostics.Subscribe(new ActionObserver<EngineDiagnosticInfo>(info => OnUi(() => Diagnosed(info)))));
     }
@@ -81,6 +95,120 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             }
         }
     }
+
+    // ---- the accounts list (shared accounts list, spec "The shared control") ---------------------------------------------------------------
+
+    /// <summary>The pinned "This PC's Windows account" row. Hidden until Windows lists an account the broker can use.</summary>
+    public DeviceRowModel DeviceRow { get; }
+
+    /// <summary>
+    /// True in the welcome window, where the row's switch is only a pending choice until Continue; false in Settings, where it connects the Windows account
+    /// (on) or removes it after the question (off).
+    /// </summary>
+    public bool DeviceRowIsPending
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                OnPropertyChanged();
+                UpdateDeviceRow();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The connected accounts the list shows as rows, in the engine's order: <see cref="ConnectedAccounts"/> without the account the pinned row stands for. It is
+    /// updated in place, so a row whose content did not change is the same object (keyboard focus and selection survive the engine's frequent publications).
+    /// </summary>
+    public ObservableCollection<ConnectedAccount> ListAccounts { get; } = [];
+
+    /// <summary>The selected row's connection id; null when nothing is selected (as at first). Setting an id that is not a list row is ignored.</summary>
+    public string? SelectedAccountId
+    {
+        get => _selectedAccountId;
+        set
+        {
+            if (value is not null && ListAccounts.All(a => a.ConnectionId != value))
+            {
+                return;
+            }
+
+            SetSelected(value);
+        }
+    }
+
+    /// <summary>True while the connected account the pinned row stands for exists (Continue asks Windows for nothing then).</summary>
+    public bool WindowsAccountConnected => _pinned is not null;
+
+    /// <summary>A string of this view model's own resources, for the window that hosts it.</summary>
+    public string Text(string key) => _text.GetString(key);
+
+    /// <summary>"-" and Delete are usable: a row is selected and no sign-in runs.</summary>
+    public bool CanRemoveSelected => SelectedAccountId is not null && !IsBusy;
+
+    /// <summary>"Remove {name}" when a row is selected, "Remove account" otherwise.</summary>
+    public string RemoveSelectedAutomationName => ListAccounts.FirstOrDefault(a => a.ConnectionId == SelectedAccountId) is { } row
+        ? _text.Format("Accounts_RemoveAutomation", row.Name)
+        : _text.GetString("Accounts_Remove");
+
+    /// <summary>Asks the removal question for the selected row ("-" and Delete). Does nothing with no selection.</summary>
+    public IRelayCommand RemoveSelectedCommand { get; }
+
+    /// <summary>"No accounts yet. Choose + to add one." — the line inside the empty list. (The shipped pane still uses <see cref="EmptyText"/> until the pane is switched.)</summary>
+    public string ListEmptyText => _text.GetString("Accounts_ListEmpty");
+
+    /// <summary>The list has no rows (the pinned row, when shown, stays above the line).</summary>
+    public bool ShowListEmptyText => HasState && ListAccounts.Count == 0;
+
+    /// <summary>Raised on the UI thread after a confirmed removal, naming where keyboard focus goes. Nothing else raises it.</summary>
+    public event EventHandler<FocusTarget>? FocusRequested;
+
+    /// <summary>
+    /// The entries of the "+" menu: Microsoft, Google, then the rest with Other (CalDAV) last. A kind the build cannot sign in to is a disabled entry whose
+    /// <see cref="ProviderItem.Hint"/> is the reason. Entries are never removed while a sign-in runs (the "+" button is disabled instead).
+    /// </summary>
+    public ObservableCollection<ProviderItem> MenuEntries { get; } = [];
+
+    /// <summary>"+" is usable: no sign-in runs.</summary>
+    public bool IsAddEnabled => !IsBusy;
+
+    /// <summary>"Use your browser instead" is shown under the box: a Windows sign-in was closed, failed or was unavailable, and no sign-in has started since.</summary>
+    public bool ShowBrowserFallbackLink
+    {
+        get;
+        private set => SetProperty(ref field, value);
+    }
+
+    /// <summary>"Windows sign-in isn't available here" after the host answered unavailable; null otherwise.</summary>
+    public string? FallbackMessage
+    {
+        get;
+        private set => SetProperty(ref field, value);
+    }
+
+    /// <summary>The usual failure text ("Couldn't connect to Google. ...") after a sign-in failed; null otherwise.</summary>
+    public string? SignInFailureText
+    {
+        get;
+        private set => SetProperty(ref field, value);
+    }
+
+    /// <summary>The engine's own words about that failure, shown smaller beneath <see cref="SignInFailureText"/>.</summary>
+    public string? SignInFailureDetail
+    {
+        get;
+        private set => SetProperty(ref field, value);
+    }
+
+    /// <summary>Starts the browser sign-in for Microsoft ("Use your browser instead").</summary>
+    public IAsyncRelayCommand BrowserFallbackCommand { get; }
+
+    public string BrowserFallbackText => _text.GetString("Accounts_UseBrowserInstead");
+
+    public string BrowserFallbackAutomationName => _text.GetString("Accounts_UseBrowserInsteadAutomation");
 
     /// <summary>Raised on the UI thread when the account being added shows up in the engine's state.</summary>
     public event EventHandler? Connected;
@@ -147,9 +275,13 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(RemovalTitle));
+                OnPropertyChanged(nameof(RemovalWithdrawText));
             }
         }
     }
+
+    /// <summary>For an "On this PC" account the removal question adds how to withdraw the consent Windows holds; null for every other account.</summary>
+    public string? RemovalWithdrawText => PendingRemoval is { IsOnThisPc: true } ? WithdrawConsentText : null;
 
     public string RemovalTitle => _text.Format("Accounts_RemoveTitle", PendingRemoval?.Name ?? "");
 
@@ -172,6 +304,9 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(WaitingText));
+                OnPropertyChanged(nameof(IsAddEnabled));
+                OnPropertyChanged(nameof(CanRemoveSelected));
+                RemoveSelectedCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -266,6 +401,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             return;
         }
 
+        ClearFallback();
+
         if (account.KindId == BrokeredKinds.Brokered)
         {
             // A picker attempt earlier must not decide this one: reconnect always opens the dialog for the account that needs the person.
@@ -296,7 +433,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         PendingRemoval = account;
     }
 
-    public void CancelRemove() => PendingRemoval = null;
+    public void CancelRemove()
+    {
+        PendingRemoval = null;
+        DeviceRow.Resync();
+    }
 
     /// <summary>Removes the account the question was about. The list changes when the engine says it did, not before.</summary>
     public async Task ConfirmRemoveAsync()
@@ -309,7 +450,21 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         PendingRemoval = null;
         if (ConnectedAccounts.Any(a => a.ConnectionId == pending.ConnectionId))
         {
-            await _engine.RemoveAccountAsync(pending.ConnectionId);
+            _removingId = pending.ConnectionId;
+            _removingBaselineError = _state?.Activity?.ErrorMessage;
+            try
+            {
+                await _engine.RemoveAccountAsync(pending.ConnectionId);
+            }
+            catch
+            {
+                _removingId = null;
+                throw;
+            }
+        }
+        else
+        {
+            DeviceRow.Resync();
         }
     }
 
@@ -319,6 +474,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     public void ClearErrors()
     {
         _explainedError = null;
+        ClearFallback();
         foreach (var provider in Providers)
         {
             provider.Error = null;
@@ -328,8 +484,9 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Asks the Windows account source for the account Windows is signed in with and puts it on the card ("Use name@example.com"). Never throws: a broker that
-    /// cannot say leaves the card as "Microsoft account on this PC".
+    /// Asks the Windows account source which accounts Windows lists (no token, no dialog) and shows the answer: the pinned row, and on the shipped card the
+    /// text "Use name@example.com". Never throws: a broker that cannot say hides the row and leaves the card as "Microsoft account on this PC". A late answer
+    /// shows the row in place and moves nothing.
     /// </summary>
     public async Task RefreshWindowsAccountAsync()
     {
@@ -338,24 +495,29 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        string? email = null;
+        WindowsAccountListing listing;
         try
         {
-            email = await source.GetEmailAsync(CancellationToken.None);
+            listing = await source.GetListingAsync(CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception)
         {
-            // Naming the account is a courtesy (and this task is not awaited): whatever goes wrong, the card keeps its plain text.
+            // Naming the account is a courtesy (and this task is not awaited): whatever goes wrong, the row stays hidden and the card keeps its plain text.
+            listing = new WindowsAccountListing(WindowsListingKind.Unavailable);
         }
 
         OnUi(() =>
         {
-            _windowsAccountEmail = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+            _listing = listing;
+            _windowsAccountEmail = listing is { Kind: WindowsListingKind.OneNamed, Email: { } named } && !string.IsNullOrWhiteSpace(named) ? named.Trim() : null;
             if (Providers.FirstOrDefault(p => p.Id == BrokeredKinds.Brokered) is { } card)
             {
                 card.Name = BrokeredCardName();
                 card.AutomationName = card.IsConfigured ? _text.Format("ConnectProviderAutomation", card.Name) : card.AutomationName;
             }
+
+            RecomputeList();
+            Refresh();
         });
     }
 
@@ -402,6 +564,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         RebuildProviders(state);
         RebuildAccounts(state);
         RebuildConnected(state);
+        RecomputeList();
         NextMeetingText = DescribeNextMeeting(state);
         Evaluate(state);
         EvaluateBrokeredReconnect(state);
@@ -454,6 +617,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             else
             {
                 EndAttempt();
+                ClearFallback();
                 Connected?.Invoke(this, EventArgs.Empty);
             }
 
@@ -470,6 +634,10 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             {
                 // The engine stopped without an account or a message: the person closed the form, the browser tab or the Windows dialog.
                 EndAttempt();
+                if (attempt.KindId == BrokeredKinds.Brokered)
+                {
+                    OfferBrowserFallback();
+                }
             }
         }
     }
@@ -494,6 +662,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         }
 
         EndAttempt();
+        ExplainFailure(attempt, detail);
         if (Providers.FirstOrDefault(p => p.Id == attempt.ProviderId) is { } provider)
         {
             if (attempt.KindId == BrokeredKinds.Brokered)
@@ -508,6 +677,41 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         }
 
         Refresh();
+    }
+
+    // The list's failure line: one place under the box, not a card. "Windows sign-in isn't available here" replaces the usual text; every failed Windows sign-in
+    // also offers the browser, because the person may want it and it is one press away.
+    private void ExplainFailure(Attempt attempt, string? detail)
+    {
+        var viaWindows = attempt.KindId == BrokeredKinds.Brokered;
+        if (viaWindows && detail?.Contains(WindowsUnavailableEngineText, StringComparison.OrdinalIgnoreCase) == true)
+        {
+            FallbackMessage = _text.GetString("Accounts_WindowsUnavailable");
+            SignInFailureText = null;
+            SignInFailureDetail = null;
+        }
+        else
+        {
+            var name = viaWindows ? KindName(BrokeredKinds.Browser, "Microsoft") : Providers.FirstOrDefault(p => p.Id == attempt.ProviderId)?.Name ?? attempt.KindId;
+            FallbackMessage = null;
+            SignInFailureText = _text.Format("ConnectFailed", name);
+            SignInFailureDetail = detail;
+        }
+
+        if (viaWindows)
+        {
+            OfferBrowserFallback();
+        }
+    }
+
+    private void OfferBrowserFallback() => ShowBrowserFallbackLink = Providers.Any(p => p.Id == BrokeredKinds.Browser && p.IsConfigured);
+
+    private void ClearFallback()
+    {
+        ShowBrowserFallbackLink = false;
+        FallbackMessage = null;
+        SignInFailureText = null;
+        SignInFailureDetail = null;
     }
 
     // The Windows dialog could not be used, or the organization has to approve TimeTug, or something else failed: the card says which, and in every case the
@@ -552,6 +756,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     private void Refresh()
     {
+        var wasBusy = IsBusy;
         IsBusy = _attempt is not null || _state?.Activity?.IsWorking == true;
         foreach (var provider in Providers)
         {
@@ -560,8 +765,15 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
         UnavailableNotice = Providers.Any(p => !p.IsConfigured) ? _text.GetString("Accounts_UnavailableNotice") : null;
         var engineError = _state?.Activity?.ErrorMessage;
-        var shown = engineError is null || engineError == _attempt?.BaselineError || engineError == _explainedError || Providers.Any(p => p.ErrorDetail == engineError);
+        var shown = engineError is null || engineError == _attempt?.BaselineError || engineError == _explainedError || engineError == SignInFailureDetail
+            || Providers.Any(p => p.ErrorDetail == engineError);
         ErrorText = shown ? null : engineError;
+        UpdateDeviceRow();
+        if (wasBusy && !IsBusy)
+        {
+            // A switch-started action (connect, remove) has ended. If it changed nothing, the control the person already toggled must be told what the model says.
+            DeviceRow.Resync();
+        }
     }
 
     private void RebuildProviders(AppState state)
@@ -587,6 +799,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             return;
         }
 
+        RebuildMenu(kinds, brokered);
         Providers.Clear();
         foreach (var (kind, itemId) in cards)
         {
@@ -661,6 +874,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
                 _text.Format("Accounts_RemoveAutomation", account.DisplayName))
             {
                 IsOnThisPc = account.KindId == BrokeredKinds.Brokered,
+                Email = account.DisplayName.Contains('@', StringComparison.Ordinal) ? account.DisplayName.Trim() : null,
             });
         }
 
@@ -683,6 +897,251 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             PendingRemoval = null;
         }
     }
+
+    // ---- the "+" menu -----------------------------------------------------------------------------------------------------------------
+
+    private void RebuildMenu(IReadOnlyList<AccountKindInfo> kinds, AccountKindInfo? brokered)
+    {
+        var entries = new List<ProviderItem>();
+        var browser = kinds.FirstOrDefault(k => k.Id == BrokeredKinds.Browser);
+        var microsoftName = KindName(BrokeredKinds.Browser, "Microsoft");
+        if (brokered is { IsConfigured: true })
+        {
+            // Windows with a working broker: the account picker, no second line.
+            entries.Add(MenuEntry(BrokeredKinds.PickItem, microsoftName, configured: true, opensBrowser: false, hint: "", BrokerIntent.PickAccount));
+        }
+        else if (browser is not null)
+        {
+            // No usable broker: the browser sign-in, saying so when the build is a Windows one (it lists the brokered kind) and the route is set up.
+            var hint = !browser.IsConfigured ? _text.Format("ProviderUnavailable", microsoftName)
+                : brokered is not null ? _text.GetString("Accounts_UseBrowserInstead")
+                : _text.GetString("ProviderOpensBrowser");
+            entries.Add(MenuEntry(BrokeredKinds.Browser, microsoftName, browser.IsConfigured, opensBrowser: true, hint, null));
+        }
+        else if (brokered is not null)
+        {
+            entries.Add(MenuEntry(BrokeredKinds.Browser, microsoftName, configured: false, opensBrowser: false, _text.Format("ProviderUnavailable", microsoftName), null));
+        }
+
+        var others = kinds.Where(k => k.Id is not (BrokeredKinds.Brokered or BrokeredKinds.Browser)).ToList();
+        foreach (var kind in others.Where(k => k.Id == "google").Concat(others.Where(k => k.Id is not ("google" or "caldav"))).Concat(others.Where(k => k.Id == "caldav")))
+        {
+            var name = KindName(kind.Id, kind.DisplayName);
+            var hint = kind.IsConfigured ? "" : _text.Format("ProviderUnavailable", name);
+            entries.Add(MenuEntry(kind.Id, name, kind.IsConfigured, kind.Authorization == "oauth", hint, null));
+        }
+
+        MenuEntries.Clear();
+        foreach (var entry in entries)
+        {
+            MenuEntries.Add(entry);
+        }
+    }
+
+    private ProviderItem MenuEntry(string id, string name, bool configured, bool opensBrowser, string hint, BrokerIntent? intent)
+    {
+        var automation = configured ? _text.Format("ConnectProviderAutomation", name) : _text.Format("Accounts_UnavailableAutomation", name);
+        return new ProviderItem(id, name, configured, opensBrowser, hint, automation, intent)
+        {
+            IsEnabled = configured,
+            ConnectCommand = new AsyncRelayCommand(() => ConnectAsync(id)),
+        };
+    }
+
+    // ---- the list, the pinned row and the selection -----------------------------------------------------------------------------------
+
+    private bool BrokeredConfigured => _state?.AvailableKinds.Any(k => k.Id == BrokeredKinds.Brokered && k.IsConfigured) == true;
+
+    private static bool SameEmail(string? a, string? b) => a is not null && b is not null && string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    // Works out which account the pinned row stands for (D7), whether the browser holds the same mailbox (D8), and the list rows that are left.
+    private void RecomputeList()
+    {
+        var previousIds = ListAccounts.Select(a => a.ConnectionId).ToList();
+        _deviceOffered = _listing is { Kind: WindowsListingKind.OneNamed or WindowsListingKind.Unnamed } && BrokeredConfigured;
+        _deviceEmail = _deviceOffered && _listing is { Kind: WindowsListingKind.OneNamed, Email: { } email } ? email.Trim() : null;
+        _pinned = _deviceEmail is null ? null : ConnectedAccounts.FirstOrDefault(a => a.KindId == BrokeredKinds.Brokered && SameEmail(a.Email, _deviceEmail));
+        _deviceConflict = _deviceEmail is not null && _pinned is null && ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Browser && SameEmail(a.Email, _deviceEmail));
+
+        ReconcileListAccounts(ConnectedAccounts.Where(a => !ReferenceEquals(a, _pinned) && a.ConnectionId != _pinned?.ConnectionId).ToList());
+        var removalRefused = ReconcileSelection(previousIds);
+        OnPropertyChanged(nameof(ShowListEmptyText));
+        OnPropertyChanged(nameof(RemoveSelectedAutomationName));
+        UpdateDeviceRow();
+        if (removalRefused)
+        {
+            DeviceRow.Resync();
+        }
+    }
+
+    // Updates the collection in place: a row that did not change is not touched, a changed row is replaced where it stands.
+    private void ReconcileListAccounts(List<ConnectedAccount> desired)
+    {
+        var wanted = desired.Select(a => a.ConnectionId).ToHashSet(StringComparer.Ordinal);
+        for (var i = ListAccounts.Count - 1; i >= 0; i--)
+        {
+            if (!wanted.Contains(ListAccounts[i].ConnectionId))
+            {
+                ListAccounts.RemoveAt(i);
+            }
+        }
+
+        for (var i = 0; i < desired.Count; i++)
+        {
+            if (i < ListAccounts.Count && ListAccounts[i].ConnectionId == desired[i].ConnectionId)
+            {
+                if (ListAccounts[i] != desired[i])
+                {
+                    ListAccounts[i] = desired[i];
+                }
+
+                continue;
+            }
+
+            var from = FindListAccount(desired[i].ConnectionId, i + 1);
+            if (from >= 0)
+            {
+                ListAccounts.Move(from, i);
+                if (ListAccounts[i] != desired[i])
+                {
+                    ListAccounts[i] = desired[i];
+                }
+            }
+            else
+            {
+                ListAccounts.Insert(i, desired[i]);
+            }
+        }
+    }
+
+    private int FindListAccount(string connectionId, int from)
+    {
+        for (var i = from; i < ListAccounts.Count; i++)
+        {
+            if (ListAccounts[i].ConnectionId == connectionId)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    // After a removal the engine confirmed, selection and focus go to the row now in its place, else the previous one, else the "+" button. A selection whose row
+    // vanished for any other reason is simply cleared: nothing the engine publishes moves focus.
+    // Returns true when the engine refused a removal in this publication (the row is still there and it reported an error).
+    private bool ReconcileSelection(IReadOnlyList<string> previousIds)
+    {
+        var refused = false;
+        if (_removingId is { } gone && ConnectedAccounts.All(a => a.ConnectionId != gone) && SelectedAccountId != gone)
+        {
+            _removingId = null;   // the removed account was not the selected row (the pinned one): nothing to move
+        }
+
+        if (_removingId is { } removing && ConnectedAccounts.Any(a => a.ConnectionId == removing) && _state?.Activity?.ErrorMessage is { Length: > 0 } error && error != _removingBaselineError)
+        {
+            _removingId = null;   // the engine refused: the row stays, the message shows
+            refused = true;
+        }
+
+        if (SelectedAccountId is not { } selected || ListAccounts.Any(a => a.ConnectionId == selected))
+        {
+            return refused;
+        }
+
+        if (selected != _removingId)
+        {
+            SetSelected(null);
+            return refused;
+        }
+
+        _removingId = null;
+        var index = previousIds.ToList().IndexOf(selected);
+        var next = index >= 0 && index < ListAccounts.Count ? ListAccounts[index] : index > 0 && index - 1 < ListAccounts.Count ? ListAccounts[index - 1] : null;
+        SetSelected(next?.ConnectionId);
+        FocusRequested?.Invoke(this, next is null ? new FocusTarget(FocusKind.AddButton, null) : new FocusTarget(FocusKind.Row, next.ConnectionId));
+        return refused;
+    }
+
+    private void SetSelected(string? id)
+    {
+        if (SetProperty(ref _selectedAccountId, id, nameof(SelectedAccountId)))
+        {
+            OnPropertyChanged(nameof(CanRemoveSelected));
+            OnPropertyChanged(nameof(RemoveSelectedAutomationName));
+            RemoveSelectedCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private void RemoveSelected()
+    {
+        if (SelectedAccountId is { } id)
+        {
+            BeginRemove(id);
+        }
+    }
+
+    // ---- the pinned row's values ------------------------------------------------------------------------------------------------------
+
+    private void UpdateDeviceRow()
+    {
+        if (!_deviceOffered)
+        {
+            DeviceRow.Update(false, null, "", false, false, false, "");
+            return;
+        }
+
+        string description;
+        bool isOn;
+        bool enabled;
+        if (_deviceConflict)
+        {
+            description = _text.Format("Accounts_DeviceRowBrowserConflict", _deviceEmail!);
+            isOn = false;
+            enabled = false;
+        }
+        else if (DeviceRowIsPending)
+        {
+            description = _pinned is null ? _text.GetString("Accounts_DeviceRowDescription") : "";
+            isOn = _pinned is not null || _pendingOn;
+            enabled = _pinned is null && !IsBusy;
+        }
+        else
+        {
+            description = _pinned is null ? _text.GetString("Provider_microsoft-brokered-hint") : "";
+            isOn = _pinned is not null;
+            enabled = !IsBusy;
+        }
+
+        DeviceRow.Update(true, _deviceEmail, description, isOn, enabled, _pinned is { CanSignInAgain: true }, _pinned?.StatusText ?? "");
+    }
+
+    private async Task SetDeviceRowOnAsync(bool on)
+    {
+        if (!DeviceRow.IsVisible || !DeviceRow.IsSwitchEnabled || IsBusy)
+        {
+            return;
+        }
+
+        if (DeviceRowIsPending)
+        {
+            _pendingOn = on;
+            UpdateDeviceRow();
+        }
+        else if (on)
+        {
+            if (_pinned is null)
+            {
+                await ConnectBrokeredAsync(BrokerIntent.WindowsAccount);
+            }
+        }
+        else if (_pinned is { } pinned)
+        {
+            BeginRemove(pinned.ConnectionId);
+        }
+    }
+
+    private Task SignInPinnedAgainAsync() => _pinned is { } pinned ? ReauthorizeAsync(pinned.ConnectionId) : Task.CompletedTask;
 
     private string DescribeNextMeeting(AppState state)
     {

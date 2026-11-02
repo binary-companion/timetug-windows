@@ -16,6 +16,12 @@ internal sealed class FakeBrokerClient : IBrokerClient
 
     public IReadOnlyList<BrokerAccount> Accounts { get; set; } = [];
 
+    /// <summary>When set, <see cref="ListAccountsAsync"/> throws this.</summary>
+    public Exception? ListThrows { get; set; }
+
+    /// <summary>When set, <see cref="ListAccountsAsync"/> answers only when the test completes it, and ignores its cancellation token (a broker that never answers).</summary>
+    public TaskCompletionSource<IReadOnlyList<BrokerAccount>>? ListGate { get; set; }
+
     public BrokerOutcome Silent { get; set; } = new BrokerOutcome.Failed();
 
     public BrokerOutcome Interactive { get; set; } = new BrokerOutcome.Failed();
@@ -59,7 +65,12 @@ internal sealed class FakeBrokerClient : IBrokerClient
             Calls.Add("list");
         }
 
-        return ValueTask.FromResult(Accounts);
+        if (ListThrows is { } error)
+        {
+            throw error;
+        }
+
+        return ListGate is { } gate ? new ValueTask<IReadOnlyList<BrokerAccount>>(gate.Task) : ValueTask.FromResult(Accounts);
     }
 
     public ValueTask<BrokerOutcome> AcquireSilentAsync(string accountId, string? email, IReadOnlyList<string> scopes, bool forceRefresh, CancellationToken cancellationToken)
