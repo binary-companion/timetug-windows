@@ -108,7 +108,8 @@ internal static class StartupScenario
         if (shell.Welcome is { } welcome)
         {
             await SelfTestRunner.WaitForFrameAsync(welcome, cancellation);
-            Check(ExpectedKinds.All(id => welcome.ViewModel.Providers.Any(p => p.Id == id)), "the welcome window lists the engine's kinds: " + string.Join(", ", welcome.ViewModel.Providers.Select(p => p.Id)));
+            Check(ScenarioUi.Invoke(welcome, "Get started"), "Get started is pressed");
+            Check(ExpectedKinds.All(id => welcome.ViewModel.Accounts.MenuEntries.Any(p => p.Id == id || (id == "microsoft" && p.Id == "microsoft-brokered:pick"))), "the welcome window's + menu lists the engine's kinds: " + string.Join(", ", welcome.ViewModel.Accounts.MenuEntries.Select(p => p.Id)));
             await run.ShotAsync(welcome, "welcome");
         }
 

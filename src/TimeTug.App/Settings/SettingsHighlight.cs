@@ -23,6 +23,9 @@ internal static class SettingsHighlight
 
     private static readonly TimeSpan FadeDuration = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>The highlight id of a connected account's row (what the flyout's "Open Accounts" asks the Accounts pane to tint).</summary>
+    public static string AccountId(string connectionId) => TimeTug.Presentation.Welcome.AccountsViewModel.Ids.AccountPrefix + connectionId;
+
     public static string? GetId(DependencyObject element) => (string?)element.GetValue(IdProperty);
 
     public static void SetId(DependencyObject element, string? value) => element.SetValue(IdProperty, value);

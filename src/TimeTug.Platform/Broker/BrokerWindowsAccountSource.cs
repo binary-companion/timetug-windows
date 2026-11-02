@@ -43,9 +43,6 @@ public sealed class BrokerWindowsAccountSource(IBrokerClient broker, IDiagnostic
         }
     }
 
-    public async ValueTask<string?> GetEmailAsync(CancellationToken cancellationToken) =>
-        (await GetListingAsync(cancellationToken).ConfigureAwait(false)) is { Kind: WindowsListingKind.OneNamed, Email: { } email } ? email : null;
-
     private Task<IReadOnlyList<BrokerAccount>> Start(CancellationToken token)
     {
         try

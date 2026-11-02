@@ -40,28 +40,32 @@ internal static class A11yHoldScenario
         run.Check(await HoldForScannerAsync(rig, 0, "canary: a button with no name", cancellation), "the scanner finished the canary round");
         canary.Close();
 
-        // The brokered kind is configured too, so the scan sees the pre-selected accent card, "Another Microsoft account" and the relabelled browser card.
+        // The brokered kind is configured too, and Windows lists an account, so the scan sees the pinned "This PC's Windows account" row and the single Microsoft menu entry.
         rig.Engine.Push(Scenes.Empty() with { AvailableKinds = [.. Scenes.Kinds, new AccountKindInfo("microsoft-brokered", "Microsoft", true, "oauth")] });
         // The Connected step carries the launch-at-login checkbox: scanned while Windows blocks it (the checkbox disabled with its note and link).
         var welcomeStartup = new ScriptedStartupTask { State = StartupState.DisabledByUser };
         var welcomeLaunch = new LaunchAtLoginViewModel(
             welcomeStartup, new RecordingSystemLauncher(), new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()), rig.Text);
-        var welcome = WelcomeWindowFactory.Create(rig.Engine, rig.Forms, rig.Text, rig.Time, launchAtLogin: welcomeLaunch);
+        var welcome = WelcomeWindowFactory.Create(rig.Engine, rig.Forms, rig.Text, rig.Time, launchAtLogin: welcomeLaunch, windowsAccounts: ScriptedWindowsAccountSource.Named("me@example.com"));
         welcome.Activate();
         await SelfTestRunner.WaitForFrameAsync(welcome, cancellation);
-        run.Check(welcome.ViewModel.Step == WelcomeStep.Connect, "the welcome window shows the Connect step");
+        run.Check(welcome.ViewModel.Step == WelcomeStep.Intro, "the welcome window starts on the welcome step");
+        run.Check(ScenarioUi.Invoke(welcome, "Get started"), "Get started is pressed");
+        run.Check(await rig.WaitFor(() => welcome.ViewModel.Step == WelcomeStep.Connect && welcome.AccountsList.DeviceRowPanel.Visibility == Visibility.Visible), "the welcome window shows the Connect step with the pinned row");
 
         run.Check(await rig.PresentAsync(rig.Request("e-a11y", "Design review", TimeSpan.FromSeconds(240))), "the tug opens");
         await rig.Settle();
         run.Check(await HoldForScannerAsync(rig, 1, "Connect step and the tug", cancellation), "the scanner finished round 1");
 
         // Round 2: the other step of the welcome window, and the tug with the meeting link to copy.
-        run.Check(ScenarioUi.Invoke(welcome, "Connect Google"), "Connect Google is clicked, so the next account moves the window on");
+        run.Check(await AccountsListUi.ChooseAsync((c, ms) => rig.WaitFor(c, ms), welcome.AccountsList, "Connect Google"), "Google is chosen from the + menu");
         await rig.Settle(500);
         rig.Engine.Push(Scenes.Connected(rig.Time.GetUtcNow()));
         rig.Launcher.Succeeds = false;
         run.Check(ScenarioUi.Invoke(rig.Host.Primary!, "Join meeting"), "Join is clicked (and fails)");
         run.Check(await rig.WaitFor(() => rig.Host.Primary?.ViewModel.HasJoinFailed == true), "the tug shows the link to copy");
+        run.Check(await rig.WaitFor(() => welcome.ViewModel.CanContinue), "Continue is enabled once an account is listed");
+        run.Check(ScenarioUi.Invoke(welcome, "Continue"), "Continue is pressed");
         run.Check(await rig.WaitFor(() => welcome.ViewModel.Step == WelcomeStep.Connected), "the welcome window moved to the Connected step");
         await rig.Settle();
         run.Check(await HoldForScannerAsync(rig, 2, "Connected step and the link to copy", cancellation), "the scanner finished round 2");
@@ -120,7 +124,16 @@ internal static class A11yHoldScenario
             });
             settingsWindow.Shell.SelectedPane = SettingsPane.Accounts;
             await rig.Settle();
-            run.Check(settingsWindow.CurrentPage is AccountsPage { AccountCards.Count: 8 }, "the Accounts pane is showing the accounts");
+            run.Check(await rig.WaitFor(() => settingsWindow.CurrentPage is AccountsPage { AccountsList.Accounts.ListAccounts.Count: 8 }), "the Accounts pane is showing the accounts");
+            if (settingsWindow.CurrentPage is AccountsPage accountsPage)
+            {
+                // Windows lists another account than the connected one, so the pinned row shows too; one row is selected so the scan sees the selected state.
+                accountsPage.AccountsList.Accounts!.WindowsAccounts = ScriptedWindowsAccountSource.Named("windows-user@example.test");
+                await rig.Settle();
+                AccountsListUi.Select(accountsPage.AccountsList, "conn-2");
+                await rig.Settle();
+            }
+
             run.Check(await HoldForScannerAsync(rig, 7, "the Accounts pane with an account in every status", cancellation), "the scanner finished round 7");
 
             // Round 8: the General pane (launch at login turned off by the person, the shortcut recorder reporting a conflict).

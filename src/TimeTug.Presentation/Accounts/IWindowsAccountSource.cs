@@ -1,6 +1,6 @@
 namespace TimeTug.Presentation.Accounts;
 
-/// <summary>The engine-side ids of the Microsoft sign-in that goes through the Windows account broker, and the extra card the app adds for its account picker.</summary>
+/// <summary>The engine-side ids of the Microsoft sign-in that goes through the Windows account broker, and the menu entry the app adds for its account picker.</summary>
 public static class BrokeredKinds
 {
     /// <summary>The engine's account kind for "Microsoft account on this PC" (the library's <c>microsoft-brokered</c>).</summary>
@@ -9,7 +9,7 @@ public static class BrokeredKinds
     /// <summary>The existing browser sign-in kind.</summary>
     public const string Browser = "microsoft";
 
-    /// <summary>The id of the card "Another Microsoft account": the same engine kind, started with the account picker intent. Never sent to the engine.</summary>
+    /// <summary>The id of the menu entry "Microsoft" when the broker works: the same engine kind, started with the account picker intent. Never sent to the engine.</summary>
     public const string PickItem = "microsoft-brokered:pick";
 }
 
@@ -40,16 +40,5 @@ public sealed record WindowsAccountListing(WindowsListingKind Kind, string? Emai
 public interface IWindowsAccountSource
 {
     /// <summary>The listing, mapped to the cases the pinned row needs. Never throws except for the caller's own cancellation.</summary>
-    ValueTask<WindowsAccountListing> GetListingAsync(CancellationToken cancellationToken) => GetListingFromEmailAsync(this, cancellationToken);
-
-    /// <summary>
-    /// The email of the one listed account, or null when Windows names none or the account cannot be told. The cards of the shipped window use this; it goes
-    /// away with them.
-    /// </summary>
-    ValueTask<string?> GetEmailAsync(CancellationToken cancellationToken);
-
-    private static async ValueTask<WindowsAccountListing> GetListingFromEmailAsync(IWindowsAccountSource source, CancellationToken cancellationToken) =>
-        await source.GetEmailAsync(cancellationToken).ConfigureAwait(false) is { } email
-            ? new WindowsAccountListing(WindowsListingKind.OneNamed, email)
-            : new WindowsAccountListing(WindowsListingKind.None);
+    ValueTask<WindowsAccountListing> GetListingAsync(CancellationToken cancellationToken);
 }

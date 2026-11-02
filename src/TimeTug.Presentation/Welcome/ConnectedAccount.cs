@@ -25,4 +25,10 @@ public sealed record ConnectedAccount(
 
     /// <summary>The account's email address when its name is one (used to tell which account stands for the pinned Windows row); null otherwise.</summary>
     public string? Email { get; init; }
+
+    /// <summary>"On this PC" for an account that signs in through Windows; null otherwise.</summary>
+    public string? TagText { get; init; }
+
+    /// <summary>The words of the "Sign in again" button in the row.</summary>
+    public string SignInText { get; init; } = "";
 }

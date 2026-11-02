@@ -16,6 +16,7 @@ public sealed class WelcomeLaunchAtLoginTests
         var text = new ReswLocalizer();
         var launch = withLaunchAtLogin ? new LaunchAtLoginViewModel(_startup, new FakeSystemLauncher(), new ImmediateDispatcher(), text) : null;
         var model = new WelcomeViewModel(_engine, new ImmediateDispatcher(), text, new Microsoft.Extensions.Time.Testing.FakeTimeProvider(States.Noon), launchAtLogin: launch);
+        model.GetStartedCommand.Execute(null);
         _engine.Push(States.Empty());
         return model;
     }
@@ -24,6 +25,7 @@ public sealed class WelcomeLaunchAtLoginTests
     {
         await model.ConnectAsync("google");
         _engine.Push(States.With([States.Google()]));
+        await model.ContinueCommand.ExecuteAsync(null);
     }
 
     [Fact]
@@ -42,13 +44,13 @@ public sealed class WelcomeLaunchAtLoginTests
     }
 
     [Fact]
-    public async Task The_checkbox_is_not_shown_on_the_first_step()
+    public async Task The_checkbox_is_not_shown_before_the_connected_step()
     {
         var model = Model();
 
         model.Step.Should().Be(WelcomeStep.Connect);
         model.ShowLaunchAtLogin.Should().BeFalse();
-        _startup.Calls.Should().BeEmpty("the state is read when the second step appears");
+        _startup.Calls.Should().BeEmpty("the state is read when the connected step appears");
         await ReachConnectedAsync(model);
         model.ShowLaunchAtLogin.Should().BeTrue();
     }

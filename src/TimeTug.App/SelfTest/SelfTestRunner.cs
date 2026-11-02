@@ -93,7 +93,9 @@ internal static class SelfTestRunner
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
         [BrokerProbeScenario.Name] = BrokerProbeScenario.RunAsync,
         [WelcomeBrokeredScenario.Name] = WelcomeBrokeredScenario.RunAsync,
+        [WelcomeLocalOnlyScenario.Name] = WelcomeLocalOnlyScenario.RunAsync,
         [AccountsBrokeredScenario.Name] = AccountsBrokeredScenario.RunAsync,
+        [AccountsListScenario.Name] = AccountsListScenario.RunAsync,
         [BrokeredReconnectScenario.Name] = BrokeredReconnectScenario.RunAsync,
         [BrokeredUnavailableScenario.Name] = BrokeredUnavailableScenario.RunAsync,
     };

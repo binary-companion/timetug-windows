@@ -9,7 +9,7 @@ using static TimeTug.Presentation.Tests.Accounts.ListRig;
 
 namespace TimeTug.Presentation.Tests.Welcome;
 
-/// <summary>The first-run window in its list shape: an intro step, the accounts list with the pinned Windows row, and the Continue rule (Q1, Q4, Q5; D1, D9, D10).</summary>
+/// <summary>The first-run window: an intro step, the accounts list with the pinned Windows row, and the Continue rule (Q1, Q4, Q5; D1, D9, D10).</summary>
 public class WelcomeListFlowTests
 {
     private sealed record Rig(FakeEngineClient Engine, WelcomeViewModel Model, AccountsBrokeredTests.FakeIntent Intent, FakeListing Source);
@@ -17,7 +17,7 @@ public class WelcomeListFlowTests
     private static Rig Create(WindowsAccountListing? listing = null, bool gated = false, AppState? first = null)
     {
         var engine = new FakeEngineClient();
-        var model = new WelcomeViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), new FakeTimeProvider(States.Noon)) { ListFlow = true };
+        var model = new WelcomeViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), new FakeTimeProvider(States.Noon));
         var intent = new AccountsBrokeredTests.FakeIntent(engine.Sent);
         model.Accounts.BrokerIntents = intent;
         var source = new FakeListing(listing ?? Named);
@@ -285,23 +285,5 @@ public class WelcomeListFlowTests
         await Press(rig.Model.ContinueCommand);
         rig.Model.Step.Should().Be(WelcomeStep.Connected);
         rig.Engine.Sent.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Without_the_list_flow_the_old_behaviour_is_unchanged()
-    {
-        var engine = new FakeEngineClient();
-        var model = new WelcomeViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), new FakeTimeProvider(States.Noon));
-        engine.Push(ListRig.Empty());
-
-        model.Step.Should().Be(WelcomeStep.Connect);
-        model.Accounts.DeviceRowIsPending.Should().BeFalse();
-        model.CanContinue.Should().BeFalse();
-
-        await model.ConnectAsync("google");
-        engine.Push(ListRig.Empty(Working));
-        engine.Push(With(Idle, Account("g", "google", "you@example.com")));
-
-        model.Step.Should().Be(WelcomeStep.Connected);
     }
 }

@@ -20,7 +20,8 @@ internal static class BrokeredReconnectScenario
 
     public static async Task<SelfTestResult> RunAsync(SelfTestOptions options, CancellationToken cancellation)
     {
-        await using var rig = await EngineRig.StartBrokeredAsync(options, cancellation);
+        // Windows lists another account than the one connected here, so the connected account is an ordinary row (with the "On this PC" tag and its own button).
+        await using var rig = await EngineRig.StartBrokeredAsync(options, cancellation, listed: [new BrokerAccount(FakeBrokerClient.AccountId, "windows-user@example.test")]);
         if (!rig.Ready)
         {
             return rig.Finish();
@@ -61,16 +62,20 @@ internal static class BrokeredReconnectScenario
             return rig.Finish();
         }
 
-        run.Check(await rig.WaitFor(() => page.AccountCards.Count == 1 && page.AccountCards[0].SignInAgain is not null), "the account offers Sign in again");
-        run.Check(page.AccountCards[0].Account.StatusText == "Sign in again" && page.AccountCards[0].Account.IsOnThisPc, "and says so, with the \"On this PC\" tag");
+        var box = page.AccountsList;
+        run.Check(await rig.WaitFor(() => box.Accounts!.ListAccounts.Count == 1 && box.RowSignInAgain(box.Accounts.ListAccounts[0].ConnectionId) is not null), "the account's row offers Sign in again");
+        var account = box.Accounts!.ListAccounts[0];
+        run.Check(account.StatusText == "Sign in again" && account.IsOnThisPc, "and says so, with the \"On this PC\" tag");
+        run.Check(AccountsListUi.RowNames(box).SequenceEqual(["Microsoft, me@example.com, Sign in again, On this PC"]), "the row reads: " + string.Join(" | ", AccountsListUi.RowNames(box)));
+        run.Check(ScenarioUi.Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", ScenarioUi.Unnamed(window)));
         await rig.Run.ShotAsync(window, "sign-in-again");
 
         rig.Broker.Silent = null;
         rig.Broker.Interactive = null;
-        run.Check(ScenarioUi.Invoke(page.AccountCards[0].SignInAgain!), "Sign in again is pressed");
+        run.Check(ScenarioUi.Invoke(box.RowSignInAgain(account.ConnectionId)!), "Sign in again is pressed");
         run.Check(await rig.WaitFor(() => rig.Broker.Calls.Contains("interactive:WindowsAccount")), "the Windows dialog was opened for the account: " + string.Join(", ", rig.Broker.Calls));
         run.Check(await rig.WaitFor(() => rig.Latest is { Accounts: [{ Status: "ok" }] }), "the account recovers without a restart");
-        run.Check(await rig.WaitFor(() => page.AccountCards.Count == 1 && page.AccountCards[0].Account.StatusText == "Connected"), "and the pane says it is connected");
+        run.Check(await rig.WaitFor(() => box.Accounts.ListAccounts.Count == 1 && box.Accounts.ListAccounts[0].StatusText == "Connected"), "and the pane says it is connected");
         run.Check(await rig.WaitFor(() => flyout.Problems.Count == 0), "the flyout's problem row is gone");
         await rig.Run.ShotAsync(window, "recovered");
 
