@@ -1,5 +1,6 @@
 using TimeTug.Presentation.Accounts;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Tests.Welcome;
 using static TimeTug.Presentation.Tests.Accounts.ListRig;
 
 namespace TimeTug.Presentation.Tests.Accounts;
@@ -44,6 +45,29 @@ public class WindowsAccountOfferTests
         var rig = Create(Named, first: TimeTug.Presentation.Tests.Welcome.States.Empty(kinds));
         rig.Model.WindowsAccountOffered.Should().BeFalse();
         rig.Model.ListingPending.Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_brokered_kind_the_menu_cannot_start_is_never_offered_to_continue()
+    {
+        // Offering must agree with what pressing Continue can do: a kind the account menu would not offer cannot be added by Continue either.
+        var kinds = Kinds.Select(k => k.Id == "microsoft-brokered" ? k with { Authorization = "system" } : k).ToList();
+        var rig = Create(Named, first: TimeTug.Presentation.Tests.Welcome.States.Empty(kinds));
+
+        rig.Model.WindowsAccountOffered.Should().BeFalse();
+        rig.Model.ListingPending.Should().BeFalse();
+    }
+
+    [Fact]
+    public void The_windows_account_row_is_named_microsoft_whatever_the_engine_calls_the_kind()
+    {
+        var kinds = Kinds.Select(k => k.Id == "microsoft-brokered" ? k with { DisplayName = "Microsoft account on this PC" } : k).ToList();
+        var rig = Create(Named, first: TimeTug.Presentation.Tests.Welcome.States.Empty(kinds));
+
+        rig.Engine.Push(States.With([Account("p", "microsoft-brokered", "me@example.com")], kinds: kinds));
+
+        rig.Model.ListAccounts.Single().KindName.Should().Be("Microsoft");
+        rig.Model.ListAccounts.Single().AutomationName.Should().Be("Microsoft, me@example.com, Connected");
     }
 
     [Fact]

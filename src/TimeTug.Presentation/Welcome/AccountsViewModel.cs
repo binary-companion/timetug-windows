@@ -702,7 +702,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
                 1 => _text.GetString("CalendarsOne"),
                 var n => _text.Format("CalendarsMany", n),
             };
-            var summary = _text.Format("AccountSummary", RowKindName(state, account.KindId, account.KindId), account.DisplayName, count);
+            var summary = _text.Format("AccountSummary", RowKindName(account.KindId, account.KindId), account.DisplayName, count);
             var problem = account.Status == "ok" ? null : _text.TryGetString("Status_" + account.Status);
             Accounts.Add(new AccountRow(account.ConnectionId, summary, problem));
         }
@@ -713,7 +713,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         var rows = new List<ConnectedAccount>();
         foreach (var account in state.Accounts)
         {
-            var kindName = RowKindName(state, account.KindId, state.AvailableKinds.FirstOrDefault(k => k.Id == account.KindId)?.DisplayName ?? account.KindId);
+            var kindName = RowKindName(account.KindId, state.AvailableKinds.FirstOrDefault(k => k.Id == account.KindId)?.DisplayName ?? account.KindId);
             var needsAttention = account.BuildFailure || account.Status == "authExpired";
             var statusText = account.BuildFailure ? _text.GetString("Status_buildFailure")
                 : !account.StatusKnown ? _text.GetString("Status_connecting")
@@ -811,7 +811,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     // ---- the list, the pinned row and the selection -----------------------------------------------------------------------------------
 
-    private bool BrokeredConfigured => _state?.AvailableKinds.Any(k => k.Id == BrokeredKinds.Brokered && k.IsConfigured) == true;
+    // The same question the account menu asks: Continue can add the Windows account only where "+" could.
+    private bool BrokeredConfigured => _connectable.Contains(BrokeredKinds.Brokered);
 
     private static bool SameEmail(string? a, string? b) => a is not null && b is not null && string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
 
@@ -976,10 +977,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     private string KindName(string id, string fallback) => _text.TryGetString("Provider_" + id) ?? fallback;
 
-    // A connected row names the provider ("Microsoft"); the "On this PC" tag says how it signs in, so the brokered kind is not called "Microsoft account on this PC" there.
-    private string RowKindName(AppState state, string id, string fallback) => id == BrokeredKinds.Brokered
-        ? state.AvailableKinds.FirstOrDefault(k => k.Id == id)?.DisplayName ?? "Microsoft"
-        : KindName(id, fallback);
+    // A connected row names the provider ("Microsoft") however it signs in: the brokered kind is not called "Microsoft account on this PC" there.
+    private string RowKindName(string id, string fallback) => id == BrokeredKinds.Brokered ? KindName(BrokeredKinds.Browser, "Microsoft") : KindName(id, fallback);
 
     private sealed class Attempt(string providerId, string kindId, HashSet<string> baseline, string? baselineError)
     {
