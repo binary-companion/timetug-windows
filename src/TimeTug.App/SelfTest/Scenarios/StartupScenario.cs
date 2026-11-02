@@ -9,6 +9,7 @@ using TimeTug.Platform.OsState;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Startup;
+using TimeTug.Presentation.Theming;
 using TimeTug.Presentation.Tray;
 using TimeTug.Presentation.Tug;
 using Pkg = TimeTug.Engine;
@@ -139,6 +140,7 @@ internal static class StartupScenario
         var trayCreated = shell.TrayIcon is { IsCreated: true };
         Check(trayCreated || diagnostics.Entries.Any(e => e.Category == "tray" && e.Level == "error"), "the tray icon was created in the notification area, or its failure was recorded: created=" + trayCreated);
         Check(shell.TrayModel is { } tray && tray.Current.Rows.Single(r => r.Command == TrayCommand.Quit).IsEnabled, "the tray menu offers Quit");
+        Check(shell.NativeMenuMode is NativeMenuMode.Light or NativeMenuMode.Dark, "the real shell asked Windows for light or dark menus (the tray's menu is drawn by Windows): " + shell.NativeMenuMode);
         Check(shell.Flyout is { IsOpen: false }, "the flyout is composed and closed at startup");
         shell.TrayModel!.PrimaryClick();
         Check(shell.Flyout is { IsOpen: false } && shell.Welcome is not null, "a left click with no account shows the welcome window, not the flyout");

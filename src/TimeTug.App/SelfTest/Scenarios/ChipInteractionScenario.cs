@@ -107,8 +107,18 @@ internal static class ChipInteractionScenario
             var blockerFirst = await rig.Tug.WaitFor(() => ChipWindowChrome.ForegroundWindow() == blockerHandle, 3000);
             run.Info("before the menu, the other window has the keyboard: " + blockerFirst + "; " + TimeTug.Platform.Flyout.FlyoutWindowChrome.DescribeForeground(handle));
             (cx, cy) = Centre();
+            // The app's own choice decides the menu's colours, not the theme Windows started the app in: ask for the other one.
+            var other = Application.Current.RequestedTheme == ApplicationTheme.Dark ? TimeTug.Presentation.Settings.AppTheme.Light : TimeTug.Presentation.Settings.AppTheme.Dark;
+            rig.Store.Save(rig.Store.Load() with { Theme = other });
+            await rig.Tug.WaitFor(() => window.IsDark == (other == TimeTug.Presentation.Settings.AppTheme.Dark));
             menus = window.MenusOpened;
             run.Check(await TryAsync(() => MouseInput.RightClickAt(cx, cy), () => window.MenusOpened > menus), "a real right click opens the menu");
+            await Task.Delay(700, cancellation);
+            if (window.MenusOpened > menus)
+            {
+                MenuThemeCheck.Follows(run, window.RootElement, $"the chip's menu under {other}");
+            }
+
             run.Info("with the menu open: " + TimeTug.Platform.Flyout.FlyoutWindowChrome.DescribeForeground(handle));
             if (foregroundWorks && blockerFirst)
             {

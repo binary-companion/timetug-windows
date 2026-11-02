@@ -102,6 +102,7 @@ internal static class FlyoutMergeScenario
         run.Check(await OpenMenuAsync(rig, window, "Budget sync"), "the merge menu opens from its button");
         await rig.Settle(500);
         run.Info($"the flyout was the foreground window before the menu: {wasForeground}, after: {TimeTug.Platform.Tug.TugWindowChrome.IsForeground(window.Handle)}; activation log: {string.Join(" / ", window.ActivationLog.TakeLast(4))}");
+        MenuThemeCheck.Follows(run, window.RootElement, "the merge menu");
         var menu = Card(window, "Budget sync")!.Menu!;
         run.Check(menu.Items.OfType<MenuFlyoutSubItem>().Select(i => i.Text).SequenceEqual(["Not the same meeting"]) && menu.Items.OfType<MenuFlyoutItem>().Any(i => i.Text == "Unmerge"), "it offers Not the same meeting and Unmerge: " + string.Join(", ", menu.Items.Select(i => (i as MenuFlyoutItem)?.Text ?? (i as MenuFlyoutSubItem)?.Text ?? "-")));
         run.Check(!menu.Items.OfType<MenuFlyoutSubItem>().Any(i => i.Text == "Merge with…"), "and no Merge with… (this card has no candidate)");

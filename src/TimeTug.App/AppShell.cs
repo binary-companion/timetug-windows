@@ -12,6 +12,7 @@ using TimeTug.Platform.Broker;
 using TimeTug.Platform.Flyout;
 using TimeTug.Platform.Hotkey;
 using TimeTug.Platform.Instance;
+using TimeTug.Platform.Tray;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Accounts;
 using TimeTug.Presentation.Chip;
@@ -20,6 +21,7 @@ using TimeTug.Presentation.Flyout;
 using TimeTug.Presentation.JumpList;
 using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
+using TimeTug.Presentation.Theming;
 using TimeTug.Presentation.Tray;
 using TimeTug.Presentation.Tug;
 using TimeTug.Presentation.Welcome;
@@ -54,6 +56,7 @@ internal sealed class AppShell
     private WelcomeWindow? _welcome;
     private TrayViewModel? _trayModel;
     private TrayIconService? _tray;
+    private NativeMenuThemeFollower? _menuTheme;
     private FlyoutHost? _flyoutHost;
     private ChipHost? _chip;
     private SettingsHost? _settingsHost;
@@ -87,6 +90,9 @@ internal sealed class AppShell
 
     /// <summary>What the tray shows and does (null when there is no tray).</summary>
     internal TrayViewModel? TrayModel => _trayModel;
+
+    /// <summary>How Windows was asked to colour its menus (the tray icon's); null before the tray starts and after the icon is removed.</summary>
+    internal NativeMenuMode? NativeMenuMode => _menuTheme?.Mode;
 
     /// <summary>Opens, closes and places the flyout (null before the services are built).</summary>
     internal FlyoutHost? Flyout => _flyoutHost;
@@ -167,6 +173,9 @@ internal sealed class AppShell
             Services.GetRequiredService<TimeProvider>(),
             Services.GetRequiredService<IMinuteTicker>(),
             presentation: Services.GetRequiredService<IPresentationSettingsStore>());
+        // The menu Windows draws for the icon is light unless the process says otherwise; it follows the app's own choice (Appearance), then Windows.
+        _menuTheme = new NativeMenuThemeFollower(
+            Services.GetRequiredService<IPresentationSettingsStore>(), Services.GetRequiredService<IUiSettings>(), new UxThemeNativeMenuTheme(), _diagnostics);
         _tray = new TrayIconService(_trayModel, Services.GetRequiredService<IUiDispatcher>(), _diagnostics);
         var tray = _tray;
         Services.GetRequiredService<TrayIconIdSource>().Provider = () => tray.IconId;
@@ -247,6 +256,8 @@ internal sealed class AppShell
     private void RemoveTrayIcon()
     {
         _tray?.Dispose();
+        _menuTheme?.Dispose();
+        _menuTheme = null;
         _trayModel?.Dispose();
         _tray = null;
         _trayModel = null;

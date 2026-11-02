@@ -41,6 +41,7 @@ taskbar-buttons          0  180  selftest
 chip-modes                6  240  selftest
 chip-interaction          1  240  selftest
 jump-list                 1  240  selftest
+menu-theme                0  240  selftest
 broker-probe              0  120  selftest
 welcome-brokered          4  210  selftest
 welcome-local-only        3  150  selftest

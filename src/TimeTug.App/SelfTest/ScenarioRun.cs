@@ -87,6 +87,32 @@ internal sealed class ScenarioRun
         return Check(best is not null, name + ".png is not blank");
     }
 
+    /// <summary>
+    /// Saves a rectangle of the desktop as the next numbered screenshot (what a native menu looks like: it is a window of its own, not part of any
+    /// window of the app) and records a check that the picture is not blank (unless <paramref name="required"/> is false: a picture kept as evidence only). Returns what was captured, with its mean brightness.
+    /// </summary>
+    public async Task<RegionCapture> RegionShotAsync(TimeTug.Presentation.Abstractions.PixelRect area, string label, bool required = true)
+    {
+        var name = FormattableString.Invariant($"{++_taken:00}-{label}");
+        var capture = await ScreenRegion.CaptureAsync(area, Path.Combine(Folder, name + ".png"));
+        if (capture.Succeeded)
+        {
+            _shots.Add(new SelfTestShot(name + ".png", "BitBlt", capture.DistinctColours));
+            LastShotPath = capture.Path;
+        }
+
+        if (required)
+        {
+            Check(capture.Succeeded, name + ".png is not blank");
+        }
+        else if (!capture.Succeeded)
+        {
+            Info(name + ".png could not be captured on this machine (" + capture.Error + ")");
+        }
+
+        return capture;
+    }
+
     public SelfTestResult Finish(string? error = null)
     {
         string? package = null;

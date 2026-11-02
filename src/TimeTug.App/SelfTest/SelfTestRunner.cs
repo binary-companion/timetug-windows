@@ -90,6 +90,7 @@ internal static class SelfTestRunner
         [ChipModesScenario.Name] = ChipModesScenario.RunAsync,
         [ChipInteractionScenario.Name] = ChipInteractionScenario.RunAsync,
         [JumpListScenario.Name] = JumpListScenario.RunAsync,
+        [MenuThemeScenario.Name] = MenuThemeScenario.RunAsync,
         [A11yHoldScenario.Name] = A11yHoldScenario.RunAsync,
         [BrokerProbeScenario.Name] = BrokerProbeScenario.RunAsync,
         [WelcomeBrokeredScenario.Name] = WelcomeBrokeredScenario.RunAsync,
