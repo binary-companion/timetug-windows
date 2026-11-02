@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using TimeTug.App.Theming;
+using TimeTug.Platform.Broker;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Welcome;
 using Windows.Graphics;
@@ -34,6 +35,7 @@ public sealed partial class WelcomeWindow : Window
         InitializeComponent();
         _handle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _brokerParent?.Register(_handle);
+        Activated += OnActivated;
         _theme = theme?.Attach(this, Root);
         Title = text.GetString("WelcomeWindowTitle");
         ViewModel.CloseRequested += (_, _) => Close();
@@ -149,6 +151,14 @@ public sealed partial class WelcomeWindow : Window
             {
                 hint.ClearValue(TextBlock.ForegroundProperty);
             }
+        }
+    }
+
+    private void OnActivated(object sender, WindowActivatedEventArgs args)
+    {
+        if (args.WindowActivationState != WindowActivationState.Deactivated)
+        {
+            _brokerParent?.Touch(_handle);
         }
     }
 

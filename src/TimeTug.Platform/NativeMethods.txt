@@ -66,3 +66,8 @@ HOT_KEY_MODIFIERS
 WM_HOTKEY
 MessageBox
 MESSAGEBOX_STYLE
+IsIconic
+ShowWindow
+SetForegroundWindow
+SHOW_WINDOW_CMD
+IsWindow

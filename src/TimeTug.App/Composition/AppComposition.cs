@@ -71,9 +71,12 @@ internal static class AppComposition
         services.AddSingleton<IBrokerSignInIntent, BrokerSignInIntent>();
         services.AddSingleton(sp => new BrokerParentWindow(() => sp.GetRequiredService<IWindowMessageSource>().Handle));
         services.AddSingleton<IBrokerParentWindow>(sp => sp.GetRequiredService<BrokerParentWindow>());
+        // A browser sign-in that comes back brings the window the person last used forward (best effort; Windows may refuse).
+        services.AddSingleton<ISignInReturnNotifier>(sp => new SignInForegroundRequester(sp.GetRequiredService<BrokerParentWindow>(), sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<IEngineHost>(sp => WindowsEngineHost.Create(
             new SystemBrowserLauncher(), sp.GetRequiredService<IAccountFormService>(), sp.GetRequiredService<IDiagnostics>(),
-            MicrosoftClientId(sp.GetRequiredService<EngineStartup>()), sp.GetRequiredService<IBrokerParentWindow>(), sp.GetRequiredService<IBrokerSignInIntent>()));
+            MicrosoftClientId(sp.GetRequiredService<EngineStartup>()), sp.GetRequiredService<IBrokerParentWindow>(), sp.GetRequiredService<IBrokerSignInIntent>(),
+            localizer: sp.GetRequiredService<ILocalizer>(), returnNotifier: sp.GetRequiredService<ISignInReturnNotifier>()));
         services.AddSingleton<Pkg.IEngine>(sp =>
         {
             var startup = sp.GetRequiredService<EngineStartup>();

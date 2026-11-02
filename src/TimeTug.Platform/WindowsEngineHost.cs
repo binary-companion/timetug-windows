@@ -33,24 +33,28 @@ public sealed class WindowsEngineHost : IEngineHost, IDisposable
     public ITextGenerator? TextGenerator => null;
 
     /// <summary>Builds the real services: Credential Locker, the shared HTTP client, loopback browser sign-in and the given form dialog.</summary>
-    public static WindowsEngineHost Create(IUrlLauncher launcher, IAccountFormService forms, IDiagnostics diagnostics)
+    /// <param name="localizer">The landing page's words; English when null.</param>
+    /// <param name="returnNotifier">Told when a browser sign-in redirect has come back, so the app can bring a window forward.</param>
+    public static WindowsEngineHost Create(IUrlLauncher launcher, IAccountFormService forms, IDiagnostics diagnostics,
+                                           ILocalizer? localizer = null, ISignInReturnNotifier? returnNotifier = null)
     {
         var store = new CredentialLockerStore(new WindowsPasswordVault(), diagnostics);
-        var loopback = new LoopbackAuthorization(launcher, diagnostics);
+        var loopback = new LoopbackAuthorization(launcher, diagnostics, localizer, returnNotifier);
         var authorization = new CompositeAuthorization(loopback, new CredentialFormPrompter(forms));
         return new WindowsEngineHost(store, HttpClientTransport.CreateDefault(diagnostics), authorization, diagnostics,
                                      new CompositeDisposable(store, loopback));
     }
 
     /// <summary>
-    /// As <see cref="Create(IUrlLauncher, IAccountFormService, IDiagnostics)"/>, plus the Windows account broker: when the build has a Microsoft client id and
+    /// As <see cref="Create(IUrlLauncher, IAccountFormService, IDiagnostics, ILocalizer, ISignInReturnNotifier)"/>, plus the Windows account broker: when the build has a Microsoft client id and
     /// <paramref name="brokerFactory"/> (default <see cref="MsalBrokerClient.TryCreate"/>) builds a client, the result is also an
     /// <see cref="IExternalTokenHost"/> and the engine offers "Microsoft account on this PC". Otherwise it is the plain host and the browser sign-in stands alone.
     /// </summary>
     public static IEngineHost Create(IUrlLauncher launcher, IAccountFormService forms, IDiagnostics diagnostics, string? microsoftClientId,
-                                     IBrokerParentWindow parent, IBrokerSignInIntent intent, Func<string, IBrokerParentWindow, IBrokerClient?>? brokerFactory = null)
+                                     IBrokerParentWindow parent, IBrokerSignInIntent intent, Func<string, IBrokerParentWindow, IBrokerClient?>? brokerFactory = null,
+                                     ILocalizer? localizer = null, ISignInReturnNotifier? returnNotifier = null)
     {
-        var plain = Create(launcher, forms, diagnostics);
+        var plain = Create(launcher, forms, diagnostics, localizer, returnNotifier);
         if (string.IsNullOrWhiteSpace(microsoftClientId))
         {
             return plain;
