@@ -47,9 +47,10 @@ public sealed class NativeMenuThemeFollower : IDisposable
         _ui = ui;
         _native = native;
         _diagnostics = diagnostics;
-        Refresh();
+        // Subscribe first: a change that lands while the first mode is being set is then seen, not lost (a second Refresh with the same mode does nothing).
         store.Changed += Refresh;
         ui.Changed += Refresh;
+        Refresh();
     }
 
     /// <summary>The mode most recently accepted by Windows; null while none has been.</summary>

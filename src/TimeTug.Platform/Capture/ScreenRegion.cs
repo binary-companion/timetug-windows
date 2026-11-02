@@ -27,8 +27,7 @@ public static partial class ScreenRegion
     {
         PixelRect? best = null;
         var name = new char[16];
-        _ = EnumWindows(
-            (hwnd, _) =>
+        EnumWindowsProc callback = (hwnd, _) =>
             {
                 var length = GetClassName(hwnd, name, name.Length);
                 if (length == MenuClass.Length && new string(name, 0, length) == MenuClass && IsWindowVisible(hwnd) && GetWindowRect(hwnd, out var r))
@@ -41,8 +40,9 @@ public static partial class ScreenRegion
                 }
 
                 return 1;
-            },
-            0);
+            };
+        _ = EnumWindows(callback, 0);
+        GC.KeepAlive(callback);
         return best;
     }
 
@@ -51,8 +51,7 @@ public static partial class ScreenRegion
     {
         var lines = new List<string>();
         var name = new char[16];
-        _ = EnumWindows(
-            (hwnd, _) =>
+        EnumWindowsProc callback = (hwnd, _) =>
             {
                 var length = GetClassName(hwnd, name, name.Length);
                 if (length == MenuClass.Length && new string(name, 0, length) == MenuClass && GetWindowRect(hwnd, out var r))
@@ -61,8 +60,9 @@ public static partial class ScreenRegion
                 }
 
                 return 1;
-            },
-            0);
+            };
+        _ = EnumWindows(callback, 0);
+        GC.KeepAlive(callback);
         return lines.Count == 0 ? "no menu windows" : string.Join("; ", lines);
     }
 
@@ -87,6 +87,7 @@ public static partial class ScreenRegion
 
             var info = new BitmapInfo { Size = (uint)Marshal.SizeOf<BitmapInfo>(), Width = area.Width, Height = -area.Height, Planes = 1, BitCount = 32 };
             var pixels = new byte[area.Width * area.Height * 4];
+            _ = SelectObject(memory, previous);   // GetDIBits wants the bitmap out of the device context
             if (GetDIBits(memory, bitmap, 0, (uint)area.Height, pixels, ref info, 0) == 0)
             {
                 return new RegionCapture(null, 0, 0, "GetDIBits returned no lines");

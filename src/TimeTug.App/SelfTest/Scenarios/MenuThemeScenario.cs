@@ -34,9 +34,16 @@ internal static class MenuThemeScenario
         var run = new ScenarioRun(options);
         var queue = DispatcherQueue.GetForCurrentThread();
         var anchor = new Window();
-        await TrayMenusAsync(run, queue, cancellation);
-        await XamlMenusAsync(run, cancellation);
-        anchor.Close();
+        try
+        {
+            await TrayMenusAsync(run, queue, cancellation);
+            await XamlMenusAsync(run, cancellation);
+        }
+        finally
+        {
+            anchor.Close();
+        }
+
         return run.Finish();
     }
 
@@ -120,7 +127,7 @@ internal static class MenuThemeScenario
         }
 
         run.Info($"the tray menu under Dark, the apps theme dark: mean brightness {any.MeanLuminance:0}");
-        run.Check(any.MeanLuminance < DarkBelow, $"Dark: the menu Windows draws for the icon is dark (mean {any.MeanLuminance:0})");
+        run.Check(any.Succeeded && any.MeanLuminance < DarkBelow, $"Dark: the menu Windows draws for the icon is dark (mean {any.MeanLuminance:0})");
 
         store.Save(store.Load() with { Theme = AppTheme.Light });
         var light = await OpenAsync("tray-menu-light");
@@ -130,7 +137,7 @@ internal static class MenuThemeScenario
         ui.AppsUseDarkTheme = false;
         ui.Raise();
         var dark = await OpenAsync("tray-menu-dark-on-light-system");
-        run.Check(dark is { MeanLuminance: < DarkBelow }, $"Dark chosen, the apps theme light: the menu is dark (mean {dark?.MeanLuminance:0})");
+        run.Check(dark is { Succeeded: true, MeanLuminance: < DarkBelow }, $"Dark chosen, the apps theme light: the menu is dark (mean {dark?.MeanLuminance:0})");
 
         store.Save(store.Load() with { Theme = AppTheme.UseSystem });
         var system = await OpenAsync("tray-menu-system-light");
@@ -138,7 +145,7 @@ internal static class MenuThemeScenario
         ui.AppsUseDarkTheme = true;
         ui.Raise();
         system = await OpenAsync("tray-menu-system-dark");
-        run.Check(system is { MeanLuminance: < DarkBelow }, $"Use system, the apps theme changes to dark while the icon is up: the menu follows (mean {system?.MeanLuminance:0})");
+        run.Check(system is { Succeeded: true, MeanLuminance: < DarkBelow }, $"Use system, the apps theme changes to dark while the icon is up: the menu follows (mean {system?.MeanLuminance:0})");
 
         ui.HighContrast = true;
         ui.Raise();
@@ -186,8 +193,21 @@ internal static class MenuThemeScenario
                 var menu = new MenuFlyout { ShouldConstrainToRootBounds = constrained };
                 menu.Items.Add(new MenuFlyoutItem { Text = "Alpha" });
                 menu.Items.Add(sub);
-                menu.ShowAt(button);
-                await WaitFor(() => MenuThemeCheck.OpenMenus(root).Count > 0, 4000);
+                // A menu asked for right after another one closed is now and then not shown: ask again.
+                for (var attempt = 0; attempt < 3; attempt++)
+                {
+                    await WaitFor(() => MenuThemeCheck.OpenMenus(root).Count == 0, 3000);
+                    menu.ShowAt(button);
+                    if (await WaitFor(() => MenuThemeCheck.OpenMenus(root).Count > 0, 2500))
+                    {
+                        break;
+                    }
+
+                    run.Info($"{name}: attempt {attempt + 1}: the menu did not show");
+                    menu.Hide();
+                    await Task.Delay(400, cancellation);
+                }
+
                 await Task.Delay(500, cancellation);
                 MenuThemeCheck.Follows(run, root, name);
                 await Shot(run, window, $"xaml-{theme}-menu{(constrained ? string.Empty : "-own-window")}");
