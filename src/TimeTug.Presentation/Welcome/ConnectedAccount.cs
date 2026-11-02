@@ -22,4 +22,7 @@ public sealed record ConnectedAccount(
 
     /// <summary>The account signs in through Windows (a Microsoft account on this PC): the row carries the "On this PC" tag.</summary>
     public bool IsOnThisPc { get; init; }
+
+    /// <summary>The account's email address when its name is one (used to tell which account stands for the pinned Windows row); null otherwise.</summary>
+    public string? Email { get; init; }
 }
