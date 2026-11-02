@@ -196,6 +196,31 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Automated:** partly: axe covers the structure of the welcome window and the Accounts pane; every new control has an automation name (checked in the self-tests).
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
+### 2.17 Google lands on the TimeTug page and TimeTug comes forward
+
+- **Build:** `msix-x64` (or `msix-arm64`) with `dev-oauth.json` containing a Google client. Repeat with Edge, Chrome and Firefox as the default browser (Settings > Apps > Default apps), and on one PC besides the VM.
+- **Do:** in the welcome window or Settings > Accounts, press Google and sign in. Run it three ways: TimeTug in front when the browser opens, TimeTug behind other windows, and TimeTug minimized (use the taskbar). Do not touch TimeTug after the browser opens until the browser has redirected.
+- **Expect:** the browser tab shows a page titled "TimeTug" with the mark, the heading "You're connected" and the line "Return to TimeTug." (nothing else, no button, no "close this tab"). TimeTug comes to the front (restored first when it was minimized), or, when Windows refuses, its taskbar button flashes; the window says "Waiting for your browser..." until the account appears either way. If you deny access instead, the page says "Sign-in didn't finish" and "Return to TimeTug and try again." and TimeTug comes forward the same way.
+- **Record per browser and case** in `docs/spikes/2026-11-foreground-on-signin-return.md` (spike S-FG): came forward, flashed, or nothing. This settles Q7 of the shared accounts list spec; the design stands either way.
+- **Automated:** partly. `LoopbackAuthorizationTests` cover the page, the headers, the stray-request rule and the notifier exactly once per redirect; `SignInForegroundRequesterTests` cover restore, activate, refusal and no open window with a fake window API. Not automated: what Windows really does with the request.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 2.18 The landing page in light, dark, a contrast theme, at 200 percent and with Narrator
+
+- **Build:** as 2.17. The page is the one a Google sign-in leaves in the browser tab.
+- **Do:** after a Google sign-in, with the tab still open: switch Windows between light and dark mode, then to a contrast theme (Settings > Accessibility > Contrast themes, e.g. "Night sky"), and zoom the tab to 200 percent. Then read the tab with Narrator in browse mode (Caps Lock + Space).
+- **Expect:** the text is readable in every case (light, dark, high contrast; in a contrast theme the page uses the theme's colours). At 200 percent zoom the heading and line wrap and nothing is cut off or scrolls sideways. Narrator reads "TimeTug" for the tab, then the mark ("TimeTug, image"), the heading level 1 "You're connected" and the line "Return to TimeTug.".
+- **Automated:** partly. The page colours' contrast (at least 4.5 to 1 in light, dark and high-contrast) and the rules for dark and forced colours are asserted in `SignInLandingPageTests`. Not automated: how a real browser renders it, and Narrator.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 2.19 A stray request does not burn a Google sign-in
+
+- **Build:** as 2.17.
+- **Do:** start Google sign-in, leave the browser's consent page open, then in a second browser tab open `http://127.0.0.1:<port>/` where `<port>` is the port in the address bar of the consent tab's `redirect_uri` parameter (read it from the consent page's address; it is not a secret). Reload it twice. Then finish the Google sign-in in the first tab.
+- **Expect:** the extra tab shows nothing (a blank page, status 404); TimeTug keeps saying "Waiting for your browser..."; finishing the Google sign-in in the first tab completes it and shows the "You're connected" page.
+- **Automated:** yes for the rule (`Stray_requests_do_not_end_the_wait`, `A_bare_get_answers_404_and_the_sign_in_keeps_waiting`). This is the by-hand confirmation with a real browser.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
 ---
 
 ## 3. The tug screen
