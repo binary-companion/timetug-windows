@@ -115,7 +115,7 @@ public sealed class LoopbackAuthorization : IDisposable
 
             // Only a request that carries a code or an error is the redirect. A bare request, the favicon or a port scan gets a 404 and the wait goes on,
             // so a stray local request cannot burn the sign-in (the engine still checks the state value).
-            var rawUrl = context.Request.RawUrl ?? "/";
+            var rawUrl = SignInLandingPage.ToOriginForm(context.Request.RawUrl ?? "/");
             var outcome = SignInLandingPage.Classify(rawUrl);
             if (outcome == LandingOutcome.NotARedirect)
             {

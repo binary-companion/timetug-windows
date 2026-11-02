@@ -53,6 +53,17 @@ public partial class SignInLandingPageTests
     public void An_unrelated_query_is_not_a_redirect() =>
         SignInLandingPage.Classify("/?state=x").Should().Be(LandingOutcome.NotARedirect);
 
+    [Theory]
+    [InlineData("http://127.0.0.1:5000/?code=abc&state=x", "/?code=abc&state=x", LandingOutcome.Connected)]
+    [InlineData("http://127.0.0.1:5000/?error=access_denied", "/?error=access_denied", LandingOutcome.DidNotFinish)]
+    [InlineData("http://127.0.0.1:5000/other?code=abc", "/other?code=abc", LandingOutcome.NotARedirect)]
+    [InlineData("/?code=abc", "/?code=abc", LandingOutcome.Connected)]
+    public void An_absolute_form_request_target_is_read_like_the_origin_form(string raw, string originForm, LandingOutcome outcome)
+    {
+        SignInLandingPage.ToOriginForm(raw).Should().Be(originForm);
+        SignInLandingPage.Classify(SignInLandingPage.ToOriginForm(raw)).Should().Be(outcome);
+    }
+
     [Fact]
     public void An_empty_error_does_not_hide_a_real_code() =>
         SignInLandingPage.Classify("/?error=&code=abc").Should().Be(LandingOutcome.Connected);

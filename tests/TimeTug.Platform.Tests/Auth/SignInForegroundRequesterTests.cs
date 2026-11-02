@@ -11,6 +11,14 @@ public class SignInForegroundRequesterTests
 
         public HashSet<nint> Minimized { get; } = [];
 
+        public HashSet<nint> Destroyed { get; } = [];
+
+        public bool IsWindow(nint window)
+        {
+            Calls.Add($"exists {window}");
+            return !Destroyed.Contains(window);
+        }
+
         public bool IsIconic(nint window)
         {
             Calls.Add($"iconic {window}");
@@ -61,7 +69,7 @@ public class SignInForegroundRequesterTests
     {
         var api = new FakeApi();
         new SignInForegroundRequester(Windows(10), api).SignInReturned();
-        api.Calls.Should().Equal("iconic 10", "foreground 10");
+        api.Calls.Should().Equal("exists 10", "iconic 10", "foreground 10");
     }
 
     [Fact]
@@ -70,7 +78,16 @@ public class SignInForegroundRequesterTests
         var api = new FakeApi();
         api.Minimized.Add(10);
         new SignInForegroundRequester(Windows(10), api).SignInReturned();
-        api.Calls.Should().Equal("iconic 10", "restore 10", "foreground 10");
+        api.Calls.Should().Equal("exists 10", "iconic 10", "restore 10", "foreground 10");
+    }
+
+    [Fact]
+    public void The_requester_leaves_a_window_alone_that_was_destroyed_before_the_call()
+    {
+        var api = new FakeApi();
+        api.Destroyed.Add(10);
+        new SignInForegroundRequester(Windows(10), api).SignInReturned();
+        api.Calls.Should().Equal("exists 10");
     }
 
     [Fact]
@@ -85,7 +102,7 @@ public class SignInForegroundRequesterTests
         var api = new FakeApi();
         api.Minimized.Add(10);
         new SignInForegroundRequester(windows, api).SignInReturned();
-        api.Calls.Should().Equal("iconic 10", "restore 10", "foreground 10");
+        api.Calls.Should().Equal("exists 10", "iconic 10", "restore 10", "foreground 10");
     }
 
     [Fact]
@@ -118,6 +135,8 @@ public class SignInForegroundRequesterTests
 
     private sealed class ThrowingApi : IForegroundWindowApi
     {
+        public bool IsWindow(nint window) => true;
+
         public bool IsIconic(nint window) => throw new InvalidOperationException("boom");
 
         public void Restore(nint window) => throw new InvalidOperationException("boom");

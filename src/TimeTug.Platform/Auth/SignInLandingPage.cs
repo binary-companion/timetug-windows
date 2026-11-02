@@ -54,6 +54,15 @@ public static class SignInLandingPage
     public static IReadOnlyDictionary<string, string> Headers => SecurityHeaders;
 
     /// <summary>
+    /// The path and query of a request target. Browsers send the origin form (<c>/?code=...</c>); a proxy may send the absolute form
+    /// (<c>http://127.0.0.1:port/?code=...</c>), which is read the same way.
+    /// </summary>
+    public static string ToOriginForm(string rawUrl) =>
+        rawUrl.Length > 0 && rawUrl[0] != '/' && Uri.TryCreate(rawUrl, UriKind.Absolute, out var absolute) && absolute.IsLoopback
+            ? absolute.PathAndQuery
+            : rawUrl;
+
+    /// <summary>
     /// Decides what <paramref name="rawUrl"/> (path and query, as <c>HttpListenerRequest.RawUrl</c> gives it) is. Only the root path counts, because that is
     /// the redirect address handed to the provider; there a non-empty <c>error</c> wins, else a non-empty <c>code</c> is a connected redirect.
     /// </summary>

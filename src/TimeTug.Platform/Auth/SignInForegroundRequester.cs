@@ -9,6 +9,9 @@ namespace TimeTug.Platform.Auth;
 /// <summary>The three window calls the foreground request makes, so a test can count them.</summary>
 internal interface IForegroundWindowApi
 {
+    /// <summary>False once the window has been destroyed (a window can close between being registered and being asked for).</summary>
+    bool IsWindow(nint window);
+
     bool IsIconic(nint window);
 
     void Restore(nint window);
@@ -49,6 +52,11 @@ public sealed class SignInForegroundRequester : ISignInReturnNotifier
                 return;
             }
 
+            if (!_api.IsWindow(window))
+            {
+                return;
+            }
+
             if (_api.IsIconic(window))
             {
                 _api.Restore(window);
@@ -67,6 +75,8 @@ public sealed class SignInForegroundRequester : ISignInReturnNotifier
 
     private sealed class Win32ForegroundWindowApi : IForegroundWindowApi
     {
+        public bool IsWindow(nint window) => PInvoke.IsWindow(new HWND(window));
+
         public bool IsIconic(nint window) => PInvoke.IsIconic(new HWND(window));
 
         public void Restore(nint window) => PInvoke.ShowWindow(new HWND(window), SHOW_WINDOW_CMD.SW_RESTORE);

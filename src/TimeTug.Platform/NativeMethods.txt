@@ -70,3 +70,4 @@ IsIconic
 ShowWindow
 SetForegroundWindow
 SHOW_WINDOW_CMD
+IsWindow
