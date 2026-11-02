@@ -48,3 +48,16 @@ rebuilt and its acrylic backdrop made again in place (`FlyoutHost` passes a new 
 A real change of the Windows app mode, a real contrast theme and the visible look of Mica and acrylic are manual (checklist 5.18); the scenario
 drives a fake `IUiSettings` and PrintWindow for everything else. In the contrast-theme screenshot the fake does not switch the real system theme, so the caption
 shown there (black, inactive) is only the default Windows draws once the app stops colouring it.
+
+## Menus (added 2026-11-02)
+
+Owner report: on Windows, even with the PC in dark mode, a right-click menu was white. Measured on the same VM (Windows 11 ARM64, dark mode, the app's own theme "Use system") with the `menu-theme` scenario, which reads the menus off the screen:
+
+| Menu | Before | Cause | Now |
+|---|---|---|---|
+| The tray icon's right-click menu | white (mean brightness 233 of 255) under a dark PC | H.NotifyIcon's `PopupMenu` mode makes a native Win32 menu, and Windows draws one in light unless the process opts in; nothing in the app's own theme reaches it | `NativeMenuThemeFollower` sets uxtheme's mode from the app's choice: 49 under Dark on a dark PC, 29 under Dark on a light PC, 244 under Light on a light PC, about 146 under Light on a dark PC (Windows lays its light menu over the dark desktop); live, no restart |
+| The chip's, a flyout card's, the Snooze, the Accounts `+` menus, and the drop-downs | already right | A XAML `MenuFlyout` and a `ComboBox` drop-down take the theme of the window root they open over, not `Application.RequestedTheme`: a Light window in a Dark application gave a Light menu with dark text (`#E4000000`), a Dark window a Dark one (`#FFFFFFFF`), for a menu, a menu with `ShouldConstrainToRootBounds = false` (its own window) and a drop-down | nothing needed; `MenuThemeCheck` asserts it in `menu-theme`, `chip-interaction` and `flyout-merge` |
+
+Pictures (scripted data only): `docs/screenshots/tray-menu-before-dark-pc.png` (white, the PC dark) and `docs/screenshots/tray-menu-dark-pc.png` (the same menu after).
+
+What the tray fix does not do: a contrast theme is left to Windows (`NativeMenuMode.Windows`, uxtheme's default), which the VM cannot show for real, so the scenario only checks the mode; the ordinals 135 and 136 are undocumented, a Windows without them keeps the light menu and the log says so. The mode is process-wide, so a native dialog the app opens (a message box) takes the same colours.

@@ -1,5 +1,6 @@
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Flyout;
+using TimeTug.Presentation.Theming;
 
 namespace TimeTug.Presentation.Settings;
 
@@ -22,6 +23,21 @@ public static class AppearanceResolver
             AppTheme.Dark => true,
             _ => ui.AppsUseDarkTheme,
         };
+    }
+
+    /// <summary>
+    /// The colour of the menus Windows draws itself (the tray icon's): the app's own choice, so they match the rest of the app, with a contrast
+    /// theme left to Windows.
+    /// </summary>
+    public static NativeMenuMode NativeMenu(AppTheme theme, IUiSettings ui)
+    {
+        ArgumentNullException.ThrowIfNull(ui);
+        if (ui.HighContrast)
+        {
+            return NativeMenuMode.Windows;
+        }
+
+        return IsDark(theme, ui) ? NativeMenuMode.Dark : NativeMenuMode.Light;
     }
 
     /// <summary>The flyout's backdrop: the choice, unless transparency effects are off or a contrast theme is on, which always give the solid one.</summary>
