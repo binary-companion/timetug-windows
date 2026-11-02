@@ -15,6 +15,7 @@ public class WelcomeViewModelTests
         CultureInfo.CurrentCulture = new CultureInfo("en-US");
         var engine = new FakeEngineClient();
         var model = new WelcomeViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), clock ?? new FixedClock(States.Noon));
+        model.GetStartedCommand.Execute(null);
         engine.Push(first ?? States.Empty());
         return (engine, model);
     }
@@ -27,16 +28,25 @@ public class WelcomeViewModelTests
     }
 
     [Fact]
-    public void Lists_the_engines_kinds_in_the_engines_order_with_how_each_signs_in()
+    public void The_plus_menu_lists_Microsoft_and_Google_first_and_the_rest_in_the_engines_order()
     {
         var (_, model) = Create();
 
-        model.Providers.Select(p => p.Name).Should().Equal("Google", "Microsoft", "iCloud", "Other (CalDAV)");
-        model.Providers.Select(p => p.Id).Should().Equal("google", "microsoft", "icloud", "caldav");
-        model.Providers[0].Hint.Should().Contain("browser");
-        model.Providers[2].Hint.Should().NotContain("browser");
-        model.Providers.Should().OnlyContain(p => p.IsEnabled);
+        model.Accounts.MenuEntries.Select(p => p.Name).Should().Equal("Microsoft", "Google", "iCloud", "Other (CalDAV)");
+        model.Accounts.MenuEntries.Select(p => p.Id).Should().Equal("microsoft", "google", "icloud", "caldav");
+        model.Accounts.MenuEntries.Should().OnlyContain(p => p.IsEnabled);
         model.Step.Should().Be(WelcomeStep.Connect);
+    }
+
+    [Fact]
+    public void The_window_starts_on_the_welcome_step()
+    {
+        var engine = new FakeEngineClient();
+        var model = new WelcomeViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), new FixedClock(States.Noon));
+
+        model.Step.Should().Be(WelcomeStep.Intro);
+        model.GetStartedText.Should().Be("Get started");
+        model.ContinueText.Should().Be("Continue");
     }
 
     [Fact]
@@ -45,10 +55,10 @@ public class WelcomeViewModelTests
         var kinds = new List<AccountKindInfo>(States.Kinds) { [0] = new("google", "Google", false, "oauth") };
         var (engine, model) = Create(States.Empty(kinds));
 
-        var google = model.Providers[0];
+        var google = model.Accounts.MenuEntries.Single(e => e.Id == "google");
         google.IsEnabled.Should().BeFalse();
         google.Hint.Should().Be("Google sign-in isn’t set up in this build.");
-        model.Providers[1].IsEnabled.Should().BeTrue();
+        model.Accounts.MenuEntries.Single(e => e.Id == "microsoft").IsEnabled.Should().BeTrue();
 
         await model.ConnectAsync("google");
         engine.Sent.Should().BeEmpty();
@@ -60,11 +70,11 @@ public class WelcomeViewModelTests
         var kinds = new List<AccountKindInfo>(States.Kinds) { new("eventkit", "Apple Calendar", true, "system") };
         var (_, model) = Create(States.Empty(kinds));
 
-        model.Providers.Select(p => p.Id).Should().NotContain("eventkit");
+        model.Accounts.MenuEntries.Select(p => p.Id).Should().NotContain("eventkit");
     }
 
     [Fact]
-    public async Task Connecting_sends_add_account_and_a_new_account_moves_to_the_connected_step()
+    public async Task Connecting_sends_add_account_and_a_new_account_joins_the_list_without_moving_the_window_on()
     {
         var (engine, model) = Create();
 
@@ -72,7 +82,7 @@ public class WelcomeViewModelTests
         engine.Sent.Should().Equal("add:google");
         model.Accounts.IsBusy.Should().BeTrue();
         model.Accounts.WaitingText.Should().Contain("browser");
-        model.Providers.Should().OnlyContain(p => !p.IsEnabled);
+        model.Accounts.IsAddEnabled.Should().BeFalse();
 
         engine.Push(States.Empty(activity: Working));
         model.Step.Should().Be(WelcomeStep.Connect);
@@ -80,6 +90,10 @@ public class WelcomeViewModelTests
         var next = new NextMeetingInfo("Design review", States.Noon.AddMinutes(150), true);
         engine.Push(States.With([States.Google()], next, Idle));
 
+        model.Step.Should().Be(WelcomeStep.Connect, "only Continue moves the window on");
+        model.Accounts.ListAccounts.Should().ContainSingle();
+        model.CanContinue.Should().BeTrue();
+        await model.ContinueCommand.ExecuteAsync(null);
         model.Step.Should().Be(WelcomeStep.Connected);
         model.Accounts.Accounts.Should().ContainSingle().Which.Summary.Should().Be("Google · you@example.com · 3 calendars");
         model.Accounts.NextMeetingText.Should().Contain("Design review").And.Contain("2:30");
@@ -120,7 +134,7 @@ public class WelcomeViewModelTests
     }
 
     [Fact]
-    public async Task An_engine_error_keeps_the_connect_step_and_shows_the_error_beside_that_provider()
+    public async Task An_engine_error_keeps_the_connect_step_and_shows_the_failure_under_the_list()
     {
         var (engine, model) = Create();
         await model.ConnectAsync("google");
@@ -128,12 +142,9 @@ public class WelcomeViewModelTests
         engine.Push(States.Empty(activity: new AccountActivity(false, "Sign-in failed: access denied.", "browser")));
 
         model.Step.Should().Be(WelcomeStep.Connect);
-        var google = model.Providers[0];
-        google.Error.Should().Contain("Google");
-        google.ErrorDetail.Should().Be("Sign-in failed: access denied.");
-        google.HasError.Should().BeTrue();
-        model.Providers[1].HasError.Should().BeFalse();
-        model.Providers.Should().OnlyContain(p => p.IsEnabled);
+        model.Accounts.SignInFailureText.Should().Contain("Google");
+        model.Accounts.SignInFailureDetail.Should().Be("Sign-in failed: access denied.");
+        model.Accounts.IsAddEnabled.Should().BeTrue();
         model.Accounts.IsBusy.Should().BeFalse();
     }
 
@@ -145,7 +156,7 @@ public class WelcomeViewModelTests
         engine.Push(States.With([States.Google(status: "failing")]));
 
         model.Step.Should().Be(WelcomeStep.Connect);
-        model.Providers[1].Error.Should().Contain("Microsoft");
+        model.Accounts.SignInFailureText.Should().Contain("Microsoft");
     }
 
     [Fact]
@@ -155,7 +166,7 @@ public class WelcomeViewModelTests
         await model.ConnectAsync("icloud");
         engine.Push(new EngineDiagnosticInfo("warning", "accounts", "source for icloud-1 failed: timeout"));
 
-        model.Providers[2].Error.Should().Contain("iCloud");
+        model.Accounts.SignInFailureText.Should().Contain("iCloud");
         model.Accounts.IsBusy.Should().BeFalse();
     }
 
@@ -167,7 +178,7 @@ public class WelcomeViewModelTests
         engine.Push(new EngineDiagnosticInfo("warning", "accounts", "source for google-1 failed"));
         engine.Push(new EngineDiagnosticInfo("info", "accounts", "icloud ok"));
 
-        model.Providers.Should().OnlyContain(p => !p.HasError);
+        model.Accounts.SignInFailureText.Should().BeNull();
         model.Accounts.IsBusy.Should().BeTrue();
     }
 
@@ -179,7 +190,7 @@ public class WelcomeViewModelTests
         await model.ConnectAsync("google");
         engine.Push(stale);
 
-        model.Providers.Should().OnlyContain(p => !p.HasError);
+        model.Accounts.SignInFailureText.Should().BeNull();
         model.Accounts.IsBusy.Should().BeTrue();
     }
 
@@ -195,7 +206,8 @@ public class WelcomeViewModelTests
 
         engine.Sent.Should().Equal("add:google", "cancel");
         model.Accounts.IsBusy.Should().BeFalse();
-        model.Providers.Should().OnlyContain(p => !p.HasError && p.IsEnabled);
+        model.Accounts.SignInFailureText.Should().BeNull();
+        model.Accounts.IsAddEnabled.Should().BeTrue();
         model.Step.Should().Be(WelcomeStep.Connect);
     }
 
@@ -210,7 +222,7 @@ public class WelcomeViewModelTests
         engine.Push(States.Empty(activity: Idle));
 
         model.Accounts.IsBusy.Should().BeFalse();
-        model.Providers.Should().OnlyContain(p => !p.HasError);
+        model.Accounts.SignInFailureText.Should().BeNull();
     }
 
     [Fact]
@@ -229,11 +241,11 @@ public class WelcomeViewModelTests
         var (engine, model) = Create();
         await model.ConnectAsync("google");
         engine.Push(States.With([States.Google(status: "failing")]));
-        model.Providers[0].HasError.Should().BeTrue();
+        model.Accounts.SignInFailureText.Should().NotBeNull();
 
         await model.ConnectAsync("microsoft");
 
-        model.Providers[0].HasError.Should().BeFalse();
+        model.Accounts.SignInFailureText.Should().BeNull();
     }
 
     [Fact]
@@ -252,11 +264,12 @@ public class WelcomeViewModelTests
         var (engine, model) = Create();
         await model.ConnectAsync("google");
         engine.Push(States.With([States.Google()]));
+        await model.ContinueCommand.ExecuteAsync(null);
         model.Step.Should().Be(WelcomeStep.Connected);
 
         await model.AddAnotherAsync();
         model.Step.Should().Be(WelcomeStep.Connect);
-        model.Providers.Should().OnlyContain(p => p.IsEnabled);
+        model.Accounts.IsAddEnabled.Should().BeTrue();
 
         var closed = 0;
         model.CloseRequested += (_, _) => closed++;
@@ -270,9 +283,11 @@ public class WelcomeViewModelTests
         var opened = 0;
         var engine = new FakeEngineClient();
         var model = new WelcomeViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), new FixedClock(States.Noon), openAccountsPane: () => opened++);
+        model.GetStartedCommand.Execute(null);
         engine.Push(States.Empty());
         await model.ConnectAsync("google");
         engine.Push(States.With([States.Google()]));
+        await model.ContinueCommand.ExecuteAsync(null);
         var closed = 0;
         model.CloseRequested += (_, _) => closed++;
 
@@ -328,9 +343,9 @@ public class WelcomeViewModelTests
         using var model = new WelcomeViewModel(engine, new QueueDispatcher(posted), new ReswLocalizer());
 
         engine.Push(States.Empty());
-        model.Providers.Should().BeEmpty();
+        model.Accounts.MenuEntries.Should().BeEmpty();
         posted.ForEach(a => a());
-        model.Providers.Should().HaveCount(4);
+        model.Accounts.MenuEntries.Should().HaveCount(4);
     }
 
     private sealed class QueueDispatcher(List<Action> queue) : TimeTug.Presentation.Abstractions.IUiDispatcher

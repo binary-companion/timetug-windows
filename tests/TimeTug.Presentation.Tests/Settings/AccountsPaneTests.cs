@@ -137,22 +137,20 @@ public class AccountsPaneTests
     {
         var (_, model) = Create();
         model.IntroText.Should().Be("Choose where TimeTug reads your calendars from.");
-        model.ConnectedTitle.Should().Be("Connected Accounts");
-        model.AddTitle.Should().Be("Add an Account");
-        model.EmptyText.Should().Be("No internet accounts yet. Add one below.");
+        model.ListEmptyText.Should().Be("No accounts yet. Choose + to add one.");
     }
 
     [Fact]
     public void With_no_accounts_the_empty_row_shows_and_removing_the_last_account_goes_back_to_it()
     {
         var (engine, model) = Create(States.Empty());
-        model.IsEmpty.Should().BeTrue();
+        model.ShowListEmptyText.Should().BeTrue();
 
         engine.Push(Accounts(Account("a", "google", "one@example.com")));
-        model.IsEmpty.Should().BeFalse();
+        model.ShowListEmptyText.Should().BeFalse();
 
         engine.Push(States.Empty());
-        model.IsEmpty.Should().BeTrue("the engine's state drives the list");
+        model.ShowListEmptyText.Should().BeTrue("the engine's state drives the list");
         model.ConnectedAccounts.Should().BeEmpty();
     }
 
@@ -161,7 +159,7 @@ public class AccountsPaneTests
     {
         var engine = new FakeEngineClient();
         var model = new AccountsViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), TimeProvider.System);
-        model.IsEmpty.Should().BeFalse();
+        model.ShowListEmptyText.Should().BeFalse();
     }
 
     // ---- removing ----------------------------------------------------------------------------------------------------------------
@@ -205,7 +203,7 @@ public class AccountsPaneTests
         engine.Push(States.Empty());
 
         engine.Sent.Should().Equal("remove:a");
-        model.IsEmpty.Should().BeTrue();
+        model.ShowListEmptyText.Should().BeTrue();
     }
 
     [Fact]
@@ -250,11 +248,11 @@ public class AccountsPaneTests
         var kinds = new List<AccountKindInfo>(States.Kinds) { [1] = new("microsoft", "Microsoft", false, "oauth") };
         var (engine, model) = Create(States.Empty(kinds));
 
-        model.Providers.Select(p => p.Name).Should().Equal("Google", "Microsoft", "iCloud", "Other (CalDAV)");
-        var microsoft = model.Providers[1];
+        model.MenuEntries.Select(p => p.Name).Should().Equal("Microsoft", "Google", "iCloud", "Other (CalDAV)");
+        var microsoft = model.MenuEntries[0];
         microsoft.IsEnabled.Should().BeFalse();
         microsoft.Hint.Should().Be("Microsoft sign-in isn’t set up in this build.");
-        model.Providers.Where(p => p.Id != "microsoft").Should().OnlyContain(p => p.IsEnabled);
+        model.MenuEntries.Where(p => p.Id != "microsoft").Should().OnlyContain(p => p.IsEnabled);
 
         await model.ConnectAsync("microsoft");
         engine.Sent.Should().BeEmpty();
@@ -278,7 +276,7 @@ public class AccountsPaneTests
     {
         var kinds = new List<AccountKindInfo>(States.Kinds) { new("eventkit", "Apple Calendar", false, "system") };
         var (_, model) = Create(States.Empty(kinds));
-        model.Providers.Select(p => p.Id).Should().NotContain("eventkit");
+        model.MenuEntries.Select(p => p.Id).Should().NotContain("eventkit");
         model.UnavailableNotice.Should().BeNull();
     }
 
@@ -287,27 +285,27 @@ public class AccountsPaneTests
     {
         var kinds = new List<AccountKindInfo>(States.Kinds) { [1] = new("microsoft", "Microsoft", false, "oauth") };
         var (_, model) = Create(States.Empty(kinds));
-        model.Providers[1].AutomationName.Should().Be("Microsoft, unavailable in this build");
-        model.Providers[0].AutomationName.Should().Be("Connect Google");
+        model.MenuEntries[0].AutomationName.Should().Be("Microsoft, unavailable in this build");
+        model.MenuEntries[1].AutomationName.Should().Be("Connect Google");
     }
 
     // ---- signing in --------------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public async Task A_sign_in_failure_shows_beside_that_provider_and_the_pane_does_not_repeat_it_elsewhere()
+    public async Task A_sign_in_failure_shows_in_the_failure_line_and_the_pane_does_not_repeat_it_elsewhere()
     {
         var (engine, model) = Create();
         await model.ConnectAsync("google");
         engine.Push(States.Empty(activity: Working));
         engine.Push(States.Empty(activity: new AccountActivity(false, "Sign-in failed: access denied.", "browser")));
 
-        model.Providers[0].Error.Should().Contain("Google");
-        model.Providers[0].ErrorDetail.Should().Be("Sign-in failed: access denied.");
-        model.ErrorText.Should().BeNull("the provider already shows it");
+        model.SignInFailureText.Should().Contain("Google");
+        model.SignInFailureDetail.Should().Be("Sign-in failed: access denied.");
+        model.ErrorText.Should().BeNull("the failure line already shows it");
     }
 
     [Fact]
-    public void An_engine_error_that_no_provider_shows_is_shown_in_the_pane()
+    public void An_engine_error_that_the_failure_line_does_not_show_is_shown_in_the_pane()
     {
         var (_, model) = Create(States.With([Account("b", "microsoft", "expired@example.com", "authExpired")], activity: new AccountActivity(false, "The sign-in expired.", "browser")));
         model.ErrorText.Should().Be("The sign-in expired.");
@@ -323,13 +321,13 @@ public class AccountsPaneTests
         model.WaitingText.Should().Be("Waiting for your browser…");
         model.CancelText.Should().Be("Cancel");
         model.CancelAutomationName.Should().Be("Cancel signing in");
-        model.Providers.Should().OnlyContain(p => !p.IsEnabled);
+        model.IsAddEnabled.Should().BeFalse();
 
         await model.CancelAsync();
 
         engine.Sent.Should().Equal("add:google", "cancel");
         model.IsBusy.Should().BeFalse();
-        model.Providers.Should().OnlyContain(p => p.IsEnabled);
+        model.IsAddEnabled.Should().BeTrue();
     }
 
     [Fact]

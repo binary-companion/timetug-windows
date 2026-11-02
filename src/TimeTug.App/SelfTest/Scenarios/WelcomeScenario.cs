@@ -46,26 +46,49 @@ internal static class WelcomeScenario
 
         async Task Settle(int milliseconds = 800) => await Task.Delay(milliseconds, cancellation);
 
-        // Step 1: the list of places to connect.
-        Check(model.Step == WelcomeStep.Connect, "starts on the Connect step");
+        Task<bool> WaitFor(Func<bool> condition, int milliseconds) => WaitUntilAsync(condition, milliseconds, cancellation);
+        var box = window.AccountsList;
+
+        // Step 1: "Welcome to TimeTug" with Get started. Nothing else is on screen.
+        Check(model.Step == WelcomeStep.Intro, "starts on the welcome step");
         Check(!model.ShowLaunchAtLogin && ((FrameworkElement)window.LaunchCheckBox.Parent).Visibility == Visibility.Collapsed, "the launch-at-login checkbox is not offered on the first step");
-        Check(model.Providers.Select(p => p.Id).SequenceEqual(["google", "microsoft", "icloud", "caldav"]), "providers are listed in the engine's order");
-        Check(!model.Providers[1].IsEnabled && model.Providers[1].Hint.Contains("isn’t set up", StringComparison.Ordinal), "an unconfigured kind is disabled with the reason");
+        Check(window.GetStarted.Visibility == Visibility.Visible && ((FrameworkElement)box.Parent).Visibility == Visibility.Collapsed, "the intro offers Get started and not the accounts list yet");
+        Check(Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", Unnamed(window)));
+        await Shot("intro");
+        Check(Invoke(window, "Get started"), "Get started can be invoked by name");
+        await Settle(400);
+        Check(model.Step == WelcomeStep.Connect, "Get started moves to Connect your calendars");
+
+        // Step 2: the accounts control. The scripted engine knows no Windows account, so there is no pinned row; the box says it is empty.
+        Check(box.DeviceRowPanel.Visibility == Visibility.Collapsed, "no pinned Windows row: Windows lists no account here");
+        Check(box.EmptyLineText.Visibility == Visibility.Visible && box.EmptyLineText.Text == "No accounts yet. Choose + to add one.", "the empty box says how to add: " + box.EmptyLineText.Text);
+        Check(!window.Continue.IsEnabled && window.Continue.Visibility == Visibility.Visible, "Continue is disabled: nothing to continue to");
+        Check(box.RemoveMinus is { IsEnabled: false } && AutomationProperties.GetName(box.RemoveMinus) == "Remove account", "- is disabled and named Remove account");
+        Check(AutomationProperties.GetName(box.AddPlus) == "Add account" && box.AddPlus.IsEnabled, "+ is named Add account and is enabled");
         Check(Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", Unnamed(window)));
         await Shot("connect");
 
+        // The + menu lists what the build can sign in to, Microsoft and Google first; a kind it cannot is disabled with the reason.
+        var items = await AccountsListUi.OpenMenuAsync(WaitFor, box);
+        Check(items.Select(i => i.Text).SequenceEqual(["Microsoft", "Google", "iCloud", "Other (CalDAV)"]), "the + menu: " + string.Join(", ", items.Select(i => i.Text)));
+        Check(items.Count > 0 && !items[0].IsEnabled && items[0].KeyboardAcceleratorTextOverride.Contains("isn’t set up", StringComparison.Ordinal), "Microsoft is disabled with the reason");
+        Check(items.Skip(1).All(i => i.IsEnabled), "the others can be chosen");
+        await Shot("menu");
+        Check(await AccountsListUi.CloseMenuAsync(WaitFor, box), "the menu closes without choosing");
+
         // A browser sign-in shows its progress and can be cancelled.
-        Check(Invoke(window, "Connect Google"), "the Google button can be invoked by name");
+        Check(await AccountsListUi.ChooseAsync(WaitFor, box, "Connect Google"), "Google is chosen from the + menu");
         await Settle();
         Check(engine.Sent.Contains("add:google"), "Google sends account.add");
-        Check(model.Accounts.IsBusy && model.Providers.All(p => !p.IsEnabled), "while signing in every provider is disabled");
+        Check(model.Accounts.IsBusy && !box.AddPlus.IsEnabled && !box.RemoveMinus.IsEnabled, "while signing in + and - are disabled");
+        Check(box.WaitingPanel.Visibility == Visibility.Visible && box.WaitingLabel.Text == "Waiting for your browser…", "the waiting row shows: " + box.WaitingLabel.Text);
         await Shot("waiting");
-        Check(Invoke(window, "Cancel sign-in"), "the Cancel button can be invoked by name");
+        Check(Invoke(window, "Cancel signing in"), "the Cancel button can be invoked by name");
         await Settle(400);
         Check(engine.Sent.Contains("cancel") && !model.Accounts.IsBusy, "Cancel sends account.cancel and ends the wait");
 
         // iCloud asks for its details in a dialog built from the engine's field descriptions.
-        await model.ConnectAsync("icloud");
+        Check(await AccountsListUi.ChooseAsync(WaitFor, box, "Connect iCloud"), "iCloud is chosen from the + menu");
         for (var i = 0; i < 20 && VisualTreeHelper.GetOpenPopupsForXamlRoot(((FrameworkElement)window.Content).XamlRoot).Count == 0; i++)
         {
             await Settle(250);
@@ -79,18 +102,31 @@ internal static class WelcomeScenario
         await Settle(600);
         Check(VisualTreeHelper.GetOpenPopupsForXamlRoot(((FrameworkElement)window.Content).XamlRoot).Count == 0, "cancelling closes the form");
 
-        // A failed sign-in stays on this step with the error beside that provider.
-        await model.ConnectAsync("caldav");
+        // A failed sign-in stays on this step with the error under the box.
+        engine.ShowFormFor = null;
+        Check(await AccountsListUi.ChooseAsync(WaitFor, box, "Connect Other (CalDAV)"), "CalDAV is chosen from the + menu");
         engine.Push(Scenes.Empty(new AccountActivity(false, "Sign-in failed: the server rejected that user name or password.", "inApp")));
-        await Settle();
-        Check(model.Step == WelcomeStep.Connect && model.Providers[3].HasError && !model.Providers[2].HasError, "a failure shows beside that provider and keeps the step");
+        Check(await WaitFor(() => box.ErrorLine.Text.Length > 0, 4000), "the failure shows under the box");
+        Check(model.Step == WelcomeStep.Connect && box.ErrorLine.Text == "Couldn’t connect to Other (CalDAV). Check your details and try again.", "in words, keeping the step: " + box.ErrorLine.Text);
+        Check(box.ErrorDetailLine.Text == "Sign-in failed: the server rejected that user name or password.", "with the engine's detail");
         await Shot("error");
 
-        // Step 2: connected.
-        Check(Invoke(window, "Connect Google"), "Google can be tried again");
+        // An account added with + joins the list and the window stays on this step; only Continue moves on.
+        Check(await AccountsListUi.ChooseAsync(WaitFor, box, "Connect Google"), "Google can be tried again");
         engine.Push(Scenes.Connected(Noon));
+        Check(await WaitFor(() => model.Accounts.ListAccounts.Count == 1, 4000), "the new account is in the list");
+        await Settle(600);
+        Check(model.Step == WelcomeStep.Connect, "an account added with + does not move the window on");
+        Check(AccountsListUi.ExposesListPatterns(box), "the list exposes the Selection pattern and its row the SelectionItem pattern" + ": " + AccountsListUi.ListPatternReport(box).Detail);
+        Check(AccountsListUi.RowNames(box).SequenceEqual(["Google, you@example.com, Connected"]), "the row reads as provider, name and status: " + string.Join(" | ", AccountsListUi.RowNames(box)));
+        Check(box.EmptyLineText.Visibility == Visibility.Collapsed && window.Continue.IsEnabled, "the empty line is gone and Continue is enabled");
+        Check(Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", Unnamed(window)));
+        await Shot("connect-with-account");
+
+        // Step 3: connected.
+        Check(Invoke(window, "Continue"), "Continue can be invoked by name");
         await Settle(1000);
-        Check(model.Step == WelcomeStep.Connected, "a new account moves to the Connected step");
+        Check(model.Step == WelcomeStep.Connected, "Continue moves to the Connected step");
         Check(model.Accounts.Accounts.Count == 1 && model.Accounts.Accounts[0].Summary.StartsWith("Google · you@example.com · 3 calendars", StringComparison.Ordinal), "the account is summarised");
         Check(Unnamed(window).Count == 0, "every control on the Connected step has an automation name: " + string.Join(", ", Unnamed(window)));
         await Shot("connected");
@@ -120,6 +156,22 @@ internal static class WelcomeScenario
 
         // The window is left open: closing the only window would end the app before the result is written.
         return run.Finish();
+    }
+
+    private static async Task<bool> WaitUntilAsync(Func<bool> condition, int milliseconds, CancellationToken cancellation)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (clock.ElapsedMilliseconds < milliseconds)
+        {
+            if (condition())
+            {
+                return true;
+            }
+
+            await Task.Delay(50, cancellation);
+        }
+
+        return condition();
     }
 
     // Every visible button, text box and progress ring (and those in open dialogs) must have a name Narrator can read.

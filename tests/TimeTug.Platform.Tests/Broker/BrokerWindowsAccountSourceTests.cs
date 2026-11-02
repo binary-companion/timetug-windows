@@ -4,37 +4,9 @@ using TimeTug.Presentation.Accounts;
 
 namespace TimeTug.Platform.Tests.Broker;
 
-/// <summary>The S2 verdict of docs/spikes/2026-11-wam-broker.md: name the account only when exactly one listed account has an email-shaped user name.</summary>
+/// <summary>The S2 verdict of docs/spikes/2026-11-wam-broker.md, as the listing shape: name the account only when exactly one listed account has an email-shaped user name.</summary>
 public class BrokerWindowsAccountSourceTests
 {
-    private static async Task<string?> Ask(params BrokerAccount[] accounts) =>
-        await new BrokerWindowsAccountSource(new FakeBrokerClient { Accounts = accounts }).GetEmailAsync(default);
-
-    [Fact]
-    public async Task One_account_with_an_email_shaped_name_is_named()
-    {
-        (await Ask(new BrokerAccount("id-1", "me@example.com"))).Should().Be("me@example.com");
-    }
-
-    [Fact]
-    public async Task No_account_leaves_the_card_unlabelled()
-    {
-        (await Ask()).Should().BeNull();
-    }
-
-    [Fact]
-    public async Task Two_accounts_leave_the_card_unlabelled_because_it_cannot_tell_which_is_meant()
-    {
-        (await Ask(new BrokerAccount("a", "me@example.com"), new BrokerAccount("b", "you@example.com"))).Should().BeNull();
-    }
-
-    [Fact]
-    public async Task A_name_that_is_not_an_email_leaves_the_card_unlabelled()
-    {
-        (await Ask(new BrokerAccount("a", "LocalUser"))).Should().BeNull();
-        (await Ask(new BrokerAccount("a", null))).Should().BeNull();
-    }
-
     [Fact]
     public async Task The_brokered_host_carries_the_source_that_names_the_account()
     {
@@ -42,7 +14,7 @@ public class BrokerWindowsAccountSourceTests
         using var host = (BrokeredEngineHost)TimeTug.Platform.WindowsEngineHost.Create(
             new NoLauncher(), new NoForms(), new RecordingDiagnostics(), "client-id-for-test", new FixedWindow(), new TimeTug.Presentation.Accounts.BrokerSignInIntent(), (_, _) => broker);
 
-        (await host.WindowsAccounts!.GetEmailAsync(default)).Should().Be("me@example.com");
+        (await host.WindowsAccounts!.GetListingAsync(default)).Should().Be(new WindowsAccountListing(WindowsListingKind.OneNamed, "me@example.com"));
     }
 
     // ---- the listing shape (shared accounts list, W2) ----------------------------------------------------------------------------
@@ -135,28 +107,6 @@ public class BrokerWindowsAccountSourceTests
 
         await pending.Invoking(p => p).Should().ThrowAsync<OperationCanceledException>();
         log.Entries.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Get_email_async_still_works_as_a_projection_of_the_listing()
-    {
-        (await Ask(new BrokerAccount("id", "me@example.com"))).Should().Be("me@example.com");
-        (await Ask()).Should().BeNull();
-        (await Ask(new BrokerAccount("a", "me@example.com"), new BrokerAccount("b", "you@example.com"))).Should().BeNull();
-    }
-
-    [Fact]
-    public async Task The_default_listing_of_a_source_that_only_names_an_email_is_derived_from_it()
-    {
-        IWindowsAccountSource named = new EmailOnly("me@example.com");
-        (await named.GetListingAsync(default)).Should().Be(new WindowsAccountListing(WindowsListingKind.OneNamed, "me@example.com"));
-        IWindowsAccountSource none = new EmailOnly(null);
-        (await none.GetListingAsync(default)).Should().Be(new WindowsAccountListing(WindowsListingKind.None));
-    }
-
-    private sealed class EmailOnly(string? email) : IWindowsAccountSource
-    {
-        public ValueTask<string?> GetEmailAsync(CancellationToken cancellationToken) => ValueTask.FromResult(email);
     }
 
     private sealed class FixedWindow : IBrokerParentWindow

@@ -121,9 +121,15 @@ internal sealed class EngineRig : IAsyncDisposable
     /// account broker and recorded Microsoft Graph answers: the account <c>me@example.com</c> has three calendars and the meeting "Design review" at 14:30,
     /// 90 minutes after the clocks start. The welcome window opens by itself, as it does for a person with no account.
     /// </summary>
-    public static async Task<EngineRig> StartBrokeredAsync(SelfTestOptions options, CancellationToken cancellation)
+    /// <param name="listed">What the broker lists for Windows (the Windows sign-in account); by default one named account, <c>me@example.com</c>. Empty is a local-only Windows account.</param>
+    public static async Task<EngineRig> StartBrokeredAsync(SelfTestOptions options, CancellationToken cancellation, IReadOnlyList<TimeTug.Platform.Broker.BrokerAccount>? listed = null)
     {
         var rig = new EngineRig(new ScenarioRun(options), cancellation) { _brokered = true };
+        if (listed is not null)
+        {
+            rig.Broker.Accounts = listed;
+        }
+
         await rig.StartCoreAsync();
         return rig;
     }

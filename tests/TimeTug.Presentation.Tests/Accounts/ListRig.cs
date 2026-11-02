@@ -21,8 +21,6 @@ internal sealed class FakeListing(WindowsAccountListing? answer = null) : IWindo
         Calls.Add("listing");
         return Gate is { } gate ? new ValueTask<WindowsAccountListing>(gate.Task) : ValueTask.FromResult(answer ?? new WindowsAccountListing(WindowsListingKind.None));
     }
-
-    public ValueTask<string?> GetEmailAsync(CancellationToken cancellationToken) => throw new InvalidOperationException("the list flow asks only for the listing");
 }
 
 /// <summary>An <see cref="AccountsViewModel"/> over a scripted engine, a recording intent and a scripted Windows listing.</summary>

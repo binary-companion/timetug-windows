@@ -22,7 +22,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     private readonly List<IDisposable> _subscriptions = [];
     private AppState? _state;
     private Attempt? _attempt;
-    private string? _windowsAccountEmail;
+    private HashSet<string> _connectable = [];
+    private string _kindSignature = string.Empty;
     private bool _windowsAccountRequested;
     private IWindowsAccountSource? _windowsAccounts;
     private string? _explainedError;
@@ -79,20 +80,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             _windowsAccounts = value;
             _windowsAccountRequested = false;
             RequestWindowsAccount();
-        }
-    }
-
-    /// <summary>The first-run window sets this: the Windows account card is pre-selected (accent and focus) when the engine offers it.</summary>
-    public bool PreselectBrokered
-    {
-        get;
-        set
-        {
-            field = value;
-            foreach (var item in Providers)
-            {
-                item.IsPreselected = value && item.Id == BrokeredKinds.Brokered && item.IsConfigured;
-            }
         }
     }
 
@@ -157,7 +144,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     /// <summary>Asks the removal question for the selected row ("-" and Delete). Does nothing with no selection.</summary>
     public IRelayCommand RemoveSelectedCommand { get; }
 
-    /// <summary>"No accounts yet. Choose + to add one." — the line inside the empty list. (The shipped pane still uses <see cref="EmptyText"/> until the pane is switched.)</summary>
+    /// <summary>"No accounts yet. Choose + to add one." — the line inside the empty list.</summary>
     public string ListEmptyText => _text.GetString("Accounts_ListEmpty");
 
     /// <summary>The list has no rows (the pinned row, when shown, stays above the line).</summary>
@@ -213,35 +200,18 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     /// <summary>Raised on the UI thread when the account being added shows up in the engine's state.</summary>
     public event EventHandler? Connected;
 
-    public ObservableCollection<ProviderItem> Providers { get; } = [];
-
     public ObservableCollection<AccountRow> Accounts { get; } = [];
 
     /// <summary>The connected accounts as the Settings pane lists them, in the engine's order.</summary>
     public ObservableCollection<ConnectedAccount> ConnectedAccounts { get; } = [];
 
-    /// <summary>True once the engine has spoken and it lists no account (the pane shows its empty row).</summary>
-    public bool IsEmpty => HasState && ConnectedAccounts.Count == 0;
-
     public string IntroText => _text.GetString("Accounts_Intro");
 
-    public string ConnectedTitle => _text.GetString("Accounts_ConnectedTitle");
-
-    public string AddTitle => _text.GetString("Accounts_AddTitle");
-
-    public string EmptyText => _text.GetString("Accounts_Empty");
-
     public string SignInAgainText => _text.GetString("Accounts_SignInAgain");
-
-    public string RemoveText => _text.GetString("Accounts_Remove");
 
     public string CancelText => _text.GetString("Accounts_Cancel");
 
     public string CancelAutomationName => _text.GetString("Accounts_CancelAutomation");
-
-    public string AddButtonText => _text.GetString("Accounts_Add");
-
-    public string UnavailableBadgeText => _text.GetString("Accounts_Unavailable");
 
     /// <summary>The tag on a connected account that signs in through Windows.</summary>
     public string OnThisPcText => _text.GetString("Accounts_OnThisPc");
@@ -343,7 +313,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     public async Task ConnectBrokeredAsync(BrokerIntent intent)
     {
         var itemId = intent == BrokerIntent.PickAccount ? BrokeredKinds.PickItem : BrokeredKinds.Brokered;
-        if (Providers.FirstOrDefault(p => p.Id == itemId) is not { IsConfigured: true } || IsBusy)
+        if (!_connectable.Contains(itemId) || IsBusy)
         {
             return;
         }
@@ -354,8 +324,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     private async Task StartAsync(string providerId, string kindId)
     {
-        var provider = Providers.FirstOrDefault(p => p.Id == providerId);
-        if (provider is not { IsConfigured: true } || IsBusy)
+        if (!_connectable.Contains(providerId) || IsBusy)
         {
             return;
         }
@@ -475,12 +444,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     {
         _explainedError = null;
         ClearFallback();
-        foreach (var provider in Providers)
-        {
-            provider.Error = null;
-            provider.ErrorDetail = null;
-            provider.OffersBrowserFallback = false;
-        }
     }
 
     /// <summary>
@@ -509,13 +472,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         OnUi(() =>
         {
             _listing = listing;
-            _windowsAccountEmail = listing is { Kind: WindowsListingKind.OneNamed, Email: { } named } && !string.IsNullOrWhiteSpace(named) ? named.Trim() : null;
-            if (Providers.FirstOrDefault(p => p.Id == BrokeredKinds.Brokered) is { } card)
-            {
-                card.Name = BrokeredCardName();
-                card.AutomationName = card.IsConfigured ? _text.Format("ConnectProviderAutomation", card.Name) : card.AutomationName;
-            }
-
             RecomputeList();
             Refresh();
         });
@@ -523,7 +479,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     private void RequestWindowsAccount()
     {
-        if (_windowsAccounts is null || _windowsAccountRequested || !Providers.Any(p => p.Id == BrokeredKinds.Brokered && p.IsConfigured))
+        if (_windowsAccounts is null || _windowsAccountRequested || !BrokeredConfigured)
         {
             return;
         }
@@ -531,9 +487,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         _windowsAccountRequested = true;
         _ = RefreshWindowsAccountAsync();
     }
-
-    private string BrokeredCardName() =>
-        _windowsAccountEmail is { } email ? _text.Format("Provider_microsoft-brokered-named", email) : _text.GetString("Provider_microsoft-brokered");
 
     public void Dispose()
     {
@@ -663,19 +616,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
         EndAttempt();
         ExplainFailure(attempt, detail);
-        if (Providers.FirstOrDefault(p => p.Id == attempt.ProviderId) is { } provider)
-        {
-            if (attempt.KindId == BrokeredKinds.Brokered)
-            {
-                ExplainBrokeredFailure(provider, detail);
-            }
-            else
-            {
-                provider.Error = _text.Format("ConnectFailed", provider.Name);
-                provider.ErrorDetail = detail;
-            }
-        }
-
         Refresh();
     }
 
@@ -689,10 +629,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             FallbackMessage = _text.GetString("Accounts_WindowsUnavailable");
             SignInFailureText = null;
             SignInFailureDetail = null;
+            _explainedError = detail;   // the engine's own sentence is not repeated elsewhere
         }
         else
         {
-            var name = viaWindows ? KindName(BrokeredKinds.Browser, "Microsoft") : Providers.FirstOrDefault(p => p.Id == attempt.ProviderId)?.Name ?? attempt.KindId;
+            var name = viaWindows ? KindName(BrokeredKinds.Browser, "Microsoft") : MenuEntries.FirstOrDefault(p => p.Id == attempt.ProviderId)?.Name ?? KindName(attempt.KindId, attempt.KindId);
             FallbackMessage = null;
             SignInFailureText = _text.Format("ConnectFailed", name);
             SignInFailureDetail = detail;
@@ -704,7 +645,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void OfferBrowserFallback() => ShowBrowserFallbackLink = Providers.Any(p => p.Id == BrokeredKinds.Browser && p.IsConfigured);
+    private void OfferBrowserFallback() => ShowBrowserFallbackLink = _connectable.Contains(BrokeredKinds.Browser);
 
     private void ClearFallback()
     {
@@ -712,32 +653,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         FallbackMessage = null;
         SignInFailureText = null;
         SignInFailureDetail = null;
-    }
-
-    // The Windows dialog could not be used, or the organization has to approve TimeTug, or something else failed: the card says which, and in every case the
-    // browser sign-in is one press away (the person may also want another account).
-    private void ExplainBrokeredFailure(ProviderItem provider, string? detail)
-    {
-        if (detail?.Contains(WindowsUnavailableEngineText, StringComparison.OrdinalIgnoreCase) == true)
-        {
-            provider.Error = _text.GetString("Accounts_WindowsUnavailable");
-            provider.ErrorDetail = null;
-            _explainedError = detail;
-        }
-        else
-        {
-            // The engine's own words ("Sign-in failed: admin approval is required.") sit under the usual message.
-            provider.Error = _text.Format("ConnectFailed", provider.Name);
-            provider.ErrorDetail = detail;
-        }
-
-        if (Providers.FirstOrDefault(p => p.Id == BrokeredKinds.Browser) is { IsConfigured: true })
-        {
-            provider.BrowserFallbackText = _text.GetString("Accounts_UseBrowserInstead");
-            provider.BrowserFallbackAutomationName = _text.GetString("Accounts_UseBrowserInsteadAutomation");
-            provider.BrowserFallbackCommand = new AsyncRelayCommand(() => ConnectAsync(BrokeredKinds.Browser));
-            provider.OffersBrowserFallback = true;
-        }
     }
 
     // What the library's brokered kind says (via the engine) when the host answers "unavailable": "Sign-in failed: Windows sign-in is not available."
@@ -758,15 +673,9 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     {
         var wasBusy = IsBusy;
         IsBusy = _attempt is not null || _state?.Activity?.IsWorking == true;
-        foreach (var provider in Providers)
-        {
-            provider.IsEnabled = provider.IsConfigured && !IsBusy;
-        }
-
-        UnavailableNotice = Providers.Any(p => !p.IsConfigured) ? _text.GetString("Accounts_UnavailableNotice") : null;
+        UnavailableNotice = MenuEntries.Any(p => !p.IsConfigured) ? _text.GetString("Accounts_UnavailableNotice") : null;
         var engineError = _state?.Activity?.ErrorMessage;
-        var shown = engineError is null || engineError == _attempt?.BaselineError || engineError == _explainedError || engineError == SignInFailureDetail
-            || Providers.Any(p => p.ErrorDetail == engineError);
+        var shown = engineError is null || engineError == _attempt?.BaselineError || engineError == _explainedError || engineError == SignInFailureDetail;
         ErrorText = shown ? null : engineError;
         UpdateDeviceRow();
         if (wasBusy && !IsBusy)
@@ -776,58 +685,25 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         }
     }
 
+    // What can be connected, and the "+" menu built from it. Rebuilt only when a kind appears, goes or changes whether the build can sign in to it.
     private void RebuildProviders(AppState state)
     {
         var kinds = state.AvailableKinds.Where(k => k.Authorization != "system").ToList();
-        var brokered = kinds.FirstOrDefault(k => k.Id == BrokeredKinds.Brokered);
-        var cards = new List<(AccountKindInfo Kind, string ItemId)>();
-        if (brokered is not null)
-        {
-            // "Microsoft account on this PC" first, then (when it can be used) the account picker, then the rest in the engine's order.
-            cards.Add((brokered, brokered.Id));
-            if (brokered.IsConfigured)
-            {
-                cards.Add((brokered, BrokeredKinds.PickItem));
-            }
-        }
-
-        cards.AddRange(kinds.Where(k => k.Id != BrokeredKinds.Brokered).Select(k => (k, k.Id)));
-        var same = cards.Count == Providers.Count
-            && cards.Zip(Providers).All(pair => pair.First.ItemId == pair.Second.Id && pair.First.Kind.IsConfigured == pair.Second.IsConfigured);
-        if (same)
+        var signature = string.Join('\n', kinds.Select(k => $"{k.Id}|{k.IsConfigured}|{k.Authorization}"));
+        if (signature == _kindSignature)
         {
             return;
         }
 
-        RebuildMenu(kinds, brokered);
-        Providers.Clear();
-        foreach (var (kind, itemId) in cards)
+        _kindSignature = signature;
+        var brokered = kinds.FirstOrDefault(k => k.Id == BrokeredKinds.Brokered);
+        _connectable = kinds.Where(k => k.IsConfigured).Select(k => k.Id).ToHashSet(StringComparer.Ordinal);
+        if (brokered is { IsConfigured: true })
         {
-            var viaWindows = kind.Id == BrokeredKinds.Brokered;
-            var name = itemId switch
-            {
-                BrokeredKinds.Brokered => BrokeredCardName(),
-                BrokeredKinds.PickItem => _text.GetString("Provider_microsoft-brokered-pick"),
-                BrokeredKinds.Browser when brokered is not null => _text.GetString("Provider_microsoft-browser"),
-                _ => KindName(kind.Id, kind.DisplayName),
-            };
-            var opensBrowser = kind.Authorization == "oauth" && !viaWindows;
-            var hint = !kind.IsConfigured
-                ? _text.Format("ProviderUnavailable", name)
-                : viaWindows ? _text.GetString("Provider_microsoft-brokered-hint")
-                : opensBrowser ? _text.GetString("ProviderOpensBrowser") : _text.GetString("ProviderAsksDetails");
-            var automation = kind.IsConfigured ? _text.Format("ConnectProviderAutomation", name) : _text.Format("Accounts_UnavailableAutomation", name);
-            BrokerIntent? intent = !viaWindows ? null : itemId == BrokeredKinds.PickItem ? BrokerIntent.PickAccount : BrokerIntent.WindowsAccount;
-            var item = new ProviderItem(itemId, name, kind.IsConfigured, opensBrowser, hint, automation, intent)
-            {
-                IsEnabled = kind.IsConfigured && !IsBusy,
-                IsPreselected = PreselectBrokered && itemId == BrokeredKinds.Brokered && kind.IsConfigured,
-            };
-            var id = itemId;
-            item.ConnectCommand = new AsyncRelayCommand(() => ConnectAsync(id));
-            Providers.Add(item);
+            _connectable.Add(BrokeredKinds.PickItem);
         }
 
+        RebuildMenu(kinds, brokered);
         RequestWindowsAccount();
     }
 
@@ -875,6 +751,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             {
                 IsOnThisPc = account.KindId == BrokeredKinds.Brokered,
                 Email = account.DisplayName.Contains('@', StringComparison.Ordinal) ? account.DisplayName.Trim() : null,
+                TagText = account.KindId == BrokeredKinds.Brokered ? _text.GetString("Accounts_OnThisPc") : null,
+                SignInText = _text.GetString("Accounts_SignInAgain"),
             });
         }
 
@@ -890,7 +768,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(ConnectedAccounts));
         }
 
-        OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(ShowWithdrawConsent));
         if (PendingRemoval is { } pending && rows.All(a => a.ConnectionId != pending.ConnectionId))
         {

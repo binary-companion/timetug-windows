@@ -43,9 +43,9 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 ### 1.1 The welcome window appears with no accounts
 
 - **Build:** `msix-x64` (or `msix-arm64`), fresh install (uninstall first if you had it).
-- **Do:** start TimeTug from the Start menu.
-- **Expect:** a normal window titled TimeTug opens in the middle of the screen, with a taskbar button: "Welcome to TimeTug", the line about connecting a calendar, and the list Google, Microsoft, iCloud, Other (CalDAV) (plus iCal link). Google and Microsoft are greyed "isn’t set up in this build" when `dev-oauth.json` is absent, and enabled when it exists.
-- **Automated:** partly. `welcome` (both steps, an account added through a scripted provider, screenshots) and `startup` (the real composition root and the real engine, welcome window with no account) pass in CI. Left for you: the real Start-menu launch on a real desktop, and the look.
+- **Do:** start TimeTug from the Start menu. Press Get started.
+- **Expect:** a normal window titled TimeTug opens in the middle of the screen, with a taskbar button, on "Welcome to TimeTug" with the line about connecting a calendar and one button, Get started. Get started shows "Connect your calendars": the accounts box (an empty line "No accounts yet. Choose + to add one." and the `+ -` bar; on a PC signed in to Windows with a Microsoft account the pinned row "This PC's Windows account" above it, see 2.6), a Continue button (disabled with nothing to continue to) and the Skip for now link. `+` opens a menu: Microsoft, Google, iCloud, iCal link, Other (CalDAV). Microsoft and Google are greyed "isn’t set up in this build" when `dev-oauth.json` is absent, and enabled when it exists.
+- **Automated:** partly. `welcome` (all three steps, an account added through a scripted provider, screenshots), `welcome-local-only`, `welcome-brokered` and `startup` (the real composition root and the real engine, welcome window with no account) pass in CI. Left for you: the real Start-menu launch on a real desktop, and the look.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ### 1.2 Closing the window keeps TimeTug running; a second start does nothing
@@ -71,8 +71,8 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 ### 2.1 Google sign-in
 
 - **Build:** `msix-x64` (or `msix-arm64`) with `dev-oauth.json` containing a Google client.
-- **Do:** welcome window, Google. Your default browser opens; sign in and allow calendar access. Come back to TimeTug.
-- **Expect:** while waiting the window says "Waiting for your browser…" and offers Cancel. After the browser says it is done, the window moves to "You’re connected" with a line like "Google · you@example.com · 3 calendars" and "Next: <meeting> at <time>". A Google event you create for later today shows up as the next meeting within about a minute.
+- **Do:** welcome window, Get started, `+` > Google. Your default browser opens; sign in and allow calendar access. Come back to TimeTug.
+- **Expect:** while waiting the window says "Waiting for your browser…" under the box and offers Cancel, and `+` and `-` are disabled. When the browser has finished the account is a row in the box ("Google, you@example.com, Connected") and the window stays on "Connect your calendars"; Continue is enabled. Continue moves to "You’re connected" with a line like "Google · you@example.com · 3 calendars" and "Next: <meeting> at <time>". A Google event you create for later today shows up as the next meeting within about a minute.
 - **Automated:** partly. `welcome` drives the whole window with a scripted provider; the recorded Google responses run through the real engine in `tug-late-return`. Not automated: the real browser sign-in and the loopback redirect.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
@@ -111,17 +111,17 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 ### 2.6 Personal Microsoft account through the Windows account
 
 - **Build:** `msix-arm64` of the latest `main` run (the Windows 11 ARM64 VM), with `dev-oauth.json` containing the Microsoft client; the Entra registration has the broker redirect URI. Windows is signed in with the personal test account.
-- **Do:** No account yet: the welcome window opens. Read the first card, then press it. Windows shows its own dialog (allow, or on a PC that has consented before, no dialog at all). You type nothing into TimeTug.
-- **Expect:** The first card is the accent one and says "Use <the Windows account's email>" with "Windows will ask you to let TimeTug read your calendars. TimeTug stores no password and no sign-in token." under it; while waiting the window says "Waiting for Windows…" with Cancel; no browser opens; step 2 shows "Microsoft · <email> · <n> calendars" and the next meeting. Settings > Accounts shows the account with the "On this PC" tag and the line about account.live.com/consent/Manage. `%LOCALAPPDATA%\Packages\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew\LocalState\logs\timetug.log` holds steps and outcomes only: no email, no token, no id.
+- **Do:** No account yet: the welcome window opens. Press Get started and read the first row of the box, then press Continue. Windows shows its own dialog (allow, or on a PC that has consented before, no dialog at all). You type nothing into TimeTug.
+- **Expect:** The first row is "This PC's Windows account" with <the Windows account's email> under it, its switch on, and "Windows will ask you to let TimeTug read your calendars when you press Continue. TimeTug stores no password and no sign-in token." under that; nothing has gone to Windows before Continue except the account listing (no dialog appeared earlier). While waiting the window says "Waiting for Windows…" with Cancel; no browser opens; step 3 shows "Microsoft · <email> · <n> calendars" and the next meeting. Settings > Accounts shows the account in the pinned row with its switch on and "Connected" (an account with another email is a row with the "On this PC" tag); the note about account.live.com/consent/Manage is under the box. `%LOCALAPPDATA%\Packages\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew\LocalState\logs\timetug.log` holds steps and outcomes only: no email, no token, no id. **This is also the real-account listing that settles open question Q6:** write down what the box shows with a second account added under Email & accounts and with a work account (does the row show without an email, with the right email, or not at all).
 - **Automated:** partly. `welcome-brokered` and `accounts-brokered` drive the real engine with a scripted broker and recorded Graph answers; `broker-probe` loads the real broker. Not automated: the real Windows dialog and the real consent. **Agent prepared:** the build, this list and the expected text; the owner presses and approves.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
-### 2.7 The account picker ("Another Microsoft account")
+### 2.7 The account picker (`+` > Microsoft)
 
 - **Build:** `msix-arm64` of the latest `main` run (the Windows 11 ARM64 VM), with `dev-oauth.json` containing the Microsoft client; the Entra registration has the broker redirect URI.
-- **Do:** Settings > Accounts > Add an Account > "Another Microsoft account". In the Windows picker choose an account added under Settings > Accounts > Email & accounts (not the Windows sign-in), or add one there.
-- **Expect:** Windows lists every account on the PC and can add one; after choosing, the account is connected as in 2.6 (note whether the account stays connected after a restart of TimeTug: this is the open question of spike S2/S4 for accounts that are not the Windows sign-in). Closing the picker adds nothing and shows no error.
-- **Automated:** partly: the picker intent reaching the broker is asserted by `accounts-brokered`. Not automated: the real picker.
+- **Do:** Settings > Accounts > `+` > Microsoft (the only Microsoft entry, with no second line). In the Windows picker choose an account added under Settings > Accounts > Email & accounts (not the Windows sign-in), or add one there.
+- **Expect:** Windows lists every account on the PC and can add one; after choosing, the account is connected as in 2.6 and appears as a row with the "On this PC" tag (note whether the account stays connected after a restart of TimeTug: this is the open question of spike S2/S4 for accounts that are not the Windows sign-in). Closing the picker adds nothing and shows no error words; the link "Use your browser instead" appears under the box.
+- **Automated:** partly: the picker intent reaching the broker is asserted by `accounts-brokered`, `welcome-local-only` and the view-model tests. Not automated: the real picker.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ### 2.8 A work account with MFA
@@ -135,9 +135,9 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 ### 2.9 Declining the Windows dialog
 
 - **Build:** `msix-arm64` of the latest `main` run (the Windows 11 ARM64 VM), with `dev-oauth.json` containing the Microsoft client; the Entra registration has the broker redirect URI. An account that has never used TimeTug (or after 2.11 (b)).
-- **Do:** Press "Microsoft account on this PC" (or "Another Microsoft account") and close the Windows dialog with its X, Esc or Cancel.
-- **Expect:** Nothing is added, no error is shown, the window stays on the list and every card can be pressed again.
-- **Automated:** partly: `welcome-brokered` closes the dialog through the scripted broker. Not automated: the real dialog.
+- **Do:** In the welcome window press Continue with the Windows account switch on, and close the Windows dialog with its X, Esc or Cancel. Then, with the account list still empty, press Continue again and allow.
+- **Expect:** After closing the dialog nothing is added, no error is shown, the window stays on "Connect your calendars" with the switch still on, the link "Use your browser instead" appears under the box, and Continue can be pressed again. Pressing the link starts the browser sign-in for Microsoft. The second Continue asks Windows again and, on Allow, moves to "You’re connected".
+- **Automated:** partly: `welcome-brokered` closes the dialog through the scripted broker and then allows. Not automated: the real dialog.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ### 2.10 Consent withdrawn, then Sign in again
@@ -159,7 +159,7 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 ### 2.12 No network during sign-in
 
 - **Build:** `msix-arm64` of the latest `main` run (the Windows 11 ARM64 VM), with `dev-oauth.json` containing the Microsoft client; the Entra registration has the broker redirect URI.
-- **Do:** Turn the VM's network adapter off, press "Microsoft account on this PC" and wait about 15 seconds, press Cancel, then turn the network on.
+- **Do:** Turn the VM's network adapter off, press Continue (or switch "This PC's Windows account" on in Settings) and wait about 15 seconds, press Cancel, then turn the network on.
 - **Expect:** No dialog appears; Cancel returns to the list with no error. With an account already connected and the network off, the account says it cannot reach the calendar and recovers by itself when the network returns (never "Sign in again").
 - **Automated:** not automated.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
@@ -168,32 +168,32 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 
 - **Build:** `msix-arm64` of the latest `main` run (the Windows 11 ARM64 VM), with `dev-oauth.json` containing the Microsoft client; the Entra registration has the broker redirect URI. An account of a tenant that limits user consent, if one is available.
 - **Do:** Add the account and sign in to TimeTug with it.
-- **Expect:** The card shows the usual failure with the engine's sentence "Sign-in failed: admin approval is required." under it, and "Use your browser instead" stays available. Copy the text the Windows dialog showed into the notes (the mapper recognises only the AADSTS90094 text so far).
+- **Expect:** The area under the box shows the usual failure with the engine's sentence "Sign-in failed: admin approval is required." under it, and the link "Use your browser instead" is shown. Copy the text the Windows dialog showed into the notes (the mapper recognises only the AADSTS90094 text so far).
 - **Automated:** not automated (the mapping is unit-tested; the real text is not known). **Owner only.**
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ### 2.14 A local-only Windows account
 
 - **Build:** `msix-arm64` of the latest `main` run (the Windows 11 ARM64 VM), with `dev-oauth.json` containing the Microsoft client; the Entra registration has the broker redirect URI. A PC or a second Windows user with no Microsoft account (optional: the hosted runners already show the empty listing).
-- **Do:** Open the welcome window.
-- **Expect:** The first card reads "Microsoft account on this PC" (not "Use ..."); pressing it shows the Windows account picker.
-- **Automated:** partly: `BrokerWindowsAccountSourceTests` cover the naming rule.
+- **Do:** Open the welcome window and press Get started.
+- **Expect:** There is no "This PC's Windows account" row: the box shows only "No accounts yet. Choose + to add one." and Continue is disabled (Skip for now is the way out); `+` > Microsoft shows the Windows account picker.
+- **Automated:** partly: `welcome-local-only` covers this with a scripted broker that lists no account, and `BrokerWindowsAccountSourceTests` the listing rule.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ### 2.15 Windows sign-in blocked or unavailable
 
 - **Build:** `msix-arm64` of the latest `main` run (the Windows 11 ARM64 VM), with `dev-oauth.json` containing the Microsoft client; the Entra registration has the broker redirect URI. A PC where the broker is disabled by policy, if one is available.
-- **Do:** Press "Microsoft account on this PC".
-- **Expect:** The card says "Windows sign-in isn't available here" with "Use your browser instead"; pressing it opens the browser sign-in as in 2.3.
-- **Automated:** partly. `brokered-unavailable` covers the card and the button with a scripted broker.
+- **Do:** In the welcome window press Continue (or, in Settings, `+` > Microsoft). On a build with no client id or no loadable broker, open `+`.
+- **Expect:** After Continue the area under the box says "Windows sign-in isn't available here" and shows the link "Use your browser instead"; pressing it opens the browser sign-in as in 2.3. Without a usable broker the `+` menu's Microsoft entry reads "Microsoft" with "Use your browser instead" under it and signs in by browser directly.
+- **Automated:** partly. `brokered-unavailable` covers the message and the link with a scripted broker; the entry for a build without the broker is covered by the view-model tests.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ### 2.16 Narrator, contrast and the other architecture
 
 - **Build:** `msix-arm64` of the latest `main` run (the Windows 11 ARM64 VM), with `dev-oauth.json` containing the Microsoft client; the Entra registration has the broker redirect URI.
-- **Do:** Go through the welcome window and Settings > Accounts with Narrator, then with a contrast theme. If a second PC is available, repeat 2.6 with `msix-x64`.
-- **Expect:** Every new control is announced with its name (the Windows account card, "Another Microsoft account", "Use your browser instead", the "On this PC" tag as part of the account's card); the accent card and its hint stay readable under contrast themes; x64 behaves as ARM64.
-- **Automated:** partly: axe covers the structure of the welcome window and the Accounts pane; every new control has an automation name (checked in the self-tests).
+- **Do:** First by keyboard only, then with Narrator: go through the whole welcome window (Get started, the box, `+` and its menu with the arrow keys and Enter, Esc to close it, `-`, Delete on a selected row, the question's buttons, Continue) and Settings > Accounts. Then repeat with a contrast theme. If a second PC is available, repeat 2.6 with `msix-x64`.
+- **Expect:** Tab reaches, in order, the Windows row's switch, the list (one stop; the arrows move the selection), `+`, `-` and then the controls under the box; Enter, Space or Alt+Down open the `+` menu and Esc closes it with focus back on `+`; Delete on a selected row and Enter on `-` open the question, whose default button is Cancel; after a removal focus lands on the next row, else the previous, else `+`; nothing the engine publishes moves focus; Esc never closes Settings or removes anything. Narrator says: the list "Connected accounts" with each row as "Provider, name, status" plus ", On this PC" for a Windows account, the switch "Use this PC's Windows account" with its state and the line under it, `+` "Add account" (with a menu), `-` "Remove <name>" (and "Remove account", dimmed, with nothing selected), "Waiting for Windows…" or "Waiting for your browser…" when a sign-in starts, the error line when it fails, "<name> removed" after a removal, and the Windows row when it appears late. The rows, the tag and the warning mark stay readable under contrast themes (the warning is never colour alone); x64 behaves as ARM64. If "Sign in again" inside a row cannot be reached with Tab, say so: the fallback is a button under the box for the selected row.
+- **Automated:** partly: axe covers the structure of the welcome window and the Accounts pane (rounds 1, 2 and 7); every control has an automation name and the list and its rows expose the Selection patterns (`accounts-list`, `welcome`, `welcome-brokered`, `accounts-brokered`). Not automated: Narrator, the keyboard walk and the contrast themes.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
 
 ### 2.17 Google lands on the TimeTug page and TimeTug comes forward
@@ -220,6 +220,19 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 - **Expect:** the extra tab shows nothing (a blank page, status 404); TimeTug keeps saying "Waiting for your browser..."; finishing the Google sign-in in the first tab completes it and shows the "You're connected" page.
 - **Automated:** yes for the rule (`Stray_requests_do_not_end_the_wait`, `A_bare_get_answers_404_and_the_sign_in_keeps_waiting`). This is the by-hand confirmation with a real browser.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 2.20 The shared accounts list: the owner-attended items (spec "Test strategy", Windows 1 to 8)
+
+`docs/superpowers/specs/2026-11-02-shared-accounts-list-design.md` lists eight owner-attended checks. Each has its steps here; the agent prepared the builds and the expected text, and nobody types a credential for you. Record them with the commit of the artifact you used.
+
+1. **First run on a PC signed in with a Microsoft account.** Do: 2.6. Expect: step 2 shows the pinned row with the right email and the switch on; Continue opens the real consent dialog; Allow reaches step 3. ☐ pass ☐ fail · Date: ________ · Commit: ________
+2. **Decline and close the dialog.** Do: 2.9. Expect: you stay on step 2 with no error, "Use your browser instead" is there and works. ☐ pass ☐ fail · Date: ________ · Commit: ________
+3. **A local-only Windows account (a second Windows user).** Do: 2.14. Expect: no pinned row, the empty line, `+` > Microsoft opens the account picker. ☐ pass ☐ fail · Date: ________ · Commit: ________
+4. **Switch off, add Google with `+`, Continue.** Do: on step 2 turn the Windows account switch off, add Google (`+` > Google, as 2.1), then press Continue. Expect: step 3, and no Windows dialog appeared at any time. ☐ pass ☐ fail · Date: ________ · Commit: ________
+5. **Google in a real browser (Edge, Chrome, Firefox).** Do: 2.17 and 2.18. Expect: TimeTug comes forward or its taskbar button flashes; the tab shows the branded page in light, dark and a contrast theme; it reads correctly at 200 percent zoom and with Narrator in browse mode; fill in the S-FG table in the spike note. ☐ pass ☐ fail · Date: ________ · Commit: ________
+6. **Settings > Accounts.** Do: switch "This PC's Windows account" off (the question names the account and shows the consent-withdrawal text), then on again (Windows asks); `-` and Delete on a Google account; Sign in again after revoking consent at the provider (2.10); a browser-connected Microsoft account with the Windows account's email. Expect: each as described, and the browser-connected case shows "<email> is already connected through your browser. Remove it to use Windows sign-in." with the switch off and disabled. ☐ pass ☐ fail · Date: ________ · Commit: ________
+7. **Keyboard only, then Narrator.** Do: 2.16. Expect: as there. ☐ pass ☐ fail · Date: ________ · Commit: ________
+8. **The broker disabled or missing (a build without the client id).** Do: 2.15. Expect: the Microsoft entry reads "Microsoft" with "Use your browser instead" and signs in by browser. ☐ pass ☐ fail · Date: ________ · Commit: ________
 
 ---
 

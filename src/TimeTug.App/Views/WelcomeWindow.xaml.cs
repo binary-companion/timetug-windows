@@ -3,6 +3,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using TimeTug.App.Controls;
 using TimeTug.App.Theming;
 using TimeTug.Platform.Broker;
 using TimeTug.Presentation.Abstractions;
@@ -136,23 +137,22 @@ public sealed partial class WelcomeWindow : Window
             return;
         }
 
+        if (ViewModel.IsIntroStep)
+        {
+            GetStartedButton.Focus(FocusState.Programmatic);
+            return;
+        }
+
         var first = FocusManager.FindFirstFocusableElement(ConnectPanel) as Control;
         first?.Focus(FocusState.Programmatic);
     }
 
-    /// <summary>The card the first-run window pre-selects (the Windows account) takes the accent colour; keyboard focus starts on the first card anyway.</summary>
-    private void OnProviderButtonLoaded(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: ProviderItem { IsPreselected: true } } button)
-        {
-            button.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
-            // The hint is secondary-grey on a normal card; on the accent fill it must follow the button's own (light) text colour to stay readable.
-            if (button.Content is StackPanel { Children: [_, TextBlock hint] })
-            {
-                hint.ClearValue(TextBlock.ForegroundProperty);
-            }
-        }
-    }
+    /// <summary>The accounts list on the connect step (for the self-test).</summary>
+    internal AccountsListBox AccountsList => AccountsBox;
+
+    internal Button GetStarted => GetStartedButton;
+
+    internal Button Continue => ContinueButton;
 
     private void OnActivated(object sender, WindowActivatedEventArgs args)
     {

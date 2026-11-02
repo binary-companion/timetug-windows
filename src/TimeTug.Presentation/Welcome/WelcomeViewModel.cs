@@ -17,7 +17,7 @@ public enum WelcomeStep
     /// <summary>"You're connected": what was found, with Add another, Test tug and Done.</summary>
     Connected,
 
-    /// <summary>"Welcome to TimeTug" with Get started (only in the list flow). The Windows account listing runs while it is up.</summary>
+    /// <summary>"Welcome to TimeTug" with Get started. The Windows account listing runs while it is up.</summary>
     Intro,
 }
 
@@ -40,7 +40,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     {
         _openAccountsPane = openAccountsPane;
         LaunchAtLogin = launchAtLogin;
-        Accounts = new AccountsViewModel(engine, ui, text, clock) { PreselectBrokered = true };
+        Accounts = new AccountsViewModel(engine, ui, text, clock) { DeviceRowIsPending = true };
         Accounts.Connected += (_, _) => OnAccountConnected();
         Accounts.PropertyChanged += OnAccountsChanged;
         Accounts.DeviceRow.PropertyChanged += (_, _) => RefreshContinue();
@@ -52,32 +52,10 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
         SkipCommand = new AsyncRelayCommand(SkipAsync);
     }
 
-    /// <summary>
-    /// The list shape of the window (shared accounts list): it starts on <see cref="WelcomeStep.Intro"/>, shows the accounts list with the pinned Windows row on the
-    /// connect step, an account added with "+" never moves the window on, and only Continue does. Set by the app when it builds the window; the old shape stays until
-    /// the window's XAML is switched over.
-    /// </summary>
-    public bool ListFlow
-    {
-        get;
-        init
-        {
-            field = value;
-            if (value)
-            {
-                Step = WelcomeStep.Intro;
-                Accounts.DeviceRowIsPending = true;
-                Accounts.PreselectBrokered = false;
-            }
-        }
-    }
-
     /// <summary>Raised when the window should close (Done or Skip for now).</summary>
     public event EventHandler? CloseRequested;
 
     public AccountsViewModel Accounts { get; }
-
-    public ObservableCollection<ProviderItem> Providers => Accounts.Providers;
 
     /// <summary>Launch at login, shown as a checkbox on the second step; null when the app gives none.</summary>
     public LaunchAtLoginViewModel? LaunchAtLogin { get; }
@@ -108,7 +86,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
                 }
             }
         }
-    } = WelcomeStep.Connect;
+    } = WelcomeStep.Intro;
 
     public bool IsConnectStep => Step == WelcomeStep.Connect;
 
@@ -134,7 +112,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     /// Continue can be pressed: no sign-in runs, and the Windows row is shown with its switch on or the list has an account. False while the listing is pending with an
     /// empty list, with the switch off and an empty list, and outside the connect step.
     /// </summary>
-    public bool CanContinue => ListFlow && Step == WelcomeStep.Connect && !Accounts.IsBusy
+    public bool CanContinue => Step == WelcomeStep.Connect && !Accounts.IsBusy
         && (Accounts.DeviceRow is { IsVisible: true, IsOn: true } || Accounts.ListAccounts.Count > 0);
 
     public IRelayCommand AddAnotherCommand { get; }
@@ -184,11 +162,8 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     private void OnAccountConnected()
     {
-        if (!ListFlow)
-        {
-            Step = WelcomeStep.Connected;
-        }
-        else if (_continuing)
+        // An account added with "+" never moves the window on; only Continue does.
+        if (_continuing)
         {
             _continuing = false;
             Step = WelcomeStep.Connected;
