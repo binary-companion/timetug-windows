@@ -15,6 +15,28 @@ public partial class ArchitectureTests
     }
 
     [Fact]
+    public void Every_provider_logo_asset_is_documented_with_its_source_and_listed_as_third_party()
+    {
+        // The vendors' marks are third-party material (spec A1.5): each file must have its source and rules recorded, and be listed where licences are.
+        var folder = Path.Combine(Root, "src", "TimeTug.App", "Assets", "Providers");
+        var logos = Directory.GetFiles(folder, "*.svg").Select(Path.GetFileName).ToList();
+        logos.Should().Contain(["microsoft.svg", "google.svg"]);
+        var readme = File.ReadAllText(Path.Combine(folder, "README.md"));
+        var thirdParty = File.ReadAllText(Path.Combine(Root, "docs", "third-party.md"));
+        foreach (var logo in logos)
+        {
+            readme.Should().Contain(logo, "the README records where it came from");
+            thirdParty.Should().Contain(logo, "docs/third-party.md lists it");
+        }
+
+        var loader = File.ReadAllText(Path.Combine(Root, "src", "TimeTug.App", "Settings", "ProviderLogos.cs"));
+        foreach (var uri in Regex.Matches(loader, "Assets/Providers/([a-z-]+\\.svg)").Select(m => m.Groups[1].Value))
+        {
+            logos.Should().Contain(uri, "the loader names only assets that exist");
+        }
+    }
+
+    [Fact]
     public void Only_the_platform_project_may_use_pinvoke_or_the_native_engine()
     {
         foreach (var file in SourceFiles("src/TimeTug.Presentation").Concat(SourceFiles("src/TimeTug.App")))

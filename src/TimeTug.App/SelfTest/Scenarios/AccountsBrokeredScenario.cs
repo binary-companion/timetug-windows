@@ -9,9 +9,10 @@ namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
 /// Scenario <c>accounts-brokered</c>: the real Settings window on the Accounts pane over the real engine, a scripted Windows account broker and recorded Graph
-/// answers. Windows lists one account (not the one that will be added), so the pinned "This PC's Windows account" row is shown with its switch off; the "+" menu
-/// has a single "Microsoft" entry that runs the account picker; the connected account is a list row with the "On this PC" tag and the pane says how to withdraw the
-/// consent; "-" asks the question with the withdrawal text, removing asks nothing of the broker, focus lands on "+" and the removal is announced.
+/// answers. Windows lists one account (not the one that will be added); there is no pinned row. The "+" menu has a single "Microsoft" entry that runs the account
+/// picker; the connected account is an ordinary Microsoft row (the Microsoft logo, no tag) and the pane says how to withdraw the consent; "-" asks the question with
+/// the withdrawal text, removing asks nothing of the broker, focus lands on "+" and the removal is announced. Removing an account that is not the one Windows lists
+/// records nothing in the dismissal store.
 /// </summary>
 internal static class AccountsBrokeredScenario
 {
@@ -39,17 +40,16 @@ internal static class AccountsBrokeredScenario
         var box = page.AccountsList;
         Task<bool> Wait(Func<bool> condition, int milliseconds) => rig.WaitFor(condition, milliseconds);
 
-        // ---- the pinned row and the + menu ----------------------------------------------------------------------------------------------
-        run.Check(await rig.WaitFor(() => box.DeviceRowPanel.Visibility == Visibility.Visible), "the pinned row is shown for the account Windows lists");
-        run.Check(box.DeviceEmailText.Text == "windows-user@example.test" && !box.DeviceToggle.IsOn, "it names that account and its switch is off: nothing is connected");
-        run.Check(box.DeviceDescriptionText.Text.StartsWith("Windows will ask you", StringComparison.Ordinal) && !box.DeviceDescriptionText.Text.Contains("Continue", StringComparison.Ordinal), "with what Windows will do, in Settings' words");
+        // ---- no pinned row; the + menu -------------------------------------------------------------------------------------------------
+        run.Check(box.EmptyLineText.Visibility == Visibility.Visible && box.Rows.Visibility == Visibility.Collapsed, "the box is empty: Windows listing an account adds nothing here");
         var items = await AccountsListUi.OpenMenuAsync(Wait, box);
         run.Check(items.Select(i => i.Text).Take(2).SequenceEqual(["Microsoft", "Google"]), "the + menu starts with Microsoft and Google: " + string.Join(", ", items.Select(i => i.Text)));
         run.Check(items.Count(i => i.Text.StartsWith("Microsoft", StringComparison.Ordinal)) == 1 && items[0].KeyboardAcceleratorTextOverride.Length == 0, "there is one Microsoft entry and it has no second line");
+        run.Check(items[0].Icon is Microsoft.UI.Xaml.Controls.ImageIcon && items[1].Icon is Microsoft.UI.Xaml.Controls.ImageIcon && items[2].Icon is Microsoft.UI.Xaml.Controls.FontIcon, "Microsoft and Google show their logos in the menu, iCloud its generic glyph");
         run.Check(items.Last().Text == "Other (CalDAV)", "Other (CalDAV) is last");
         await rig.Run.ShotAsync(window, "add-an-account");
         await AccountsListUi.CloseMenuAsync(Wait, box);
-        run.Check(box.WithdrawConsent.Visibility == Visibility.Collapsed, "the withdraw-consent note is hidden while no Windows account is connected");
+        run.Check(box.WithdrawConsent.Visibility == Visibility.Collapsed, "the withdraw-consent note is hidden while no Microsoft account is connected");
 
         // ---- through the picker ---------------------------------------------------------------------------------------------------------
         run.Check(await AccountsListUi.ChooseAsync(Wait, box, "Connect Microsoft"), "Microsoft is chosen");
@@ -61,9 +61,9 @@ internal static class AccountsBrokeredScenario
         }
 
         var account = box.Accounts.ListAccounts[0];
-        run.Check(account is { KindId: "microsoft-brokered", Name: "me@example.com", IsOnThisPc: true }, "it is the Windows-brokered account, a list row because it is not the account Windows lists");
-        run.Check(!box.DeviceToggle.IsOn, "the pinned row's switch stays off: it is another account");
-        run.Check(AccountsListUi.RowNames(box).SequenceEqual(["Microsoft, me@example.com, Connected, On this PC"]), "its row reads as provider, name, status and tag: " + string.Join(" | ", AccountsListUi.RowNames(box)));
+        run.Check(account is { KindId: "microsoft-brokered", Name: "me@example.com", Mark: TimeTug.Presentation.Accounts.ProviderMark.Microsoft }, "it is the Windows-brokered account, an ordinary Microsoft row");
+        run.Check(await rig.WaitFor(() => AccountsListUi.RowLogo(box, account.ConnectionId) is { Name: "Microsoft logo", Drawn: true }, 4000), "with the Microsoft logo drawn and named: " + AccountsListUi.RowLogo(box, account.ConnectionId));
+        run.Check(AccountsListUi.RowNames(box).SequenceEqual(["Microsoft, me@example.com, Connected"]), "its row reads as provider, name and status, with no tag: " + string.Join(" | ", AccountsListUi.RowNames(box)));
         run.Check(AccountsListUi.Container(box, account.ConnectionId) is { } realized && realized.Visibility == Visibility.Visible && box.RowSignInAgain(account.ConnectionId) is null, "a healthy account does not offer Sign in again");
         run.Check(box.WithdrawConsent.Visibility == Visibility.Visible && box.WithdrawConsent.Text.Contains("account.live.com/consent/Manage", StringComparison.Ordinal), "the pane says how to withdraw the consent: " + box.WithdrawConsent.Text);
         run.Check(AccountsListUi.ExposesListPatterns(box), "the list and its row expose the Selection patterns" + ": " + AccountsListUi.ListPatternReport(box).Detail);
@@ -89,6 +89,7 @@ internal static class AccountsBrokeredScenario
         await rig.Settle(600);
         run.Check(rig.Broker.Calls.Count == before, "removing the account asked nothing of the broker: " + string.Join(", ", rig.Broker.Calls.Skip(before)));
         run.Check(rig.Host.Secrets.Calls.Count == 0 || rig.Host.Secrets.Calls.All(c => c.StartsWith("remove ", StringComparison.Ordinal)), "and stored no credential");
+        run.Check(!rig.Dismissals.IsDismissed, "removing an account that is not the one Windows lists recorded no dismissal");
         await rig.Run.ShotAsync(window, "removed");
 
         return rig.Finish();

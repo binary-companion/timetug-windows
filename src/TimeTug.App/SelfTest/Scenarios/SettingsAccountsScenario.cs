@@ -66,7 +66,8 @@ internal static class SettingsAccountsScenario
         run.Check(rows.Select(c => box.RowSignInAgain(c.ConnectionId) is not null).SequenceEqual([false, true, false, false, false, false, true]), "only an expired sign-in and an account that cannot start offer Sign in again");
         run.Check(rows[5].NoticeText is { } notice && notice.StartsWith("3 repeating events", StringComparison.Ordinal), "the account with repeating events the engine cannot read says so");
         run.Check(box.EmptyLineText.Visibility == Visibility.Collapsed, "the empty line is hidden while accounts are listed");
-        run.Check(box.DeviceRowPanel.Visibility == Visibility.Collapsed, "there is no pinned Windows row on scripted data");
+        run.Check(rows.Select(c => c.Mark).SequenceEqual(rows.Select(c => TimeTug.Presentation.Accounts.ProviderMarks.Of(c.KindId))) && rows.Select(c => AccountsListUi.RowLogo(box, c.ConnectionId) is not null).SequenceEqual(rows.Select(c => c.Mark != TimeTug.Presentation.Accounts.ProviderMark.None)),
+            "each row shows its service logo where the kind has one and a generic glyph otherwise");
         run.Check(AccountsListUi.ExposesListPatterns(box), "the list exposes the Selection pattern and each row the SelectionItem pattern" + ": " + AccountsListUi.ListPatternReport(box).Detail);
 
         // ---- adding ----------------------------------------------------------------------------------------------------------------

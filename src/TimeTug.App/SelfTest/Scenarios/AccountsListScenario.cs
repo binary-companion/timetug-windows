@@ -14,9 +14,9 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// <summary>
 /// Scenario <c>accounts-list</c>: the one accounts control in the real Settings window over a scripted engine and a scripted Windows listing. Selection through UI
 /// Automation, the "+" menu entries and their order, "-" and Delete with the question, where selection and keyboard focus land after a removal (the next row, the
-/// previous one, then "+"), the empty line, the busy state (+, - and the switch off), the error and the "Use your browser instead" link under the box, the line
-/// for a mailbox the browser already holds, a pinned row that appears late without taking focus, and "Sign in again" in the pinned row. Every control is named and
-/// the list exposes the Selection patterns.
+/// previous one, then "+"), the empty line, the busy state (+ and - off), the error and the "Use your browser instead" link under the box, a Windows listing that
+/// answers late without moving focus or selection, a Windows-signed-in Microsoft account as an ordinary row with "Sign in again", and the service logos with their
+/// names (Google, Microsoft; a generic glyph for the rest). There is no pinned row. Every control is named and the list exposes the Selection patterns.
 /// </summary>
 internal static class AccountsListScenario
 {
@@ -59,9 +59,10 @@ internal static class AccountsListScenario
         Task<bool> Wait(Func<bool> condition, int milliseconds) => tug.WaitFor(condition, milliseconds);
         bool FocusIsOn(UIElement? element) => element is not null && ReferenceEquals(FocusManager.GetFocusedElement(xamlRoot), element);
 
-        // ---- the list, with no pinned row yet ------------------------------------------------------------------------------------------------
+        // ---- the list ------------------------------------------------------------------------------------------------------------------------
         run.Check(await Wait(() => model.ListAccounts.Count == 3 && AccountsListUi.RowNames(box).All(n => n != "(not realized)"), 5000), "the three accounts are listed");
-        run.Check(box.DeviceRowPanel.Visibility == Visibility.Collapsed, "no pinned row: the model has no Windows listing");
+        run.Check(await Wait(() => AccountsListUi.RowLogo(box, "a1") is { Name: "Google logo", Drawn: true }, 4000), "the Google row shows the Google logo, named for a screen reader: " + AccountsListUi.RowLogo(box, "a1"));
+        run.Check(AccountsListUi.RowLogo(box, "a2") is null && AccountsListUi.RowLogo(box, "a3") is null, "the iCloud and CalDAV rows keep their generic glyphs (they have no vendor logo)");
         run.Check(model.SelectedAccountId is null && !box.RemoveMinus.IsEnabled && AutomationProperties.GetName(box.RemoveMinus) == "Remove account", "nothing is selected at first; - is disabled and named Remove account");
         run.Check(AccountsListUi.RowNames(box).SequenceEqual(["Google, one@example.com, Connected", "iCloud, two@example.com, Connected", "Other (CalDAV), three@example.com, Sign in again"]), "rows read provider, name and status in the engine's order: " + string.Join(" | ", AccountsListUi.RowNames(box)));
         run.Check(AccountsListUi.ExposesListPatterns(box), "the list exposes the Selection pattern and each row the SelectionItem pattern" + ": " + AccountsListUi.ListPatternReport(box).Detail);
@@ -133,7 +134,7 @@ internal static class AccountsListScenario
         await tug.Settle();
         await run.ShotAsync(window, "empty");
 
-        // ---- a pinned row that arrives late appears in place and takes no focus -------------------------------------------------------------------------
+        // ---- a Windows listing that arrives late changes nothing on screen -------------------------------------------------------------------------
         tug.Engine.Push(State(now, three));
         await Wait(() => model.ListAccounts.Count == 3, 3000);
         var gate = new TaskCompletionSource<WindowsAccountListing>();
@@ -142,21 +143,18 @@ internal static class AccountsListScenario
         box.AddPlus.Focus(FocusState.Programmatic);
         model.WindowsAccounts = source;
         await tug.Settle(500);
-        run.Check(box.DeviceRowPanel.Visibility == Visibility.Collapsed && source.Asked == 1, "the listing was asked for and has not answered: the row is absent");
+        run.Check(model.ListingPending && source.Asked == 1, "the listing was asked for and has not answered");
         run.Check(box.AddPlus.IsEnabled, "and + is usable meanwhile");
         gate.SetResult(new WindowsAccountListing(WindowsListingKind.OneNamed, WindowsEmail));
-        run.Check(await Wait(() => box.DeviceRowPanel.Visibility == Visibility.Visible, 4000), "the pinned row appears when the answer arrives");
-        run.Check(FocusIsOn(box.AddPlus) && model.SelectedAccountId == "a1", "without moving focus or the selection: " + model.SelectedAccountId + ", " + AccountsListUi.FocusedName(xamlRoot));
-        run.Check(box.DeviceEmailText.Text == WindowsEmail && !box.DeviceToggle.IsOn && box.DeviceToggle.IsEnabled, "it names the Windows account and its switch is off: nothing is connected");
-        run.Check(AutomationProperties.GetName(box.DeviceToggle) == "Use this PC's Windows account", "the switch is named for a screen reader");
+        run.Check(await Wait(() => !model.ListingPending && model.WindowsAccountOffered, 4000), "the answer arrives and the Windows account is offered to the first-run Continue");
+        run.Check(FocusIsOn(box.AddPlus) && model.SelectedAccountId == "a1" && model.ListAccounts.Count == 3, "without moving focus or the selection, and no row appears: " + model.SelectedAccountId + ", " + AccountsListUi.FocusedName(xamlRoot));
         await tug.Settle();
-        await run.ShotAsync(window, "pinned");
 
-        // ---- busy: +, - and the switch are off, with the waiting row ----------------------------------------------------------------------------------
+        // ---- busy: + and - are off, with the waiting row ----------------------------------------------------------------------------------
         run.Check(await AccountsListUi.ChooseAsync(Wait, box, "Connect Google"), "Google is chosen");
         tug.Engine.Push(State(now, three) with { Activity = new AccountActivity(true, null, "browser") });   // the scripted engine answers an add with an empty state; keep the accounts
         run.Check(await Wait(() => box.WaitingPanel.Visibility == Visibility.Visible && box.WaitingLabel.Text == "Waiting for your browser…", 4000), "the waiting row shows: " + box.WaitingLabel.Text);
-        run.Check(!box.AddPlus.IsEnabled && !box.RemoveMinus.IsEnabled && !box.DeviceToggle.IsEnabled, "+, - and the switch are disabled");
+        run.Check(!box.AddPlus.IsEnabled && !box.RemoveMinus.IsEnabled, "+ and - are disabled");
         run.Check(await Wait(() => box.RowSignInAgain("a3") is { IsEnabled: false }, 4000), "and so is the row's Sign in again");
         await run.ShotAsync(window, "busy");
         run.Check(ScenarioUi.Invoke(window, "Cancel signing in"), "Cancel is pressed");
@@ -180,21 +178,30 @@ internal static class AccountsListScenario
         tug.Engine.Push(State(now, three));
         await Wait(() => !model.IsBusy, 3000);
 
-        // ---- the same mailbox through the browser: the switch is off and says why --------------------------------------------------------------------
+        // ---- the same mailbox through the browser: an ordinary Microsoft row, and nothing is offered to Continue -------------------------------------------
         tug.Engine.Push(State(now, new AccountInfo("m1", "microsoft", WindowsEmail, "ok", 2)));
-        run.Check(await Wait(() => box.DeviceDescriptionText.Text.Contains("already connected through your browser", StringComparison.Ordinal), 4000), "the pinned row says the browser holds the mailbox: " + box.DeviceDescriptionText.Text);
-        run.Check(!box.DeviceToggle.IsOn && !box.DeviceToggle.IsEnabled, "its switch is off and disabled");
-        run.Check(model.ListAccounts.Count == 1 && model.ListAccounts[0].ConnectionId == "m1", "the browser account is an ordinary row");
-        await run.ShotAsync(window, "browser-conflict");
+        run.Check(await Wait(() => model.ListAccounts.Count == 1 && model.ListAccounts[0].ConnectionId == "m1" && !model.WindowsAccountOffered, 4000), "the browser account is an ordinary row and the same mailbox is not offered again");
+        run.Check(await Wait(() => AccountsListUi.RowLogo(box, "m1") is { Name: "Microsoft logo", Drawn: true }, 4000), "with the Microsoft logo: " + AccountsListUi.RowLogo(box, "m1"));
+        await run.ShotAsync(window, "browser-microsoft");
 
-        // ---- the Windows account connected: it lives in the pinned row, with Sign in again there --------------------------------------------------------
+        // ---- the Windows account connected: an ordinary Microsoft row, with Sign in again in the row -----------------------------------------------------
         tug.Engine.Push(State(now, new AccountInfo("w1", "microsoft-brokered", WindowsEmail, "authExpired", 2)));
-        run.Check(await Wait(() => box.DeviceToggle.IsOn && model.ListAccounts.Count == 0, 4000), "the connected Windows account is shown only in the pinned row (the switch is on)");
-        run.Check(box.DeviceSignInAgain.Visibility == Visibility.Visible && box.DeviceStatusText.Text == "Sign in again", "which offers Sign in again");
-        run.Check(ScenarioUi.Invoke(box.DeviceSignInAgain), "Sign in again is pressed");
+        run.Check(await Wait(() => model.ListAccounts is [{ ConnectionId: "w1" }], 4000), "the connected Windows account is a list row");
+        run.Check(await Wait(() => AccountsListUi.RowNames(box).SequenceEqual(["Microsoft, " + WindowsEmail + ", Sign in again"]), 4000), "it reads like any Microsoft row, with no tag: " + string.Join(" | ", AccountsListUi.RowNames(box)));
+        run.Check(await Wait(() => AccountsListUi.RowLogo(box, "w1") is { Name: "Microsoft logo", Drawn: true }, 4000), "with the same Microsoft logo");
+        run.Check(await Wait(() => box.RowSignInAgain("w1") is { IsEnabled: true }, 4000), "and Sign in again is a button in the row");
+        run.Check(ScenarioUi.Invoke(box.RowSignInAgain("w1")!), "Sign in again is pressed");
         run.Check(await Wait(() => tug.Engine.Sent.Contains("reconnect:w1"), 3000), "the engine is asked to reconnect the Windows account: " + string.Join(",", tug.Engine.Sent));
         await tug.Settle();
-        await run.ShotAsync(window, "pinned-sign-in-again");
+        await run.ShotAsync(window, "windows-account-row");
+
+        // ---- the logos in the dark theme: the same white tile, the same unmodified marks ----------------------------------------------------------------
+        window.RootElement.RequestedTheme = ElementTheme.Dark;
+        await tug.Settle(600);
+        run.Check(window.RootElement.ActualTheme == ElementTheme.Dark, "the window is dark");
+        run.Check(await Wait(() => AccountsListUi.RowLogo(box, "w1") is { Name: "Microsoft logo", Drawn: true }, 4000), "the Microsoft logo is still drawn and named");
+        await run.ShotAsync(window, "dark");
+        window.RootElement.RequestedTheme = ElementTheme.Default;
         run.Check(ScenarioUi.Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", ScenarioUi.Unnamed(window)));
 
         return tug.Finish();

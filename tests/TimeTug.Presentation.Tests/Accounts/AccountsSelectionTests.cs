@@ -113,7 +113,7 @@ public class AccountsSelectionTests
     }
 
     [Fact]
-    public void The_question_has_todays_text_and_the_withdrawal_text_only_for_an_on_this_pc_row()
+    public void The_question_has_todays_text_and_the_withdrawal_text_only_for_a_microsoft_row()
     {
         var rig = Create(A, Account("p", "microsoft-brokered", "work@contoso.example"));
 
@@ -294,19 +294,17 @@ public class AccountsSelectionTests
     // ---- the empty line and failed accounts -----------------------------------------------------------------------------------------
 
     [Fact]
-    public void The_empty_line_shows_only_with_no_list_rows_and_the_pinned_row_stays()
+    public void The_empty_line_shows_only_with_no_list_rows()
     {
         var rig = ListRig.Create(Named);
         rig.Model.ShowListEmptyText.Should().BeTrue();
         rig.Model.ListEmptyText.Should().Be("No accounts yet. Choose + to add one.");
-        rig.Model.DeviceRow.IsVisible.Should().BeTrue();
 
         rig.Push(A);
         rig.Model.ShowListEmptyText.Should().BeFalse();
 
         rig.Push(Account("p", "microsoft-brokered", "me@example.com"));
-        rig.Model.ShowListEmptyText.Should().BeTrue("the pinned account is not a list row");
-        rig.Model.DeviceRow.IsVisible.Should().BeTrue();
+        rig.Model.ShowListEmptyText.Should().BeFalse("the Windows account is an ordinary row");
     }
 
     [Fact]
@@ -333,17 +331,17 @@ public class AccountsSelectionTests
     }
 
     [Fact]
-    public async Task A_late_listing_shows_the_pinned_row_without_raising_a_focus_request()
+    public async Task A_late_listing_changes_nothing_about_selection_or_focus()
     {
-        var rig = ListRig.Create(pending: false, gated: true);
+        var rig = ListRig.Create(gated: true);
         rig.Push(A);
         rig.Model.SelectedAccountId = "a";
         var focus = Focus(rig.Model);
 
         rig.Source.Gate!.SetResult(Named);
-        await Eventually(() => rig.Model.DeviceRow.IsVisible);
+        await Eventually(() => rig.Model.WindowsAccountOffered);
 
-        rig.Model.DeviceRow.IsVisible.Should().BeTrue();
+        rig.Model.WindowsAccountOffered.Should().BeTrue();
         rig.Model.SelectedAccountId.Should().Be("a");
         focus.Should().BeEmpty();
     }

@@ -98,6 +98,8 @@ internal static class AppComposition
         services.AddSingleton<ISettingsClient>(sp => new SettingsClient(sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<IPresentationSettingsStore>(sp => LocalSettingsPresentationStore.ForCurrentPackage(sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton(sp => new SettingsText(sp.GetRequiredService<ILocalizer>()));
+        // The person removed the Windows account: the first-run Continue never adds it automatically again (spec A1.3).
+        services.AddSingleton<IWindowsAccountDismissalStore>(sp => LocalSettingsWindowsAccountDismissalStore.ForCurrentPackage(sp.GetRequiredService<IDiagnostics>()));
 
         // ---- OS state -------------------------------------------------------------------------------------------
         services.AddSingleton<MessageWindow>();
@@ -206,8 +208,9 @@ internal static class AppComposition
             accounts: () => new AccountsViewModel(
                 sp.GetRequiredService<IEngineClient>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<TimeProvider>())
             {
-                // The Windows account broker, when this build has one: the person's choice reaches the broker host and the card can name the Windows account.
+                // The Windows account broker, when this build has one: the person's choice reaches the broker host, and a removal of the Windows account is remembered.
                 BrokerIntents = sp.GetRequiredService<IBrokerSignInIntent>(),
+                Dismissals = sp.GetRequiredService<IWindowsAccountDismissalStore>(),
                 WindowsAccounts = sp.GetRequiredService<IEngineHost>() is BrokeredEngineHost brokered ? brokered.WindowsAccounts : null,
             },
             diagnostics: () => new DiagnosticsViewModel(

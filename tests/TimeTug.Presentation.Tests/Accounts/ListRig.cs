@@ -23,6 +23,20 @@ internal sealed class FakeListing(WindowsAccountListing? answer = null) : IWindo
     }
 }
 
+/// <summary>An in-memory dismissal store that counts the writes.</summary>
+internal sealed class FakeDismissals(bool dismissed = false) : IWindowsAccountDismissalStore
+{
+    public bool IsDismissed { get; private set; } = dismissed;
+
+    public int DismissCalls { get; private set; }
+
+    public void Dismiss()
+    {
+        DismissCalls++;
+        IsDismissed = true;
+    }
+}
+
 /// <summary>An <see cref="AccountsViewModel"/> over a scripted engine, a recording intent and a scripted Windows listing.</summary>
 internal sealed class ListRig
 {
@@ -36,8 +50,9 @@ internal sealed class ListRig
 
     public static IReadOnlyList<AccountKindInfo> Kinds => AccountsBrokeredTests.KindsWithBrokered;
 
-    private ListRig(FakeEngineClient engine, AccountsViewModel model, AccountsBrokeredTests.FakeIntent intent, FakeListing source)
+    private ListRig(FakeEngineClient engine, AccountsViewModel model, AccountsBrokeredTests.FakeIntent intent, FakeListing source, FakeDismissals dismissals)
     {
+        Dismissals = dismissals;
         Engine = engine;
         Model = model;
         Intent = intent;
@@ -52,13 +67,16 @@ internal sealed class ListRig
 
     public FakeListing Source { get; }
 
+    public FakeDismissals Dismissals { get; }
+
     /// <param name="listing">What Windows lists; null leaves the model without any Windows account source.</param>
-    /// <param name="pending">True is the welcome window (the switch is a pending choice).</param>
     /// <param name="gated">True holds the listing until <see cref="FakeListing.Gate"/> is completed.</param>
-    public static ListRig Create(WindowsAccountListing? listing = null, bool pending = false, AppState? first = null, bool gated = false, bool withSource = true)
+    public static ListRig Create(WindowsAccountListing? listing = null, AppState? first = null, bool gated = false, bool withSource = true, bool dismissed = false)
     {
         var engine = new FakeEngineClient();
-        var model = new AccountsViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), TimeProvider.System) { DeviceRowIsPending = pending };
+        var model = new AccountsViewModel(engine, new ImmediateDispatcher(), new ReswLocalizer(), TimeProvider.System);
+        var dismissals = new FakeDismissals(dismissed);
+        model.Dismissals = dismissals;
         var intent = new AccountsBrokeredTests.FakeIntent(engine.Sent);
         model.BrokerIntents = intent;
         var source = new FakeListing(listing);
@@ -73,7 +91,7 @@ internal sealed class ListRig
             model.WindowsAccounts = source;
         }
 
-        return new ListRig(engine, model, intent, source);
+        return new ListRig(engine, model, intent, source, dismissals);
     }
 
     public static AccountInfo Account(string id, string kind, string name, string status = "ok") => new(id, kind, name, status, 2);

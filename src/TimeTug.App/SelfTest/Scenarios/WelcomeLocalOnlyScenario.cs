@@ -6,8 +6,8 @@ using TimeTug.Presentation.Welcome;
 namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
-/// Scenario <c>welcome-local-only</c>: a first run on a PC whose Windows account is local-only (the scripted broker lists no account). Step 2 has no pinned
-/// "This PC's Windows account" row, shows the empty line, and Continue is disabled; "+" > Microsoft opens the Windows account picker, and Skip for now is the way
+/// Scenario <c>welcome-local-only</c>: a first run on a PC whose Windows account is local-only (the scripted broker lists no account). Step 2 offers no
+/// Windows account, shows the empty line, and Continue is disabled; "+" > Microsoft opens the Windows account picker, and Skip for now is the way
 /// out. Nothing but the listing is asked of Windows until the person chooses Microsoft.
 /// </summary>
 internal static class WelcomeLocalOnlyScenario
@@ -39,7 +39,7 @@ internal static class WelcomeLocalOnlyScenario
         run.Check(await rig.WaitFor(() => model.Step == WelcomeStep.Connect), "the window shows \"Connect your calendars\"");
         await rig.Settle(900);
 
-        run.Check(box.DeviceRowPanel.Visibility == Visibility.Collapsed, "there is no pinned Windows row: a local-only account has nothing to connect");
+        run.Check(!model.Accounts.WindowsAccountOffered, "a local-only Windows account has nothing to add: nothing is offered");
         run.Check(box.EmptyLineText.Visibility == Visibility.Visible && box.EmptyLineText.Text == "No accounts yet. Choose + to add one.", "the box says it is empty: " + box.EmptyLineText.Text);
         run.Check(!model.CanContinue && !window.Continue.IsEnabled, "Continue is disabled: there is nothing to continue to");
         run.Check(window.Continue.Visibility == Visibility.Visible && ScenarioUi.HasButton(window, "Skip for now"), "Skip for now is the way out");

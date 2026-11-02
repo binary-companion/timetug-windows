@@ -75,7 +75,6 @@
   <data name="Provider_icloud" xml:space="preserve"><value>iCloud</value></data>
   <data name="Provider_caldav" xml:space="preserve"><value>Other (CalDAV)</value></data>
   <data name="Provider_icalsub" xml:space="preserve"><value>iCal link</value></data>
-  <data name="Provider_microsoft-brokered-hint" xml:space="preserve"><value>Windows will ask you to let TimeTug read your calendars. TimeTug stores no password and no sign-in token.</value></data>
   <data name="Toast_Join" xml:space="preserve"><value>Join</value></data>
   <data name="Toast_Snooze" xml:space="preserve"><value>Snooze</value></data>
   <data name="Toast_Dismiss" xml:space="preserve"><value>Dismiss</value></data>
@@ -371,7 +370,6 @@
   <data name="Accounts_RemoveCancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Accounts_Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="Accounts_CancelAutomation" xml:space="preserve"><value>Cancel signing in</value></data>
-  <data name="Accounts_OnThisPc" xml:space="preserve"><value>On this PC</value><comment>A tag on a connected Microsoft account that signs in through Windows.</comment></data>
   <data name="Accounts_WithdrawConsent" xml:space="preserve"><value>To stop TimeTug reading a Microsoft account's calendars, remove its access at account.live.com/consent/Manage (personal accounts) or on your organization's My Apps page (work accounts).</value></data>
   <data name="Accounts_WindowsUnavailable" xml:space="preserve"><value>Windows sign-in isn't available here</value></data>
   <data name="Accounts_UseBrowserInstead" xml:space="preserve"><value>Use your browser instead</value></data>
@@ -474,15 +472,11 @@
   <data name="Landing_FailedTitle" xml:space="preserve"><value>Sign-in didn't finish</value><comment>Main heading of the page the browser shows when the provider sent the person back with an error (for example they pressed Cancel).</comment></data>
   <data name="Landing_FailedBody" xml:space="preserve"><value>Return to TimeTug and try again.</value><comment>One sentence under the failure heading: tells the person to switch back to TimeTug and start again.</comment></data>
   <!-- The accounts list (shared by the welcome window and Settings > Accounts on Windows). -->
-  <data name="Accounts_DeviceRowTitle" xml:space="preserve"><value>This PC's Windows account</value><comment>Title of the first row of the accounts list: the Microsoft account Windows itself is signed in with. 'PC' may be replaced by the local word for a computer.</comment></data>
-  <data name="Accounts_DeviceRowDescription" xml:space="preserve"><value>Windows will ask you to let TimeTug read your calendars when you press Continue. TimeTug stores no password and no sign-in token.</value><comment>Under the 'This PC's Windows account' switch on the first-run window. 'Continue' is the button of that window (Welcome_Continue).</comment></data>
-  <data name="Accounts_DeviceRowBrowserConflict" xml:space="preserve"><value>{0} is already connected through your browser. Remove it to use Windows sign-in.</value><comment>'{0}' is an email address. Shown instead of the usual line when the same mailbox is already connected through the browser sign-in; the switch is off and cannot be used.</comment></data>
-  <data name="Accounts_DeviceRowSwitch" xml:space="preserve"><value>Use this PC's Windows account</value><comment>Name of the switch in the first row of the accounts list, read by a screen reader.</comment></data>
+  <data name="Accounts_LogoAutomation" xml:space="preserve"><value>{0} logo</value><comment>Accessible name of the service logo beside an account: {0} is the service, such as Microsoft or Google.</comment></data>
   <data name="Accounts_ListEmpty" xml:space="preserve"><value>No accounts yet. Choose + to add one.</value><comment>Shown inside the accounts list when it has no rows. '+' is the label of the button that adds an account.</comment></data>
   <data name="Welcome_GetStarted" xml:space="preserve"><value>Get started</value><comment>Button on the first screen of the first-run window.</comment></data>
   <data name="Welcome_Continue" xml:space="preserve"><value>Continue</value><comment>Button on the 'Connect your calendars' screen of the first-run window. Windows asks for permission when it is pressed.</comment></data>
   <data name="Accounts_AddAutomation" xml:space="preserve"><value>Add account</value><comment>Name of the '+' button below the accounts list, read by a screen reader. Pressing it opens a menu of the kinds of account that can be added.</comment></data>
   <data name="Accounts_ListAutomation" xml:space="preserve"><value>Connected accounts</value><comment>Name of the accounts list, read by a screen reader.</comment></data>
   <data name="Accounts_RemovedAnnouncement" xml:space="preserve"><value>{0} removed</value><comment>Announced by a screen reader after an account was removed. '{0}' is the account's name.</comment></data>
-  <data name="Accounts_DeviceRowSignInAutomation" xml:space="preserve"><value>Sign in again to this PC's Windows account</value><comment>Name of the 'Sign in again' button in the first row of the accounts list, read by a screen reader.</comment></data>
 </root>

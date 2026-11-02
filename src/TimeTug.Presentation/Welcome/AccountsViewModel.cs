@@ -31,11 +31,9 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     private bool _brokeredReconnectSawWorking;
     private bool _windowsStopping;
     private WindowsAccountListing? _listing;
-    private bool _pendingOn = true;
-    private bool _deviceOffered;
-    private string? _deviceEmail;
-    private bool _deviceConflict;
-    private ConnectedAccount? _pinned;
+    private bool _listingRequested;
+    private bool _offered;
+    private string? _dismissOnRemoval;
     private string? _selectedAccountId;
     private string? _removingId;
     private string? _removingBaselineError;
@@ -58,9 +56,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         TestTugCommand = new AsyncRelayCommand(TestTugAsync);
         RemoveSelectedCommand = new RelayCommand(RemoveSelected, () => CanRemoveSelected);
         BrowserFallbackCommand = new AsyncRelayCommand(() => ConnectAsync(BrokeredKinds.Browser));
-        DeviceRow = new DeviceRowModel(
-            _text.GetString("Accounts_DeviceRowTitle"), _text.GetString("Accounts_DeviceRowSwitch"),
-            new AsyncRelayCommand(SignInPinnedAgainAsync, () => !IsBusy && _pinned is { CanSignInAgain: true }), SetDeviceRowOnAsync);
         _subscriptions.Add(engine.State.Subscribe(new ActionObserver<AppState>(state => OnUi(() => Apply(state)))));
         _subscriptions.Add(engine.Diagnostics.Subscribe(new ActionObserver<EngineDiagnosticInfo>(info => OnUi(() => Diagnosed(info)))));
     }
@@ -71,7 +66,13 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     /// </summary>
     public IBrokerSignInIntent? BrokerIntents { get; set; }
 
-    /// <summary>The Windows account's email for the card text "Use name@example.com" (set by the app's composition when the broker is available).</summary>
+    /// <summary>
+    /// Remembers that the person removed the Windows account (spec A1.3). Set by the app's composition before <see cref="WindowsAccounts"/>; without one nothing is
+    /// remembered and the listing is always asked.
+    /// </summary>
+    public IWindowsAccountDismissalStore? Dismissals { get; set; }
+
+    /// <summary>What Windows lists, for the first-run offer (set by the app's composition when the broker is available).</summary>
     public IWindowsAccountSource? WindowsAccounts
     {
         get => _windowsAccounts;
@@ -85,29 +86,28 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     // ---- the accounts list (shared accounts list, spec "The shared control") ---------------------------------------------------------------
 
-    /// <summary>The pinned "This PC's Windows account" row. Hidden until Windows lists an account the broker can use.</summary>
-    public DeviceRowModel DeviceRow { get; }
-
     /// <summary>
-    /// True in the welcome window, where the row's switch is only a pending choice until Continue; false in Settings, where it connects the Windows account
-    /// (on) or removes it after the question (off).
+    /// Windows lists a Microsoft account, it is not connected yet (or refused as a duplicate) and the person has not removed it before: the welcome window's
+    /// Continue adds it (spec A1.2). False while the listing is pending, for a local-only Windows account and after a recorded removal.
     /// </summary>
-    public bool DeviceRowIsPending
+    public bool WindowsAccountOffered
     {
-        get;
-        set
+        get => _offered;
+        private set
         {
-            if (field != value)
+            if (_offered != value)
             {
-                field = value;
+                _offered = value;
                 OnPropertyChanged();
-                UpdateDeviceRow();
             }
         }
     }
 
+    /// <summary>The Windows account listing was asked for and has not answered yet (at most five seconds).</summary>
+    public bool ListingPending => _listingRequested && _listing is null;
+
     /// <summary>
-    /// The connected accounts the list shows as rows, in the engine's order: <see cref="ConnectedAccounts"/> without the account the pinned row stands for. It is
+    /// The connected accounts the list shows as rows, in the engine's order: every connected account, the Windows account included. It is
     /// updated in place, so a row whose content did not change is the same object (keyboard focus and selection survive the engine's frequent publications).
     /// </summary>
     public ObservableCollection<ConnectedAccount> ListAccounts { get; } = [];
@@ -126,9 +126,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             SetSelected(value);
         }
     }
-
-    /// <summary>True while the connected account the pinned row stands for exists (Continue asks Windows for nothing then).</summary>
-    public bool WindowsAccountConnected => _pinned is not null;
 
     /// <summary>A string of this view model's own resources, for the window that hosts it.</summary>
     public string Text(string key) => _text.GetString(key);
@@ -213,14 +210,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     public string CancelAutomationName => _text.GetString("Accounts_CancelAutomation");
 
-    /// <summary>The tag on a connected account that signs in through Windows.</summary>
-    public string OnThisPcText => _text.GetString("Accounts_OnThisPc");
-
     /// <summary>How to stop TimeTug reading a Microsoft account's calendars, which Windows (not TimeTug) holds the consent for.</summary>
     public string WithdrawConsentText => _text.GetString("Accounts_WithdrawConsent");
 
-    /// <summary>True while at least one connected account signs in through Windows (the pane shows <see cref="WithdrawConsentText"/>).</summary>
-    public bool ShowWithdrawConsent => ConnectedAccounts.Any(a => a.IsOnThisPc);
+    /// <summary>True while at least one Microsoft account is connected, whichever way it signs in (the pane shows <see cref="WithdrawConsentText"/>).</summary>
+    public bool ShowWithdrawConsent => ConnectedAccounts.Any(a => a.IsMicrosoft);
 
     /// <summary>The Mac's warning under the tiles; null when every kind the engine lists can be added.</summary>
     public string? UnavailableNotice
@@ -250,8 +244,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>For an "On this PC" account the removal question adds how to withdraw the consent Windows holds; null for every other account.</summary>
-    public string? RemovalWithdrawText => PendingRemoval is { IsOnThisPc: true } ? WithdrawConsentText : null;
+    /// <summary>For a Microsoft account the removal question adds how to withdraw the consent Microsoft holds; null for every other account.</summary>
+    public string? RemovalWithdrawText => PendingRemoval is { IsMicrosoft: true } ? WithdrawConsentText : null;
 
     public string RemovalTitle => _text.Format("Accounts_RemoveTitle", PendingRemoval?.Name ?? "");
 
@@ -402,11 +396,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         PendingRemoval = account;
     }
 
-    public void CancelRemove()
-    {
-        PendingRemoval = null;
-        DeviceRow.Resync();
-    }
+    public void CancelRemove() => PendingRemoval = null;
 
     /// <summary>Removes the account the question was about. The list changes when the engine says it did, not before.</summary>
     public async Task ConfirmRemoveAsync()
@@ -421,6 +411,8 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         {
             _removingId = pending.ConnectionId;
             _removingBaselineError = _state?.Activity?.ErrorMessage;
+            // Remembered once the engine says the account is gone (never for a refused removal).
+            _dismissOnRemoval = CouldBeTheWindowsAccount(pending) ? pending.ConnectionId : null;
             try
             {
                 await _engine.RemoveAccountAsync(pending.ConnectionId);
@@ -428,12 +420,9 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             catch
             {
                 _removingId = null;
+                _dismissOnRemoval = null;
                 throw;
             }
-        }
-        else
-        {
-            DeviceRow.Resync();
         }
     }
 
@@ -447,17 +436,18 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Asks the Windows account source which accounts Windows lists (no token, no dialog) and shows the answer: the pinned row, and on the shipped card the
-    /// text "Use name@example.com". Never throws: a broker that cannot say hides the row and leaves the card as "Microsoft account on this PC". A late answer
-    /// shows the row in place and moves nothing.
+    /// Asks the Windows account source which accounts Windows lists (no token, no dialog) and works out whether Continue has a Windows account to add. Makes no
+    /// broker call after a recorded removal. Never throws: a broker that cannot say offers nothing. A late answer changes the offer in place and moves nothing.
     /// </summary>
     public async Task RefreshWindowsAccountAsync()
     {
-        if (_windowsAccounts is not { } source)
+        if (_windowsAccounts is not { } source || Dismissals?.IsDismissed == true)
         {
             return;
         }
 
+        _listingRequested = true;
+        OnPropertyChanged(nameof(ListingPending));
         WindowsAccountListing listing;
         try
         {
@@ -465,13 +455,14 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         }
         catch (Exception)
         {
-            // Naming the account is a courtesy (and this task is not awaited): whatever goes wrong, the row stays hidden and the card keeps its plain text.
+            // Offering the account is a courtesy (and this task is not awaited): whatever goes wrong, nothing is offered.
             listing = new WindowsAccountListing(WindowsListingKind.Unavailable);
         }
 
         OnUi(() =>
         {
             _listing = listing;
+            OnPropertyChanged(nameof(ListingPending));
             RecomputeList();
             Refresh();
         });
@@ -485,7 +476,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         }
 
         _windowsAccountRequested = true;
-        _ = RefreshWindowsAccountAsync();
+        _ = RefreshWindowsAccountAsync();   // sets the pending flag before its first await
     }
 
     public void Dispose()
@@ -671,18 +662,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     private void Refresh()
     {
-        var wasBusy = IsBusy;
         IsBusy = _attempt is not null || _state?.Activity?.IsWorking == true;
         UnavailableNotice = MenuEntries.Any(p => !p.IsConfigured) ? _text.GetString("Accounts_UnavailableNotice") : null;
         var engineError = _state?.Activity?.ErrorMessage;
         var shown = engineError is null || engineError == _attempt?.BaselineError || engineError == _explainedError || engineError == SignInFailureDetail;
         ErrorText = shown ? null : engineError;
-        UpdateDeviceRow();
-        if (wasBusy && !IsBusy)
-        {
-            // A switch-started action (connect, remove) has ended. If it changed nothing, the control the person already toggled must be told what the model says.
-            DeviceRow.Resync();
-        }
     }
 
     // What can be connected, and the "+" menu built from it. Rebuilt only when a kind appears, goes or changes whether the build can sign in to it.
@@ -743,16 +727,16 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             };
             rows.Add(new ConnectedAccount(
                 account.ConnectionId, account.KindId, kindName, account.DisplayName, statusText, needsAttention, needsAttention, notice,
-                _text.Format("Accounts_RowAutomation", kindName, account.DisplayName, statusText)
-                    + (account.KindId == BrokeredKinds.Brokered ? ", " + _text.GetString("Accounts_OnThisPc") : string.Empty),
+                _text.Format("Accounts_RowAutomation", kindName, account.DisplayName, statusText),
                 _text.Format("Accounts_SignInAgainAutomation", account.DisplayName),
                 _text.Format("Accounts_ActionsAutomation", account.DisplayName),
                 _text.Format("Accounts_RemoveAutomation", account.DisplayName))
             {
-                IsOnThisPc = account.KindId == BrokeredKinds.Brokered,
+                IsMicrosoft = account.KindId is BrokeredKinds.Brokered or BrokeredKinds.Browser,
                 Email = account.DisplayName.Contains('@', StringComparison.Ordinal) ? account.DisplayName.Trim() : null,
-                TagText = account.KindId == BrokeredKinds.Brokered ? _text.GetString("Accounts_OnThisPc") : null,
                 SignInText = _text.GetString("Accounts_SignInAgain"),
+                Mark = ProviderMarks.Of(account.KindId),
+                LogoAutomationName = ProviderMarks.Of(account.KindId) == ProviderMark.None ? "" : _text.Format("Accounts_LogoAutomation", kindName),
             });
         }
 
@@ -831,25 +815,41 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     private static bool SameEmail(string? a, string? b) => a is not null && b is not null && string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    // Works out which account the pinned row stands for (D7), whether the browser holds the same mailbox (D8), and the list rows that are left.
+    // Works out whether Continue has a Windows account to add (A1.2) and keeps the list rows in step with the engine's accounts.
     private void RecomputeList()
     {
         var previousIds = ListAccounts.Select(a => a.ConnectionId).ToList();
-        _deviceOffered = _listing is { Kind: WindowsListingKind.OneNamed or WindowsListingKind.Unnamed } && BrokeredConfigured;
-        _deviceEmail = _deviceOffered && _listing is { Kind: WindowsListingKind.OneNamed, Email: { } email } ? email.Trim() : null;
-        _pinned = _deviceEmail is null ? null : ConnectedAccounts.FirstOrDefault(a => a.KindId == BrokeredKinds.Brokered && SameEmail(a.Email, _deviceEmail));
-        _deviceConflict = _deviceEmail is not null && _pinned is null && ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Browser && SameEmail(a.Email, _deviceEmail));
-
-        ReconcileListAccounts(ConnectedAccounts.Where(a => !ReferenceEquals(a, _pinned) && a.ConnectionId != _pinned?.ConnectionId).ToList());
+        ReconcileListAccounts([.. ConnectedAccounts]);
         var removalRefused = ReconcileSelection(previousIds);
-        OnPropertyChanged(nameof(ShowListEmptyText));
-        OnPropertyChanged(nameof(RemoveSelectedAutomationName));
-        UpdateDeviceRow();
         if (removalRefused)
         {
-            DeviceRow.Resync();
+            _dismissOnRemoval = null;
         }
+        else if (_dismissOnRemoval is { } removed && ConnectedAccounts.All(a => a.ConnectionId != removed))
+        {
+            _dismissOnRemoval = null;
+            Dismissals?.Dismiss();
+        }
+
+        var listed = _listing is { Kind: WindowsListingKind.OneNamed or WindowsListingKind.Unnamed } && BrokeredConfigured && Dismissals?.IsDismissed != true;
+        var email = listed && _listing is { Kind: WindowsListingKind.OneNamed, Email: { } named } ? named.Trim() : null;
+        var connected = email is null
+            ? ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Brokered)
+            : ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Brokered && SameEmail(a.Email, email));
+        var browserHoldsIt = email is not null && ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Browser && SameEmail(a.Email, email));
+        WindowsAccountOffered = listed && !connected && !browserHoldsIt;
+
+        OnPropertyChanged(nameof(ShowListEmptyText));
+        OnPropertyChanged(nameof(RemoveSelectedAutomationName));
     }
+
+    // Removing this account is remembered (A1.3): it can be the Windows account unless Windows lists none, or names a different email.
+    private bool CouldBeTheWindowsAccount(ConnectedAccount account) => account.KindId == BrokeredKinds.Brokered && _listing switch
+    {
+        { Kind: WindowsListingKind.None } => false,
+        { Kind: WindowsListingKind.OneNamed, Email: { } named } => SameEmail(account.Email, named),
+        _ => true,
+    };
 
     // Updates the collection in place: a row that did not change is not touched, a changed row is replaced where it stands.
     private void ReconcileListAccounts(List<ConnectedAccount> desired)
@@ -957,68 +957,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             BeginRemove(id);
         }
     }
-
-    // ---- the pinned row's values ------------------------------------------------------------------------------------------------------
-
-    private void UpdateDeviceRow()
-    {
-        if (!_deviceOffered)
-        {
-            DeviceRow.Update(false, null, "", false, false, false, "");
-            return;
-        }
-
-        string description;
-        bool isOn;
-        bool enabled;
-        if (_deviceConflict)
-        {
-            description = _text.Format("Accounts_DeviceRowBrowserConflict", _deviceEmail!);
-            isOn = false;
-            enabled = false;
-        }
-        else if (DeviceRowIsPending)
-        {
-            description = _pinned is null ? _text.GetString("Accounts_DeviceRowDescription") : "";
-            isOn = _pinned is not null || _pendingOn;
-            enabled = _pinned is null && !IsBusy;
-        }
-        else
-        {
-            description = _pinned is null ? _text.GetString("Provider_microsoft-brokered-hint") : "";
-            isOn = _pinned is not null;
-            enabled = !IsBusy;
-        }
-
-        DeviceRow.Update(true, _deviceEmail, description, isOn, enabled, _pinned is { CanSignInAgain: true }, _pinned?.StatusText ?? "");
-    }
-
-    private async Task SetDeviceRowOnAsync(bool on)
-    {
-        if (!DeviceRow.IsVisible || !DeviceRow.IsSwitchEnabled || IsBusy)
-        {
-            return;
-        }
-
-        if (DeviceRowIsPending)
-        {
-            _pendingOn = on;
-            UpdateDeviceRow();
-        }
-        else if (on)
-        {
-            if (_pinned is null)
-            {
-                await ConnectBrokeredAsync(BrokerIntent.WindowsAccount);
-            }
-        }
-        else if (_pinned is { } pinned)
-        {
-            BeginRemove(pinned.ConnectionId);
-        }
-    }
-
-    private Task SignInPinnedAgainAsync() => _pinned is { } pinned ? ReauthorizeAsync(pinned.ConnectionId) : Task.CompletedTask;
 
     private string DescribeNextMeeting(AppState state)
     {
