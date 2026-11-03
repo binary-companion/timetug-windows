@@ -68,7 +68,9 @@
                        Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed"
                        AutomationProperties.LiveSetting="Assertive" />
           </StackPanel>
-          <Border x:Uid="TrayNoteCard" Padding="16,12" CornerRadius="6" BorderThickness="1"
+          <!-- Recommended last step: keep the tray icon visible. Windows puts a new tray icon behind the arrow and gives an app no way to promote itself,
+               so the card says how (open the setting, turn TimeTug on, or drag the icon out), with a button that opens the setting and a looping guide. -->
+          <Border x:Name="TaskbarCard" x:Uid="TaskbarStepCard" Padding="16,14" CornerRadius="6" BorderThickness="1"
                   Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                   BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
             <Grid ColumnSpacing="12">
@@ -77,9 +79,34 @@
                 <ColumnDefinition Width="*" />
               </Grid.ColumnDefinitions>
               <FontIcon Glyph="&#xE7C4;" FontSize="20" VerticalAlignment="Top" AutomationProperties.AccessibilityView="Raw" />
-              <StackPanel Grid.Column="1" Spacing="4">
-                <TextBlock x:Uid="TrayNoteTitle" FontWeight="SemiBold" TextWrapping="Wrap" />
-                <TextBlock x:Uid="TrayNote" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              <StackPanel Grid.Column="1" Spacing="10">
+                <TextBlock x:Uid="TaskbarStepTitle" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
+                <TextBlock x:Uid="TaskbarStepIntro" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Grid ColumnSpacing="8" RowSpacing="4">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                  </Grid.RowDefinitions>
+                  <TextBlock Text="1." AutomationProperties.AccessibilityView="Raw" />
+                  <TextBlock x:Uid="TaskbarStep1" Grid.Column="1" TextWrapping="Wrap" />
+                  <TextBlock Grid.Row="1" Text="2." AutomationProperties.AccessibilityView="Raw" />
+                  <TextBlock x:Uid="TaskbarStep2" Grid.Row="1" Grid.Column="1" TextWrapping="Wrap" />
+                </Grid>
+                <TextBlock x:Uid="TaskbarStepDrag" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Button x:Name="TaskbarButton" Click="OnTaskbarSettings" Visibility="{x:Bind ViewModel.ShowTaskbarButton}" />
+                <TextBlock x:Name="TaskbarError" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                           Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed"
+                           AutomationProperties.LiveSetting="Assertive" />
+                <!-- The recording (Windows Settings, Taskbar, TimeTug turned on) loops while animations are on in Windows, and is a still of its last frame when they are off. -->
+                <Border CornerRadius="6" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        HorizontalAlignment="Left" MaxWidth="440">
+                  <Image x:Name="GuideImage" x:Uid="TaskbarGuide" Stretch="Uniform" />
+                </Border>
               </StackPanel>
             </Grid>
           </Border>

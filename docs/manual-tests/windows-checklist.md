@@ -66,6 +66,14 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 
 ---
 
+### 1.4 The recommended last step: show TimeTug in the taskbar
+
+- **Build:** `msix-x64` (or `msix-arm64`), fresh install, a PC where TimeTug has never been turned on in Settings > Personalization > Taskbar > Other system tray icons (a new install is off, the icon sits behind the `^` arrow).
+- **Do:** (a) go through the welcome window to "You’re connected" and scroll to the card "Recommended: keep TimeTug in view". (b) Watch the picture for one full loop, then press "Show TimeTug in the taskbar". (c) In the page that opens, open Other system tray icons and turn TimeTug On. (d) Look at the taskbar corner. (e) Turn TimeTug Off again, then in TimeTug open Settings > General and press "Taskbar settings" under App. (f) Turn Windows animations off (Settings > Accessibility > Visual effects > Animation effects) and open the welcome window again (tray icon with no account, or a fresh install). (g) Make the welcome window as narrow as it goes, then switch Windows to light mode, to dark mode and to a contrast theme.
+- **Expect:** (a) the card has two numbered steps ("Select Show TimeTug in the taskbar to open the setting." and "Under Other system tray icons, turn TimeTug on."), the line about dragging the icon out of the arrow, the button and a picture of Windows Settings. (b) the picture loops by itself (about 8 seconds: the list opens, TimeTug goes from Off to On); the button opens Windows Settings straight on Personalization > Taskbar. (c) the toggle works and (d) the TimeTug icon is now shown on the taskbar, not behind the arrow. (e) the same page opens from Settings > General. (f) the picture is still and shows TimeTug On. (g) the card and picture shrink to the window with no sideways scrolling; text and the button are readable in every theme (the picture is a recording of the dark Settings page in every theme). If Windows Settings cannot be opened nothing crashes: the card says "Couldn’t open Windows Settings. Open Settings, then Personalization, then Taskbar." and `timetug.log` has a `taskbar` warning without content. Narrator reads the card’s heading, the steps, the button and the picture’s description ("Animated guide. In Windows Settings, open Personalization, then Taskbar...").
+- **Automated:** partly. `welcome` (the card, its texts and names, the button opening `ms-settings:taskbar` through a recording launcher, a refused launch and its log entry, the looping bitmap, the still with animations off, a narrow window), `welcome-brokered` (the app’s own window) and `settings-general` (the Taskbar settings button, its error, search) pass in CI; axe round 2 scans the card. The recording itself was made on the Windows 11 ARM VM (`docs/development.md`). Left for you: Windows really opening the page on a real PC, the icon moving to the taskbar, the contrast themes, and watching the loop.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
 ## 2. Real accounts
 
 ### 2.1 Google sign-in
@@ -361,7 +369,7 @@ Legend for **Automated**: the scenario name is the `--selftest` scenario in `src
 ### 5.1 The icon in the notification area and in the overflow
 
 - **Build:** `msix-x64` (or `msix-arm64`).
-- **Do:** start TimeTug. Look near the clock, including the overflow flyout (the up arrow). Drag the icon out to the taskbar. Then switch Settings > Personalization > Colors > "Choose your mode" and the Windows taskbar theme (light and dark) independently.
+- **Do:** start TimeTug. Look near the clock, including the overflow flyout (the up arrow). Drag the icon out to the taskbar (or turn it on in Settings > Personalization > Taskbar > Other system tray icons; see 1.4). Then switch Settings > Personalization > Colors > "Choose your mode" and the Windows taskbar theme (light and dark) independently.
 - **Expect:** a puppy icon appears (in the overflow until you pin it). It stays readable on a light and on a dark taskbar: dark puppy on a light taskbar, light puppy on a dark one. At 100, 125, 150 and 200 percent display scaling it is sharp.
 - **Automated:** partly. `tray` (icons exist at 16, 20, 24 and 32 px in every variant, the tray view model, the clicks), `startup` (the icon is created or the failure is recorded). The VM hides its taskbar, so no picture of the icon exists. Left for you: seeing it.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________

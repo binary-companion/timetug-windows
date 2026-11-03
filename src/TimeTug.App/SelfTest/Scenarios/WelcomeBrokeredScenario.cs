@@ -90,6 +90,10 @@ internal static class WelcomeBrokeredScenario
         run.Check(await rig.WaitFor(() => model.Accounts.NextMeetingText.Contains("Design review", StringComparison.Ordinal) && model.Accounts.NextMeetingText.Contains("2:30", StringComparison.Ordinal)),
             "and the next meeting: " + model.Accounts.NextMeetingText);
         run.Check(rig.Latest is { Accounts: [{ KindId: "microsoft-brokered", Status: "ok" }] }, "the engine holds one brokered account that is connected");
+        // The app's own welcome window (not a scripted one) offers the recommended taskbar step: its card, the button, and the guide playing.
+        window.TaskbarStepCard.StartBringIntoView();
+        run.Check(window.TaskbarStepCard.Visibility == Visibility.Visible && window.TaskbarSettingsButton.Visibility == Visibility.Visible, "step 3 shows the keep-TimeTug-in-view card with its button");
+        run.Check(window.GuideAsset == "Assets/taskbar-guide.gif" && window.TaskbarGuidePicture.Source is Microsoft.UI.Xaml.Media.Imaging.BitmapImage, "and the animated guide");
         run.Check(rig.Host.Secrets.Calls.Count == 0, "no credential was stored for it: " + string.Join(", ", rig.Host.Secrets.Calls));
         run.Check(rig.Broker.Calls.Count(c => c == "interactive:WindowsAccount") == 2, "the broker saw exactly the two dialogs: " + string.Join(", ", rig.Broker.Calls));
         await rig.Settle(900);

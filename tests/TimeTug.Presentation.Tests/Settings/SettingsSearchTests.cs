@@ -133,6 +133,11 @@ public class SettingsSearchTests
         Search.Catalog.Single(i => i.Id == "accounts").Keywords.Should().NotContain(["apple calendar", "eventkit"], "Apple Calendar is Mac-only");
         Ids("taskbar").Should().Contain("tray-icon-style");
         Ids("version").Should().Contain("about");
+        Search.Catalog.Single(i => i.Id == "taskbar-icon").Pane.Should().Be(SettingsPane.General);
+        Ids("taskbar").Should().Contain("taskbar-icon");
+        Ids("hidden icons").Should().Contain("taskbar-icon");
+        Ids("overflow").Should().Contain("taskbar-icon");
+        SettingsSearch.DestinationFor("taskbar-icon").Should().BeNull();
     }
 
     [Fact]

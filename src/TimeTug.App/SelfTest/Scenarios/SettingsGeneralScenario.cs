@@ -87,6 +87,7 @@ internal static class SettingsGeneralScenario
 
         await LaunchAtLoginAsync(tug, settings, window, page);
         await AboutAsync(tug, settings, window, page);
+        await TaskbarAsync(tug, settings, window, page);
         await ShortcutAsync(tug, settings, window, page, service, store, values, ui);
         await RealStartupTaskAsync(tug);
         return tug.Finish();
@@ -220,6 +221,37 @@ internal static class SettingsGeneralScenario
         run.Info("the build's own version, from the package identity: " + AppVersion.Current());
 
         run.Check(ScenarioUi.Invoke(window, "Back to General") && await tug.WaitFor(() => page.HubPanel.Visibility == Visibility.Visible), "and back to the hub again");
+    }
+
+    // ---- Taskbar settings: the row that opens the Taskbar page of Windows Settings --------------------------------------------------
+    private static async Task TaskbarAsync(TugRig tug, SettingsRig settings, SettingsWindow window, GeneralPage page)
+    {
+        var run = tug.Run;
+        const string name = "Taskbar settings. Opens Windows Settings.";
+        var button = page.TaskbarSettingsButton;
+        run.Check(page.HubPanel.Visibility == Visibility.Visible && button.Content is "Taskbar settings" && AutomationProperties.GetName(button) == name,
+            "the App section has a Taskbar settings button, named: " + AutomationProperties.GetName(button));
+        var before = settings.Links.Opened.Count;
+        run.Check(ScenarioUi.Invoke(window, name), "the button is pressed through UI Automation");
+        run.Check(await tug.WaitFor(() => settings.Links.Opened.Count == before + 1), "it opens a link");
+        run.Check(settings.Links.Opened[^1] == "ms-settings:taskbar", "to the Taskbar page of Windows Settings: " + settings.Links.Opened[^1]);
+        run.Check(page.TaskbarErrorText.Visibility == Visibility.Collapsed, "with no error");
+
+        // A page that does not open is said plainly, written to the log without content, and the app carries on.
+        settings.Links.Succeeds = false;
+        run.Check(ScenarioUi.Invoke(window, name), "the button is pressed while links cannot be opened");
+        run.Check(await tug.WaitFor(() => page.TaskbarErrorText.Visibility == Visibility.Visible), "an error appears");
+        run.Check(page.TaskbarErrorText.Text == "Couldn’t open Windows Settings. Open Settings, then Personalization, then Taskbar.", "in words: " + page.TaskbarErrorText.Text);
+        run.Check(tug.Diagnostics.Entries.Any(e => e.Category == "taskbar" && e.Level == "warning"), "and it is logged as a warning");
+        await tug.Settle(600);
+        await run.ShotAsync(window, "general-taskbar-error");
+        settings.Links.Succeeds = true;
+        run.Check(ScenarioUi.Invoke(window, name) && await tug.WaitFor(() => page.TaskbarErrorText.Visibility == Visibility.Collapsed), "the next press that opens clears it");
+
+        // Search finds the row and tints it.
+        window.Shell.Open(SettingsPane.General, GeneralViewModel.Ids.TaskbarIcon);
+        run.Check(await tug.WaitFor(() => SettingsHighlight.Hosts(page).Any(h => SettingsHighlight.GetId(h) == GeneralViewModel.Ids.TaskbarIcon && SettingsHighlight.OverlayOf(h) is { Opacity: > 0 }), 2000),
+            "a search result for Show TimeTug in the taskbar tints the row");
     }
 
     // ---- the Shortcut row: the recorder over the real HotkeyService and RegisterHotKey ---------------------------------------------------

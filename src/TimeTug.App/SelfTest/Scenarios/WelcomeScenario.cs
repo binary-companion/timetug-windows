@@ -6,6 +6,9 @@ using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using TimeTug.Platform.Capture;
+using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
 using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Startup;
@@ -37,7 +40,10 @@ internal static class WelcomeScenario
         var startup = new ScriptedStartupTask();
         var links = new RecordingSystemLauncher();
         var launch = new LaunchAtLoginViewModel(startup, links, new DispatcherQueueDispatcher(queue), text);
-        var window = WelcomeWindowFactory.Create(engine, forms, text, new FixedClock(Noon), launchAtLogin: launch);
+        var diagnostics = new RecordingDiagnostics();
+        var taskbar = new TaskbarSettingsViewModel(links, new DispatcherQueueDispatcher(queue), text, diagnostics);
+        var uiSettings = new FakeUiSettings();
+        var window = WelcomeWindowFactory.Create(engine, forms, text, new FixedClock(Noon), launchAtLogin: launch, taskbar: taskbar, uiSettings: uiSettings);
         var model = window.ViewModel;
         window.Activate();
         await SelfTestRunner.WaitForFrameAsync(window, cancellation);
@@ -154,6 +160,107 @@ internal static class WelcomeScenario
         Check(ScenarioUi.Invoke(window, "Open Startup apps in Windows Settings") && links.Opened.SequenceEqual(["ms-settings:startupapps"]), "the link opens the Startup apps page");
         Check(Invoke(window, "Show a test tug screen") && engine.Sent.Contains("testTug"), "Test tug sends the test takeover");
 
+        // The recommended last step: keep the tray icon visible. Instructions, a button that opens the Taskbar page of Windows Settings, and the looping guide.
+        window.TaskbarStepCard.StartBringIntoView();
+        await Settle(500);
+        Check(window.TaskbarStepCard.Visibility == Visibility.Visible && AutomationProperties.GetName(window.TaskbarStepCard) == "Keep TimeTug in view", "the last step has the keep-TimeTug-in-view card: " + AutomationProperties.GetName(window.TaskbarStepCard));
+        var cardTexts = Texts(window.TaskbarStepCard);
+        Check(cardTexts.Contains("Recommended: keep TimeTug in view") && cardTexts.Contains("1.") && cardTexts.Contains("2.")
+            && cardTexts.Contains("Select Show TimeTug in the taskbar to open the setting.") && cardTexts.Contains("Under Other system tray icons, turn TimeTug on.")
+            && cardTexts.Any(t => t.StartsWith("Or select the arrow next to the clock and drag", StringComparison.Ordinal)), "it is marked recommended and gives the numbered steps and the drag alternative: " + string.Join(" | ", cardTexts));
+        Check(window.TaskbarSettingsButton is { Visibility: Visibility.Visible, Content: TextBlock { Text: "Show TimeTug in the taskbar" } } && AutomationProperties.GetName(window.TaskbarSettingsButton) == "Show TimeTug in the taskbar. Opens Windows Settings.", "the button reads Show TimeTug in the taskbar and is named: " + AutomationProperties.GetName(window.TaskbarSettingsButton));
+        Check(window.TaskbarErrorText.Visibility == Visibility.Collapsed, "no error is showing");
+        var opened = links.Opened.Count;
+        Check(Invoke(window, "Show TimeTug in the taskbar. Opens Windows Settings.") && await WaitFor(() => links.Opened.Count == opened + 1, 3000), "the button can be invoked by name and opens a link");
+        Check(links.Opened[^1] == "ms-settings:taskbar", "to the Taskbar page of Windows Settings: " + links.Opened[^1]);
+        links.Succeeds = false;
+        Check(Invoke(window, "Show TimeTug in the taskbar. Opens Windows Settings.") && await WaitFor(() => window.TaskbarErrorText.Visibility == Visibility.Visible, 3000), "a page that does not open shows an error");
+        Check(window.TaskbarErrorText.Text == "Couldn’t open Windows Settings. Open Settings, then Personalization, then Taskbar.", "in words: " + window.TaskbarErrorText.Text);
+        Check(diagnostics.Entries.Any(e => e.Category == "taskbar" && e.Level == "warning") && diagnostics.Entries.All(e => !e.Message.Contains("ms-settings", StringComparison.Ordinal)), "and logs a warning without content");
+        Check(model.Step == WelcomeStep.Connected, "the window carries on");
+        links.Succeeds = true;
+        Check(Invoke(window, "Show TimeTug in the taskbar. Opens Windows Settings.") && await WaitFor(() => window.TaskbarErrorText.Visibility == Visibility.Collapsed, 3000), "the next press that opens clears the error");
+
+        // The guide: the recording loops (an animated bitmap) while animations are on, and is a still picture of its last frame when Windows has them off.
+        Check(window.GuideAsset == "Assets/taskbar-guide.gif" && window.TaskbarGuidePicture.Source is BitmapImage, "the guide is the animated recording");
+        var animated = (BitmapImage)window.TaskbarGuidePicture.Source;
+        Check(await WaitFor(() => animated.PixelWidth > 0, 5000), "the recording loads");
+        Check(animated.IsAnimatedBitmap && animated.AutoPlay && animated.PixelWidth == 640, $"it is an animated picture that plays on its own, {animated.PixelWidth} px wide");
+        Check(AutomationProperties.GetName(window.TaskbarGuidePicture).StartsWith("Animated guide. In Windows Settings, open Personalization, then Taskbar", StringComparison.Ordinal), "it has a text alternative: " + AutomationProperties.GetName(window.TaskbarGuidePicture));
+        await Shot("connected-taskbar");
+
+        // It really moves: the picture's own rectangle on the screen is copied again and again over a little more than one loop (about 8 seconds) and the copies are compared
+        // byte for byte. The Windows desktop is needed for this, so a machine without a screen only notes it.
+        async Task<List<string>> SampleWindowAsync(int count, int gap)
+        {
+            var samples = new List<string>();
+            for (var i = 0; i < count; i++)
+            {
+                // The picture's place on the screen: the window's outer position, the frame and title bar (outer size minus client size), then the picture inside the content.
+                var content = (FrameworkElement)window.Content;
+                var origin = window.TaskbarGuidePicture.TransformToVisual(content).TransformPoint(new Windows.Foundation.Point(0, 0));
+                var scale = content.XamlRoot.RasterizationScale;
+                var frame = (window.AppWindow.Size.Width - window.AppWindow.ClientSize.Width) / 2;
+                var titleBar = window.AppWindow.Size.Height - window.AppWindow.ClientSize.Height - frame;
+                var area = new PixelRect(
+                    window.AppWindow.Position.X + frame + (int)(origin.X * scale), window.AppWindow.Position.Y + titleBar + (int)(origin.Y * scale),
+                    (int)(window.TaskbarGuidePicture.ActualWidth * scale), (int)(window.TaskbarGuidePicture.ActualHeight * scale));
+                var file = Path.Combine(run.Folder, "guide-sample.png");
+                var capture = await ScreenRegion.CaptureAsync(area, file);
+                if (capture.Succeeded)
+                {
+                    samples.Add(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(file, cancellation))));
+                }
+
+                await Settle(gap);
+            }
+
+            return samples;
+        }
+
+        var playing = await SampleWindowAsync(12, 700);
+        if (playing.Count >= 8)
+        {
+            Check(playing.Distinct().Count() >= 3, $"the animated guide changes on screen over time ({playing.Distinct().Count()} different pictures in {playing.Count} copies of the picture)");
+        }
+        else
+        {
+            run.Info($"the screen could not be copied ({playing.Count} of 12 copies): the animation was not seen moving");
+        }
+
+        uiSettings.AnimationsEnabled = false;
+        uiSettings.Raise();
+        Check(await WaitFor(() => window.GuideAsset == "Assets/taskbar-guide-still.png", 3000), "with animations off in Windows the guide switches to a still picture");
+        Check(await WaitFor(() => window.TaskbarGuidePicture.Source is BitmapImage { PixelWidth: > 0 }, 5000) && !((BitmapImage)window.TaskbarGuidePicture.Source).IsAnimatedBitmap, "and it does not move");
+        Check(AutomationProperties.GetName(window.TaskbarGuidePicture).Length > 0, "and keeps its text alternative");
+        await Shot("connected-taskbar-still");
+        // The first copy may still show the swap being painted; what follows must not change at all.
+        var still = (await SampleWindowAsync(6, 700)).Skip(1).ToList();
+        if (still.Count >= 4)
+        {
+            Check(still.Distinct().Count() == 1, $"and the still stays still on screen ({still.Distinct().Count()} different pictures in the last {still.Count} copies of the picture)");
+        }
+
+        uiSettings.AnimationsEnabled = true;
+        uiSettings.Raise();
+        Check(await WaitFor(() => window.GuideAsset == "Assets/taskbar-guide.gif", 3000), "with animations on again it plays again");
+
+        // A narrow window: the card and the picture shrink to fit, nothing runs off the side.
+        var wideSize = window.AppWindow.Size;
+        window.AppWindow.Resize(new Windows.Graphics.SizeInt32(440, wideSize.Height));
+        await Settle(800);
+        window.TaskbarStepCard.StartBringIntoView();
+        await Settle(400);
+        var content = (FrameworkElement)window.Content;
+        Check(window.TaskbarStepCard.ActualWidth > 0 && window.TaskbarStepCard.ActualWidth <= content.ActualWidth && window.TaskbarGuidePicture.ActualWidth <= window.TaskbarStepCard.ActualWidth,
+            $"in a narrow window the card ({window.TaskbarStepCard.ActualWidth:0} px) fits the window ({content.ActualWidth:0} px) and holds the picture ({window.TaskbarGuidePicture.ActualWidth:0} px)");
+        var label = (TextBlock)window.TaskbarSettingsButton.Content;
+        Check(window.TaskbarSettingsButton.ActualWidth <= window.TaskbarStepCard.ActualWidth && label.ActualWidth <= window.TaskbarSettingsButton.ActualWidth && label.ActualHeight > 0,
+            $"the button ({window.TaskbarSettingsButton.ActualWidth:0} px) fits the card and its label wraps instead of being cut off ({label.ActualWidth:0} x {label.ActualHeight:0} px)");
+        await Shot("connected-taskbar-narrow");
+        window.AppWindow.Resize(wideSize);
+        await Settle(400);
+
         // The window is left open: closing the only window would end the app before the result is written.
         return run.Finish();
     }
@@ -172,6 +279,32 @@ internal static class WelcomeScenario
         }
 
         return condition();
+    }
+
+    // The text of every visible text block under a node, in order.
+    private static List<string> Texts(DependencyObject node)
+    {
+        var found = new List<string>();
+        void Collect(DependencyObject n)
+        {
+            if (n is UIElement { Visibility: Visibility.Collapsed })
+            {
+                return;
+            }
+
+            if (n is TextBlock { Text.Length: > 0 } t)
+            {
+                found.Add(t.Text);
+            }
+
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(n); i++)
+            {
+                Collect(VisualTreeHelper.GetChild(n, i));
+            }
+        }
+
+        Collect(node);
+        return found;
     }
 
     // Every visible button, text box and progress ring (and those in open dialogs) must have a name Narrator can read.

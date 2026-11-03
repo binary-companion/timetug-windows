@@ -8,7 +8,7 @@ using TimeTug.Presentation.Settings;
 namespace TimeTug.App.Settings;
 
 /// <summary>
-/// The General pane: a hub with a row for each sub-page (About, Software Update), then the App section (launch at login) and the Shortcut
+/// The General pane: a hub with a row for each sub-page (About, Software Update), then the App section (launch at login, Taskbar settings) and the Shortcut
 /// section (the recorder), in the Mac's order; on a sub-page, a back button, the page's title and its content, as on the Mac.
 /// </summary>
 public sealed partial class GeneralPage : UserControl
@@ -35,6 +35,21 @@ public sealed partial class GeneralPage : UserControl
         LaunchLink.Content = model.LaunchAtLogin.SettingsLinkText;
         AutomationProperties.SetName(LaunchLink, model.LaunchAtLogin.SettingsLinkAutomationName);
         SettingsHighlight.SetId(LaunchHost, GeneralViewModel.Ids.LaunchAtLogin);
+
+        if (model.Taskbar is { } taskbar)
+        {
+            TaskbarCard.Header = text.ControlTitle(GeneralViewModel.Ids.TaskbarIcon);
+            TaskbarCard.Description = localizer.GetString("General_TaskbarDescription");
+            AutomationProperties.SetName(TaskbarCard, text.ControlTitle(GeneralViewModel.Ids.TaskbarIcon));
+            TaskbarButton.Content = localizer.GetString("General_TaskbarButton");
+            AutomationProperties.SetName(TaskbarButton, localizer.GetString("General_TaskbarButtonAutomation"));
+            SettingsHighlight.SetId(TaskbarHost, GeneralViewModel.Ids.TaskbarIcon);
+            taskbar.PropertyChanged += (_, _) => SyncTaskbar();
+        }
+        else
+        {
+            TaskbarHost.Visibility = Visibility.Collapsed;
+        }
 
         var recorder = model.Recorder;
         ShortcutHeader.Text = localizer.GetString("General_SectionShortcut");
@@ -157,6 +172,26 @@ public sealed partial class GeneralPage : UserControl
     }
 
     private async void OnLaunchLink(object sender, RoutedEventArgs e) => await _model.LaunchAtLogin.OpenStartupSettingsAsync();
+
+    /// <summary>The "Taskbar settings" button and its error line (for the self-test).</summary>
+    internal Button TaskbarSettingsButton => TaskbarButton;
+
+    internal TextBlock TaskbarErrorText => TaskbarError;
+
+    private async void OnTaskbarSettings(object sender, RoutedEventArgs e)
+    {
+        if (_model.Taskbar is { } taskbar)
+        {
+            await taskbar.OpenAsync();
+        }
+    }
+
+    private void SyncTaskbar()
+    {
+        var error = _model.Taskbar?.Error;
+        TaskbarError.Text = error ?? string.Empty;
+        TaskbarError.Visibility = error is null ? Visibility.Collapsed : Visibility.Visible;
+    }
 
     /// <summary>The back button, shown on a sub-page (for the self-test).</summary>
     public Button Back => BackButton;

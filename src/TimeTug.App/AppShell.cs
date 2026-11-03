@@ -210,7 +210,10 @@ internal sealed class AppShell
             Services.GetRequiredService<BrokerParentWindow>(),
             Services.GetRequiredService<IBrokerSignInIntent>(),
             Services.GetRequiredService<Pkg.IEngineHost>() is BrokeredEngineHost brokered ? brokered.WindowsAccounts : null,
-            Services.GetRequiredService<IWindowsAccountDismissalStore>());
+            Services.GetRequiredService<IWindowsAccountDismissalStore>(),
+            // The last step's "Show TimeTug in the taskbar" button and its guide (still when Windows has animations off).
+            Services.GetRequiredService<TaskbarSettingsViewModel>(),
+            Services.GetRequiredService<IUiSettings>());
         window.Closed += (_, _) => _welcome = null;
         _welcome = window;
         window.Activate();
