@@ -135,7 +135,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     /// nothing was connected and how to try again. Null otherwise, and while Windows is being asked (the waiting line says that).
     /// </summary>
     public string? ConnectNote => Accounts.IsBusy || Accounts.WindowsOfferText is not { } offer ? null
-        : WindowsDialogDeclined ? Accounts.Text("Welcome_WindowsDeclined")
+        : WindowsDialogDeclined ? (Accounts.ListAccounts.Count > 0 ? null : Accounts.Text("Welcome_WindowsDeclined"))   // with an account in the list Continue goes on without asking (ContinueAsync)
         : offer;
 
     public bool ShowConnectNote => ConnectNote is not null;

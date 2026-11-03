@@ -217,6 +217,23 @@ public class WelcomeListFlowTests
     }
 
     [Fact]
+    public async Task After_a_decline_the_note_goes_once_another_account_is_connected_because_continue_then_goes_on_without_asking()
+    {
+        var rig = Create(Named);
+        await Start(rig);
+        await Press(rig.Model.ContinueCommand);
+        rig.Engine.Push(ListRig.Empty(Working));
+        rig.Engine.Push(ListRig.Empty(Idle));
+        rig.Model.ShowConnectNote.Should().BeTrue();
+        await Press(rig.Model.Accounts.MenuEntries.Single(e => e.Name == "Google").ConnectCommand);
+        rig.Engine.Push(ListRig.Empty(Working));
+
+        rig.Engine.Push(With(Idle, Account("g", "google", "you@example.com")));
+
+        rig.Model.ShowConnectNote.Should().BeFalse("Continue no longer asks Windows, so a line promising a retry would be wrong");
+    }
+
+    [Fact]
     public async Task The_note_goes_when_the_account_is_connected()
     {
         var rig = Create(Named);
