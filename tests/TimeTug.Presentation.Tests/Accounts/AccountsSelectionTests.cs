@@ -296,7 +296,7 @@ public class AccountsSelectionTests
     [Fact]
     public void The_empty_line_shows_only_with_no_list_rows()
     {
-        var rig = ListRig.Create(Named);
+        var rig = ListRig.Create(None);
         rig.Model.ShowListEmptyText.Should().BeTrue();
         rig.Model.ListEmptyText.Should().Be("No accounts yet. Choose + to add one.");
 
