@@ -107,6 +107,17 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     public bool ListingPending => _listingRequested && _listing is null;
 
     /// <summary>
+    /// What Continue does when <see cref="WindowsAccountOffered"/>: it connects the Microsoft account Windows is signed in with (named when Windows names exactly one).
+    /// Null when nothing is offered. Without it the empty list only says "Choose +", and a person who then picks Microsoft from the menu never learns that Continue
+    /// would have connected their Windows account with one click.
+    /// </summary>
+    public string? WindowsOfferText
+    {
+        get;
+        private set => SetProperty(ref field, value);
+    }
+
+    /// <summary>
     /// The connected accounts the list shows as rows, in the engine's order: every connected account, the Windows account included. It is
     /// updated in place, so a row whose content did not change is the same object (keyboard focus and selection survive the engine's frequent publications).
     /// </summary>
@@ -839,6 +850,9 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             : ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Brokered && SameEmail(a.Email, email));
         var browserHoldsIt = email is not null && ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Browser && SameEmail(a.Email, email));
         WindowsAccountOffered = listed && !connected && !browserHoldsIt;
+        WindowsOfferText = !WindowsAccountOffered ? null
+            : email is not null ? _text.Format("Welcome_WindowsOfferNamed", email)
+            : _text.GetString("Welcome_WindowsOffer");
 
         OnPropertyChanged(nameof(ShowListEmptyText));
         OnPropertyChanged(nameof(RemoveSelectedAutomationName));

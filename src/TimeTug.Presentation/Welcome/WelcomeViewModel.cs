@@ -28,6 +28,20 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     private bool _continuing;
     private bool _windowsDialogDeclined;
 
+    // Windows was asked from this window and the person declined, closed the dialog or it failed: the note under the list says how to try again.
+    private bool WindowsDialogDeclined
+    {
+        get => _windowsDialogDeclined;
+        set
+        {
+            if (_windowsDialogDeclined != value)
+            {
+                _windowsDialogDeclined = value;
+                RefreshConnectNote();
+            }
+        }
+    }
+
     /// <param name="openAccountsPane">
     /// Opens the Settings window on its Accounts pane. When the app gives one, "Add another" goes there (and this window closes) instead of
     /// showing the list of places to connect again; without one, "Add another" shows that list.
@@ -116,6 +130,16 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     public bool CanContinue => Step == WelcomeStep.Connect && !Accounts.IsBusy
         && !Accounts.ListingPending && (Accounts.WindowsAccountOffered || Accounts.ListAccounts.Count > 0);
 
+    /// <summary>
+    /// The line under the list on the connect step while Continue has a Windows account to add: what Continue does, or after a declined Windows dialog that
+    /// nothing was connected and how to try again. Null otherwise, and while Windows is being asked (the waiting line says that).
+    /// </summary>
+    public string? ConnectNote => Accounts.IsBusy || Accounts.WindowsOfferText is not { } offer ? null
+        : WindowsDialogDeclined ? Accounts.Text("Welcome_WindowsDeclined")
+        : offer;
+
+    public bool ShowConnectNote => ConnectNote is not null;
+
     public IRelayCommand AddAnotherCommand { get; }
 
     public IRelayCommand DoneCommand { get; }
@@ -146,14 +170,14 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (Accounts.WindowsAccountOffered && !(_windowsDialogDeclined && Accounts.ListAccounts.Count > 0))
+        if (Accounts.WindowsAccountOffered && !(WindowsDialogDeclined && Accounts.ListAccounts.Count > 0))
         {
             _continuing = true;
             await Accounts.ConnectBrokeredAsync(BrokerIntent.WindowsAccount);
             if (!Accounts.IsBusy)
             {
                 // Nothing started, or it already ended without an account (declined or closed): either way this window has asked once.
-                _windowsDialogDeclined |= _continuing;
+                WindowsDialogDeclined |= _continuing;
                 _continuing = false;
             }
 
@@ -180,19 +204,26 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
             if (_continuing && !Accounts.IsBusy)
             {
                 _continuing = false;   // the Windows dialog was declined, closed or failed: stay on this step
-                _windowsDialogDeclined = true;
+                WindowsDialogDeclined = true;
             }
 
             RefreshContinue();
         }
-        else if (e.PropertyName is nameof(AccountsViewModel.WindowsAccountOffered) or nameof(AccountsViewModel.ListingPending))
+        else if (e.PropertyName is nameof(AccountsViewModel.WindowsAccountOffered) or nameof(AccountsViewModel.ListingPending) or nameof(AccountsViewModel.WindowsOfferText))
         {
             RefreshContinue();
         }
     }
 
+    private void RefreshConnectNote()
+    {
+        OnPropertyChanged(nameof(ConnectNote));
+        OnPropertyChanged(nameof(ShowConnectNote));
+    }
+
     private void RefreshContinue()
     {
+        RefreshConnectNote();
         OnPropertyChanged(nameof(CanContinue));
         ContinueCommand.NotifyCanExecuteChanged();
     }

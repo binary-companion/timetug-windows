@@ -142,6 +142,93 @@ public class WelcomeListFlowTests
         rig.Dismissals.DismissCalls.Should().Be(0, "a decline is not remembered");
     }
 
+    // ---- the note under the list: what Continue does (the owner pressed "+" instead of Continue and never learned it adds the Windows account) ----
+
+    [Fact]
+    public async Task While_the_windows_account_is_offered_a_note_says_what_continue_does_and_names_the_account()
+    {
+        var rig = Create(Named);
+        await Start(rig);
+
+        rig.Model.ShowConnectNote.Should().BeTrue();
+        rig.Model.ConnectNote.Should().Contain("Continue").And.Contain("sign in to Windows").And.Contain("me@example.com");
+    }
+
+    [Fact]
+    public async Task The_note_does_not_name_an_account_when_windows_names_none_in_particular()
+    {
+        var rig = Create(Unnamed);
+        await Start(rig);
+
+        rig.Model.ShowConnectNote.Should().BeTrue();
+        rig.Model.ConnectNote.Should().Contain("Continue").And.NotContain("@");
+    }
+
+    [Theory]
+    [InlineData("none")]
+    [InlineData("unavailable")]
+    public async Task There_is_no_note_when_nothing_is_offered(string listing)
+    {
+        var rig = Create(listing == "none" ? None : Unavailable);
+        await Start(rig);
+
+        rig.Model.ShowConnectNote.Should().BeFalse();
+        rig.Model.ConnectNote.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task There_is_no_note_after_a_recorded_removal()
+    {
+        var rig = Create(dismissed: true);
+        await Start(rig);
+
+        rig.Model.ShowConnectNote.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_late_listing_shows_the_note_and_tells_the_window()
+    {
+        var rig = Create(gated: true);
+        await Start(rig);
+        rig.Model.ShowConnectNote.Should().BeFalse("the listing has not answered");
+        var changed = new List<string?>();
+        rig.Model.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        rig.Source.Gate!.SetResult(Named);
+        await Eventually(() => rig.Model.ShowConnectNote);
+
+        rig.Model.ShowConnectNote.Should().BeTrue();
+        changed.Should().Contain(nameof(WelcomeViewModel.ShowConnectNote)).And.Contain(nameof(WelcomeViewModel.ConnectNote));
+    }
+
+    [Fact]
+    public async Task The_note_is_hidden_while_windows_is_being_asked_and_after_a_decline_it_says_so_and_how_to_try_again()
+    {
+        var rig = Create(Named);
+        await Start(rig);
+        await Press(rig.Model.ContinueCommand);
+        rig.Engine.Push(ListRig.Empty(Working));
+        rig.Model.ShowConnectNote.Should().BeFalse("the waiting line is on screen");
+
+        rig.Engine.Push(ListRig.Empty(Idle));
+
+        rig.Model.ShowConnectNote.Should().BeTrue();
+        rig.Model.ConnectNote.Should().Contain("Windows didn't").And.Contain("Continue").And.NotContain("sign in to Windows");
+    }
+
+    [Fact]
+    public async Task The_note_goes_when_the_account_is_connected()
+    {
+        var rig = Create(Named);
+        await Start(rig);
+        await Press(rig.Model.ContinueCommand);
+        rig.Engine.Push(ListRig.Empty(Working));
+
+        rig.Engine.Push(With(Idle, Account("p", "microsoft-brokered", "me@example.com")));
+
+        rig.Model.ShowConnectNote.Should().BeFalse();
+    }
+
     [Fact]
     public async Task Declining_then_Continue_with_an_empty_list_asks_windows_again()
     {
