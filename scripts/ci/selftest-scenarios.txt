@@ -45,7 +45,7 @@ menu-theme                0  240  selftest
 broker-probe              0  120  selftest
 welcome-brokered          4  210  selftest
 welcome-local-only        3  150  selftest
-welcome-dismissed         2  210  selftest
+welcome-dismissed         3  240  selftest
 accounts-brokered         4  210  selftest
 accounts-list             6  240  selftest
 brokered-reconnect        2  180  selftest
