@@ -444,13 +444,13 @@ public class WelcomeWindowsRowTests
     }
 
     [Fact]
-    public void A_plus_microsoft_after_the_removal_adds_the_windows_account_back_as_a_connected_row()
+    public async Task A_plus_microsoft_after_the_removal_adds_the_windows_account_back_as_a_connected_row()
     {
         var rig = Create();
         rig.Model.Accounts.SelectedAccountId = AccountsViewModel.WindowsOfferRowId;
         rig.Model.Accounts.RemoveSelectedCommand.Execute(null);
 
-        rig.Model.Accounts.ConnectAsync("microsoft-brokered:pick").GetAwaiter().GetResult();
+        await rig.Model.Accounts.ConnectAsync("microsoft-brokered:pick");
         rig.Engine.Push(ListRig.Empty(Working));
         rig.Engine.Push(With(Idle, Account("p", "microsoft-brokered", "me@example.com")));
 

@@ -33,6 +33,9 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     private WindowsAccountListing? _listing;
     private bool _listingRequested;
     private bool _offered;
+    private string? _offerEmail;
+    private bool _offerDeclined;
+    private bool _offerRemoved;
     private string? _dismissOnRemoval;
     private string? _selectedAccountId;
     private string? _removingId;
@@ -45,6 +48,12 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         public const string Diagnostics = "diagnostics";
         public const string AccountPrefix = "account:";
     }
+
+    /// <summary>
+    /// The id of the list row that stands for the Windows Microsoft account while it is offered but not connected (spec A2). It is not an engine connection id;
+    /// removing that row with "-" drops it without a question and records the dismissal.
+    /// </summary>
+    public const string WindowsOfferRowId = "windows-account:offer";
 
     public AccountsViewModel(IEngineClient engine, IUiDispatcher ui, ILocalizer text, TimeProvider? clock = null)
     {
@@ -107,19 +116,26 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     public bool ListingPending => _listingRequested && _listing is null;
 
     /// <summary>
-    /// What Continue does when <see cref="WindowsAccountOffered"/>: it connects the Microsoft account Windows is signed in with (named when Windows names exactly one).
-    /// Null when nothing is offered. Without it the empty list only says "Choose +", and a person who then picks Microsoft from the menu never learns that Continue
-    /// would have connected their Windows account with one click.
+    /// Windows was asked from this window (the Windows account intent) and the person declined, closed the dialog, cancelled the wait, or it failed: the offered row
+    /// says so. Cleared when Windows is asked again and when nothing is offered any more.
     /// </summary>
-    public string? WindowsOfferText
+    public bool WindowsOfferDeclined
     {
-        get;
-        private set => SetProperty(ref field, value);
+        get => _offerDeclined;
+        private set
+        {
+            if (_offerDeclined != value)
+            {
+                _offerDeclined = value;
+                OnPropertyChanged();
+            }
+        }
     }
 
     /// <summary>
-    /// The connected accounts the list shows as rows, in the engine's order: every connected account, the Windows account included. It is
-    /// updated in place, so a row whose content did not change is the same object (keyboard focus and selection survive the engine's frequent publications).
+    /// The rows of the accounts box: first the Windows account's row while it is offered and not connected (<see cref="ConnectedAccount.IsPending"/>), then every
+    /// connected account in the engine's order. It is updated in place, so a row whose content did not change is the same object (keyboard focus and selection
+    /// survive the engine's frequent publications).
     /// </summary>
     public ObservableCollection<ConnectedAccount> ListAccounts { get; } = [];
 
@@ -324,10 +340,10 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         }
 
         BrokerIntents?.Arm(intent);
-        await StartAsync(itemId, BrokeredKinds.Brokered);
+        await StartAsync(itemId, BrokeredKinds.Brokered, intent);
     }
 
-    private async Task StartAsync(string providerId, string kindId)
+    private async Task StartAsync(string providerId, string kindId, BrokerIntent? intent = null)
     {
         if (!_connectable.Contains(providerId) || IsBusy)
         {
@@ -336,7 +352,12 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
         ClearErrors();
         var baseline = (_state?.Accounts ?? []).Select(a => a.ConnectionId).ToHashSet(StringComparer.Ordinal);
-        var attempt = _attempt = new Attempt(providerId, kindId, baseline, _state?.Activity?.ErrorMessage);
+        var attempt = _attempt = new Attempt(providerId, kindId, baseline, _state?.Activity?.ErrorMessage, intent);
+        if (intent == BrokerIntent.WindowsAccount)
+        {
+            WindowsOfferDeclined = false;
+        }
+
         Refresh();
         try
         {
@@ -358,6 +379,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
         // A Windows sign-in being cancelled is still "Waiting for Windows…" until the engine says it is done.
         _windowsStopping = _attempt?.KindId == BrokeredKinds.Brokered || _brokeredReconnect is not null;
+        if (_attempt is { Intent: BrokerIntent.WindowsAccount })
+        {
+            WindowsOfferDeclined = true;
+        }
+
         EndAttempt();
         _brokeredReconnect = null;
         Refresh();
@@ -399,12 +425,35 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     /// <summary>Opens the question "Remove this account?" for a listed account (not while a sign-in runs).</summary>
     public void BeginRemove(string connectionId)
     {
+        if (connectionId == WindowsOfferRowId)
+        {
+            RemoveWindowsOffer();
+            return;
+        }
+
         if (IsBusy || ConnectedAccounts.FirstOrDefault(a => a.ConnectionId == connectionId) is not { } account)
         {
             return;
         }
 
         PendingRemoval = account;
+    }
+
+    /// <summary>
+    /// "-" on the Windows account's row (spec A2): nothing is connected, so there is nothing to confirm or to withdraw. The row goes at once, the removal is remembered
+    /// (A1.3) and selection and focus move as after any removal. Not while a sign-in runs.
+    /// </summary>
+    private void RemoveWindowsOffer()
+    {
+        if (IsBusy || !WindowsAccountOffered)
+        {
+            return;
+        }
+
+        _offerRemoved = true;   // gone for this session even where nothing can remember it
+        _removingId = WindowsOfferRowId;
+        Dismissals?.Dismiss();
+        RecomputeList();
     }
 
     public void CancelRemove() => PendingRemoval = null;
@@ -589,6 +638,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             {
                 // The engine stopped without an account or a message: the person closed the form, the browser tab or the Windows dialog.
                 EndAttempt();
+                if (attempt.Intent == BrokerIntent.WindowsAccount)
+                {
+                    WindowsOfferDeclined = true;
+                }
+
                 if (attempt.KindId == BrokeredKinds.Brokered)
                 {
                     OfferBrowserFallback();
@@ -617,6 +671,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         }
 
         EndAttempt();
+        if (attempt.Intent == BrokerIntent.WindowsAccount)
+        {
+            WindowsOfferDeclined = true;
+        }
+
         ExplainFailure(attempt, detail);
         Refresh();
     }
@@ -678,6 +737,17 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         var engineError = _state?.Activity?.ErrorMessage;
         var shown = engineError is null || engineError == _attempt?.BaselineError || engineError == _explainedError || engineError == SignInFailureDetail;
         ErrorText = shown ? null : engineError;
+        SyncRows();   // the offered row's status follows the attempt
+    }
+
+    private void SyncRows()
+    {
+        var before = ListAccounts.Count;
+        ReconcileListAccounts(DesiredRows());
+        if (ListAccounts.Count != before)
+        {
+            OnPropertyChanged(nameof(ShowListEmptyText));
+        }
     }
 
     // What can be connected, and the "+" menu built from it. Rebuilt only when a kind appears, goes or changes whether the build can sign in to it.
@@ -827,12 +897,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
     private static bool SameEmail(string? a, string? b) => a is not null && b is not null && string.Equals(a.Trim(), b.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    // Works out whether Continue has a Windows account to add (A1.2) and keeps the list rows in step with the engine's accounts.
+    // Works out whether Continue has a Windows account to add (A1.2), shows it as the first row (A2) and keeps the list rows in step with the engine's accounts.
     private void RecomputeList()
     {
         var previousIds = ListAccounts.Select(a => a.ConnectionId).ToList();
-        ReconcileListAccounts([.. ConnectedAccounts]);
-        var removalRefused = ReconcileSelection(previousIds);
+        var removalRefused = DetectRefusedRemoval();
         if (removalRefused)
         {
             _dismissOnRemoval = null;
@@ -843,19 +912,76 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             Dismissals?.Dismiss();
         }
 
-        var listed = _listing is { Kind: WindowsListingKind.OneNamed or WindowsListingKind.Unnamed } && BrokeredConfigured && Dismissals?.IsDismissed != true;
+        var listed = _listing is { Kind: WindowsListingKind.OneNamed or WindowsListingKind.Unnamed } && BrokeredConfigured && Dismissals?.IsDismissed != true && !_offerRemoved;
         var email = listed && _listing is { Kind: WindowsListingKind.OneNamed, Email: { } named } ? named.Trim() : null;
         var connected = email is null
             ? ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Brokered)
             : ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Brokered && SameEmail(a.Email, email));
         var browserHoldsIt = email is not null && ConnectedAccounts.Any(a => a.KindId == BrokeredKinds.Browser && SameEmail(a.Email, email));
+        _offerEmail = email;
         WindowsAccountOffered = listed && !connected && !browserHoldsIt;
-        WindowsOfferText = !WindowsAccountOffered ? null
-            : email is not null ? _text.Format("Welcome_WindowsOfferNamed", email)
-            : _text.GetString("Welcome_WindowsOffer");
+        if (!WindowsAccountOffered)
+        {
+            WindowsOfferDeclined = false;
+        }
+
+        ReconcileListAccounts(DesiredRows());
+        ReconcileSelection(previousIds);
 
         OnPropertyChanged(nameof(ShowListEmptyText));
         OnPropertyChanged(nameof(RemoveSelectedAutomationName));
+    }
+
+    // The box's rows: the offered Windows account first (it was there before anything else), then every connected account.
+    private List<ConnectedAccount> DesiredRows()
+    {
+        var rows = new List<ConnectedAccount>(ConnectedAccounts.Count + 1);
+        if (WindowsAccountOffered)
+        {
+            rows.Add(OfferRow());
+        }
+
+        rows.AddRange(ConnectedAccounts);
+        return rows;
+    }
+
+    // The Windows account as a row that is not connected yet: its status follows what Continue has done (ready, asking Windows, declined). Its words are decided here.
+    private ConnectedAccount OfferRow()
+    {
+        var kindName = RowKindName(BrokeredKinds.Brokered, BrokeredKinds.Brokered);
+        var name = _offerEmail ?? _text.GetString("Welcome_WindowsRowName");
+        string status;
+        string? hint = null;
+        var needsAttention = false;
+        if (_attempt is { Intent: BrokerIntent.WindowsAccount })
+        {
+            status = _text.GetString("Status_connecting");
+        }
+        else if (WindowsOfferDeclined)
+        {
+            needsAttention = true;   // the warning colour comes with a mark and with words: never colour alone
+            status = _text.GetString(ConnectedAccounts.Count > 0 ? "Welcome_WindowsRowDeclinedGoesOn" : "Welcome_WindowsRowDeclined");
+        }
+        else
+        {
+            status = _text.GetString("Welcome_WindowsRowReady");
+            hint = _text.GetString("Welcome_WindowsRowReadyHint");
+        }
+
+        return new ConnectedAccount(
+            WindowsOfferRowId, BrokeredKinds.Brokered, kindName, name, status, needsAttention, false, null,
+            _text.Format("Accounts_RowAutomation", kindName, name, hint is null ? status : status + " " + hint),
+            string.Empty,
+            string.Empty,
+            _text.Format("Accounts_RemoveAutomation", name))
+        {
+            IsMicrosoft = true,
+            IsPending = true,
+            Email = _offerEmail,
+            HintText = hint,
+            Mark = ProviderMark.Microsoft,
+            LogoAutomationName = _text.Format("Accounts_LogoAutomation", kindName),
+        };
     }
 
     // Removing this account is remembered (A1.3): it can be the Windows account unless Windows lists none, or names a different email.
@@ -919,15 +1045,13 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         return -1;
     }
 
-    // After a removal the engine confirmed, selection and focus go to the row now in its place, else the previous one, else the "+" button. A selection whose row
-    // vanished for any other reason is simply cleared: nothing the engine publishes moves focus.
     // Returns true when the engine refused a removal in this publication (the row is still there and it reported an error).
-    private bool ReconcileSelection(IReadOnlyList<string> previousIds)
+    private bool DetectRefusedRemoval()
     {
         var refused = false;
         if (_removingId is { } gone && ConnectedAccounts.All(a => a.ConnectionId != gone) && SelectedAccountId != gone)
         {
-            _removingId = null;   // the removed account was not the selected row (the pinned one): nothing to move
+            _removingId = null;   // the removed account was not the selected row: nothing to move
         }
 
         if (_removingId is { } removing && ConnectedAccounts.Any(a => a.ConnectionId == removing) && _state?.Activity?.ErrorMessage is { Length: > 0 } error && error != _removingBaselineError)
@@ -936,15 +1060,22 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
             refused = true;
         }
 
+        return refused;
+    }
+
+    // After a removal the engine confirmed (or the offered row's removal), selection and focus go to the row now in its place, else the previous one, else the "+"
+    // button. A selection whose row vanished for any other reason is simply cleared: nothing the engine publishes moves focus.
+    private void ReconcileSelection(IReadOnlyList<string> previousIds)
+    {
         if (SelectedAccountId is not { } selected || ListAccounts.Any(a => a.ConnectionId == selected))
         {
-            return refused;
+            return;
         }
 
         if (selected != _removingId)
         {
             SetSelected(null);
-            return refused;
+            return;
         }
 
         _removingId = null;
@@ -952,7 +1083,6 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
         var next = index >= 0 && index < ListAccounts.Count ? ListAccounts[index] : index > 0 && index - 1 < ListAccounts.Count ? ListAccounts[index - 1] : null;
         SetSelected(next?.ConnectionId);
         FocusRequested?.Invoke(this, next is null ? new FocusTarget(FocusKind.AddButton, null) : new FocusTarget(FocusKind.Row, next.ConnectionId));
-        return refused;
     }
 
     private void SetSelected(string? id)
@@ -994,8 +1124,11 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     // A connected row names the provider ("Microsoft") however it signs in: the brokered kind is not called "Microsoft account on this PC" there.
     private string RowKindName(string id, string fallback) => id == BrokeredKinds.Brokered ? KindName(BrokeredKinds.Browser, "Microsoft") : KindName(id, fallback);
 
-    private sealed class Attempt(string providerId, string kindId, HashSet<string> baseline, string? baselineError)
+    private sealed class Attempt(string providerId, string kindId, HashSet<string> baseline, string? baselineError, BrokerIntent? intent)
     {
+        /// <summary>For a brokered attempt, what the person chose: the Windows account (Continue) or the account picker ("+"); null for every other kind.</summary>
+        public BrokerIntent? Intent { get; } = intent;
+
         /// <summary>The card the person pressed (shows the failure); for "Another Microsoft account" this is not the engine's kind.</summary>
         public string ProviderId { get; } = providerId;
 

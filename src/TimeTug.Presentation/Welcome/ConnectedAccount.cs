@@ -36,4 +36,15 @@ public sealed record ConnectedAccount(
 
     /// <summary>The words of the "Sign in again" button in the row.</summary>
     public string SignInText { get; init; } = "";
+
+    /// <summary>
+    /// The row stands for the Windows Microsoft account that is not connected yet (the first-run window offers it, spec A2): it is not an engine account, "-" drops it
+    /// without a question, and Continue connects it.
+    /// </summary>
+    public bool IsPending { get; init; }
+
+    /// <summary>A second line under the status (what happens next); null when the row has none.</summary>
+    public string? HintText { get; init; }
+
+    public bool HasHint => !string.IsNullOrEmpty(HintText);
 }
