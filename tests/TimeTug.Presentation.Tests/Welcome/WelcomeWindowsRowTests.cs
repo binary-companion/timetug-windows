@@ -151,14 +151,17 @@ public class WelcomeWindowsRowTests
     }
 
     [Fact]
-    public void The_settings_pane_never_shows_the_row_because_it_gives_no_windows_account_source()
+    public void The_settings_pane_never_shows_the_row_although_it_knows_the_listing()
     {
-        var rig = ListRig.Create(withSource: false);
+        var rig = ListRig.Create(Named);
 
         rig.Push();
 
+        rig.Model.WindowsAccountOffered.Should().BeTrue("the listing is known, so a removal there is remembered");
         rig.Model.ListAccounts.Should().BeEmpty();
-        rig.Model.WindowsAccountOffered.Should().BeFalse();
+        rig.Model.ShowListEmptyText.Should().BeTrue();
+        rig.Model.BeginRemove(AccountsViewModel.WindowsOfferRowId);
+        rig.Dismissals.DismissCalls.Should().Be(0, "there is no row to remove");
     }
 
     // ---- Continue: connecting, then connected ---------------------------------------------------------------------------------------

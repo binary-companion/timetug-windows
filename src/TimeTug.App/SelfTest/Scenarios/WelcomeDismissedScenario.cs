@@ -41,6 +41,7 @@ internal static class WelcomeDismissedScenario
         run.Check(ScenarioUi.Invoke(first, "Get started"), "Get started is pressed");
         run.Check(await rig.WaitFor(() => first.ViewModel.Step == WelcomeStep.Connect && first.ViewModel.Accounts.ListAccounts is [{ IsPending: true }]), "the Windows account is the box's only row");
         var firstBox = first.AccountsList;
+        run.Check(await rig.WaitFor(() => AccountsListUi.ItemPeer(firstBox, AccountsViewModel.WindowsOfferRowId) is not null), "the row is on screen");
         run.Check(AccountsListUi.Select(firstBox, AccountsViewModel.WindowsOfferRowId) && await rig.WaitFor(() => firstBox.RemoveMinus.IsEnabled, 3000), "the row is selected and - is enabled");
         run.Check(ScenarioUi.Invoke(firstBox.RemoveMinus), "- is pressed");
         run.Check(await rig.WaitFor(() => first.ViewModel.Accounts.ListAccounts.Count == 0, 3000), "the row is gone");

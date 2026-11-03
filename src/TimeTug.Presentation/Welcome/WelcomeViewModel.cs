@@ -40,7 +40,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     {
         _openAccountsPane = openAccountsPane;
         LaunchAtLogin = launchAtLogin;
-        Accounts = new AccountsViewModel(engine, ui, text, clock);
+        Accounts = new AccountsViewModel(engine, ui, text, clock) { ShowWindowsOfferRow = true };
         Accounts.Connected += (_, _) => OnAccountConnected();
         Accounts.PropertyChanged += OnAccountsChanged;
         Accounts.ListAccounts.CollectionChanged += (_, _) => RefreshContinue();

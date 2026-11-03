@@ -81,6 +81,12 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     /// </summary>
     public IWindowsAccountDismissalStore? Dismissals { get; set; }
 
+    /// <summary>
+    /// The first-run window shows the offered Windows account as the box's first row (spec A2). Settings > Accounts leaves this off: it knows the listing (so that
+    /// removing the Windows account there is remembered) but never offers or adds the account by itself.
+    /// </summary>
+    public bool ShowWindowsOfferRow { get; init; }
+
     /// <summary>What Windows lists, for the first-run offer (set by the app's composition when the broker is available).</summary>
     public IWindowsAccountSource? WindowsAccounts
     {
@@ -445,7 +451,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     /// </summary>
     private void RemoveWindowsOffer()
     {
-        if (IsBusy || !WindowsAccountOffered)
+        if (IsBusy || !ShowWindowsOfferRow || !WindowsAccountOffered)
         {
             return;
         }
@@ -936,7 +942,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
     private List<ConnectedAccount> DesiredRows()
     {
         var rows = new List<ConnectedAccount>(ConnectedAccounts.Count + 1);
-        if (WindowsAccountOffered)
+        if (ShowWindowsOfferRow && WindowsAccountOffered)
         {
             rows.Add(OfferRow());
         }

@@ -50,6 +50,8 @@ internal static class WelcomeBrokeredScenario
         run.Check(await rig.WaitFor(() => model.Accounts.WindowsAccountOffered), "the Windows account is offered: Windows listed one");
         run.Check(model.CanContinue && window.Continue.IsEnabled, "Continue is enabled");
         run.Check(box.EmptyLineText.Visibility == Visibility.Collapsed, "the box is not empty: the Windows account is its first row");
+        run.Check(await rig.WaitFor(() => AccountsListUi.Container(box, AccountsViewModel.WindowsOfferRowId) is not null && AccountsListUi.ItemPeer(box, AccountsViewModel.WindowsOfferRowId) is not null),
+            "the row is on screen");
         run.Check(AccountsListUi.RowNames(box).SequenceEqual(["Microsoft, me@example.com, Ready to connect. Windows will ask you to allow TimeTug when you continue."]),
             "the row reads as provider, name and status: " + string.Join(" | ", AccountsListUi.RowNames(box)));
         run.Check(AccountsListUi.RowLogo(box, AccountsViewModel.WindowsOfferRowId) is { Name: "Microsoft logo", Drawn: true }, "the row shows the Microsoft logo");
