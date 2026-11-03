@@ -1,5 +1,6 @@
 #if SELFTEST
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using TimeTug.App.Settings;
 using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Welcome;
@@ -7,7 +8,9 @@ using TimeTug.Presentation.Welcome;
 namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
-/// Scenario <c>welcome-dismissed</c>: removing the Windows account is remembered. A first run adds the Windows account on Continue (Windows' dialog, allowed). In
+/// Scenario <c>welcome-dismissed</c>: removing the Windows account is remembered, whichever way it is removed. First, on the first-run window: the Windows account's
+/// row is selected and "-" drops it at once (no question, nothing asked of Windows), the box says it is empty, Continue is disabled and the removal is recorded.
+/// Then, from a first run again, the account is added on Continue (Windows' dialog, allowed). In
 /// Settings > Accounts the person selects its row, presses "-" and confirms; the flag is recorded once the engine says the account is gone. The first-run window
 /// opened again then asks Windows nothing at all (no listing), offers nothing, and keeps Continue disabled with the empty box; "+" > Microsoft (the account picker)
 /// adds the Windows account back and Continue then goes on without another Windows dialog.
@@ -32,7 +35,30 @@ internal static class WelcomeDismissedScenario
         }
 
         await SelfTestRunner.WaitForFrameAsync(first, cancellation);
+
+        // ---- "-" on the Windows account's row in the first-run window -------------------------------------------------------------------------------------
         run.Check(!rig.Dismissals.IsDismissed, "nothing was removed yet: no dismissal is recorded");
+        run.Check(ScenarioUi.Invoke(first, "Get started"), "Get started is pressed");
+        run.Check(await rig.WaitFor(() => first.ViewModel.Step == WelcomeStep.Connect && first.ViewModel.Accounts.ListAccounts is [{ IsPending: true }]), "the Windows account is the box's only row");
+        var firstBox = first.AccountsList;
+        run.Check(await rig.WaitFor(() => AccountsListUi.ItemPeer(firstBox, AccountsViewModel.WindowsOfferRowId) is not null), "the row is on screen");
+        run.Check(AccountsListUi.Select(firstBox, AccountsViewModel.WindowsOfferRowId) && await rig.WaitFor(() => firstBox.RemoveMinus.IsEnabled, 3000), "the row is selected and - is enabled");
+        run.Check(ScenarioUi.Invoke(firstBox.RemoveMinus), "- is pressed");
+        run.Check(await rig.WaitFor(() => first.ViewModel.Accounts.ListAccounts.Count == 0, 3000), "the row is gone");
+        await rig.Settle(600);
+        run.Check(firstBox.OpenDialog is null && VisualTreeHelper.GetOpenPopupsForXamlRoot(first.Content.XamlRoot).Count == 0, "no question was asked: nothing was connected");
+        run.Check(rig.Dismissals.IsDismissed, "the removal is remembered");
+        run.Check(firstBox.EmptyLineText.Visibility == Visibility.Visible && !first.Continue.IsEnabled, "the box says it is empty and Continue is disabled");
+        run.Check(rig.Latest is { Accounts.Count: 0 } && rig.Broker.Calls.All(c => c == "list"), "nothing but the listing went to Windows: " + string.Join(", ", rig.Broker.Calls));
+        await run.ShotAsync(first, "row-removed");
+        first.Close();
+
+        // ---- a first run again, and this time the account is added on Continue ---------------------------------------------------------------------------------
+        rig.Dismissals.Clear();
+        rig.Shell.ShowWelcome();
+        run.Check(await rig.WaitFor(() => rig.Shell.Welcome is not null), "the first-run window opens again after the removal was forgotten");
+        first = rig.Shell.Welcome!;
+        await SelfTestRunner.WaitForFrameAsync(first, cancellation);
         run.Check(ScenarioUi.Invoke(first, "Get started"), "Get started is pressed");
         run.Check(await rig.WaitFor(() => first.ViewModel.Step == WelcomeStep.Connect && first.ViewModel.CanContinue), "Continue is enabled: Windows lists an account");
         run.Check(ScenarioUi.Invoke(first, "Continue"), "Continue is pressed");

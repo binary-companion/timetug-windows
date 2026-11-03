@@ -38,6 +38,9 @@
             <TextBlock Grid.Column="1" Text="{x:Bind StatusText}" TextWrapping="Wrap" Visibility="{x:Bind NeedsAttention}"
                        Foreground="{ThemeResource SystemFillColorCautionBrush}" />
           </Grid>
+          <!-- What happens next, for the Windows account's row before it is connected ("Windows will ask you to allow TimeTug when you continue."). -->
+          <TextBlock Text="{x:Bind HintText}" Visibility="{x:Bind HasHint}" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
           <Grid ColumnSpacing="6" Visibility="{x:Bind HasNotice}">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="Auto" />

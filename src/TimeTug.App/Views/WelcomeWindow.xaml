@@ -23,14 +23,11 @@
                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>
 
-        <!-- Step 2: Connect your calendars: the accounts list. Nothing is requested from Windows until Continue. -->
+        <!-- Step 2: Connect your calendars: the accounts list, with the Windows account as its first row. Nothing is requested from Windows until Continue. -->
         <StackPanel x:Name="ConnectPanel" Spacing="12" Visibility="{x:Bind ViewModel.IsConnectStep, Mode=OneWay}">
           <TextBlock x:Uid="ConnectCalendarsTitle" Style="{StaticResource TitleLargeTextBlockStyle}" TextWrapping="Wrap"
                      AutomationProperties.HeadingLevel="Level1" />
           <controls:AccountsListBox x:Name="AccountsBox" Accounts="{x:Bind ViewModel.Accounts}" />
-          <TextBlock x:Name="ConnectNoteText" Text="{x:Bind ViewModel.ConnectNote, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowConnectNote, Mode=OneWay}"
-                     TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"
-                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
           <TextBlock x:Uid="BrowserNote" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>

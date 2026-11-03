@@ -304,20 +304,34 @@ public sealed partial class AccountsListBox : UserControl
             return false;
         }
 
-        if (model.RemoveSelectedCommand.CanExecute(null))
-        {
-            model.RemoveSelectedCommand.Execute(null);
-        }
-
+        RemoveSelected(model);
         return true;
     }
 
     private void OnRemoveClick(object sender, RoutedEventArgs e)
     {
-        if (_wired is { } model && model.RemoveSelectedCommand.CanExecute(null))
+        if (_wired is { } model)
         {
-            model.RemoveSelectedCommand.Execute(null);
+            RemoveSelected(model);
         }
+    }
+
+    private void RemoveSelected(AccountsViewModel model)
+    {
+        if (!model.RemoveSelectedCommand.CanExecute(null))
+        {
+            return;
+        }
+
+        // The Windows account's row goes at once, without the question (nothing is connected to remove): the announcement is made here, as after a confirmed removal.
+        if (model.SelectedAccountId == AccountsViewModel.WindowsOfferRowId
+            && model.ListAccounts.FirstOrDefault(a => a.ConnectionId == AccountsViewModel.WindowsOfferRowId) is { } offer)
+        {
+            _removedId = offer.ConnectionId;
+            _removedName = offer.Name;
+        }
+
+        model.RemoveSelectedCommand.Execute(null);
     }
 
     private async void OnRowSignInAgain(object sender, RoutedEventArgs e)

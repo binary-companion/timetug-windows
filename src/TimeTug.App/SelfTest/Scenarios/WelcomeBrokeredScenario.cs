@@ -7,9 +7,10 @@ namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
 /// Scenario <c>welcome-brokered</c>: a first run over the real engine with a scripted Windows account broker and recorded Graph answers. The welcome window
-/// opens by itself on "Welcome to TimeTug"; Get started shows "Connect your calendars": an empty box with no pinned row and no switch, and nothing but the
-/// listing has been asked of Windows. Continue asks for the Windows dialog. Closing it leaves the window on step 2 with no error and "Use your browser instead";
-/// allowing it adds the Windows account as an ordinary Microsoft row (with the Microsoft logo) and moves to step 3. A second pass shows that an account added with
+/// opens by itself on "Welcome to TimeTug"; Get started shows "Connect your calendars": the box holds the Windows account as its first row (the Microsoft logo, the
+/// email, "Ready to connect" and what Windows will do), and nothing but the listing has been asked of Windows. Continue asks for the Windows dialog. Closing it leaves
+/// the window on step 2 with the row saying "Not connected. Choose Continue to try again.", no error words and "Use your browser instead"; allowing it connects the
+/// account (an ordinary Microsoft row with the Microsoft logo) and moves to step 3. A second pass shows that an account added with
 /// "+" first lets Continue go on with no Windows dialog. Controls are pressed through UI Automation, so their names are exercised too.
 /// </summary>
 internal static class WelcomeBrokeredScenario
@@ -43,12 +44,19 @@ internal static class WelcomeBrokeredScenario
         await rig.Settle(600);
         await run.ShotAsync(window, "intro");
 
-        // ---- step 2: an empty box, no pinned row ----------------------------------------------------------------------------------------
+        // ---- step 2: the Windows account is the box's first row ---------------------------------------------------------------------------
         run.Check(ScenarioUi.Invoke(window, "Get started"), "Get started is pressed");
         run.Check(await rig.WaitFor(() => model.Step == WelcomeStep.Connect), "the window shows \"Connect your calendars\"");
         run.Check(await rig.WaitFor(() => model.Accounts.WindowsAccountOffered), "the Windows account is offered: Windows listed one");
         run.Check(model.CanContinue && window.Continue.IsEnabled, "Continue is enabled");
-        run.Check(box.EmptyLineText.Visibility == Visibility.Visible, "the box says it is empty: nothing is added until Continue");
+        run.Check(box.EmptyLineText.Visibility == Visibility.Collapsed, "the box is not empty: the Windows account is its first row");
+        run.Check(await rig.WaitFor(() => AccountsListUi.Container(box, AccountsViewModel.WindowsOfferRowId) is not null && AccountsListUi.ItemPeer(box, AccountsViewModel.WindowsOfferRowId) is not null),
+            "the row is on screen");
+        run.Check(AccountsListUi.RowNames(box).SequenceEqual(["Microsoft, me@example.com, Ready to connect. Windows will ask you to allow TimeTug when you continue."]),
+            "the row reads as provider, name and status: " + string.Join(" | ", AccountsListUi.RowNames(box)));
+        run.Check(AccountsListUi.RowLogo(box, AccountsViewModel.WindowsOfferRowId) is { Name: "Microsoft logo", Drawn: true }, "the row shows the Microsoft logo");
+        run.Check(AccountsListUi.ExposesListPatterns(box), "the list exposes the Selection pattern and the row the SelectionItem pattern: " + AccountsListUi.ListPatternReport(box).Detail);
+        run.Check(rig.Latest is { Accounts.Count: 0 }, "nothing is connected yet: the row is not an account");
         run.Check(rig.Broker.Calls.All(c => c == "list"), "still nothing but the listing has gone to Windows: " + string.Join(", ", rig.Broker.Calls));
         run.Check(ScenarioUi.Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", ScenarioUi.Unnamed(window)));
         await rig.Settle(900);
@@ -65,6 +73,8 @@ internal static class WelcomeBrokeredScenario
         run.Check(model.CanContinue && window.Continue.IsEnabled, "Continue can be pressed again");
         run.Check(box.BrowserFallbackLink.Visibility == Visibility.Visible && box.BrowserFallbackLink.Content is "Use your browser instead", "\"Use your browser instead\" is offered");
         run.Check(rig.Latest is { Accounts.Count: 0 }, "no account was added");
+        run.Check(AccountsListUi.RowNames(box).SequenceEqual(["Microsoft, me@example.com, Not connected. Choose Continue to try again."]),
+            "the row stays and says so: " + string.Join(" | ", AccountsListUi.RowNames(box)));
         await rig.Settle(900);
         await run.ShotAsync(window, "declined");
 
@@ -116,6 +126,7 @@ internal static class WelcomeBrokeredScenario
         var box = window.AccountsList;
         run.Check(ScenarioUi.Invoke(window, "Get started"), "(second pass) Get started");
         run.Check(await rig.WaitFor(() => model.Accounts.WindowsAccountOffered), "(second pass) the Windows account is offered again (removing it from the engine is not a dismissal)");
+        run.Check(model.Accounts.ListAccounts is [{ IsPending: true, StatusText: "Ready to connect" }], "(second pass) its row is in the box again, ready to connect");
         run.Check(await rig.WaitFor(() => window.Continue.IsEnabled), "(second pass) Continue is enabled");
         await run.ShotAsync(window, "second-connect");
 
