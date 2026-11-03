@@ -451,10 +451,10 @@ public class WelcomeWindowsRowTests
         rig.Model.Accounts.RemoveSelectedCommand.Execute(null);
 
         await rig.Model.Accounts.ConnectAsync("microsoft-brokered:pick");
+        rig.Intent.Armed.Should().Equal((BrokerIntent.PickAccount, 0));
         rig.Engine.Push(ListRig.Empty(Working));
         rig.Engine.Push(With(Idle, Account("p", "microsoft-brokered", "me@example.com")));
 
-        rig.Intent.Armed.Should().Equal((BrokerIntent.PickAccount, 0));
         rig.Model.Accounts.ListAccounts.Select(r => r.ConnectionId).Should().Equal("p");
         rig.Model.Accounts.WindowsAccountOffered.Should().BeFalse();
     }

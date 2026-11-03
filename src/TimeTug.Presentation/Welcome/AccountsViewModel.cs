@@ -970,7 +970,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
 
         return new ConnectedAccount(
             WindowsOfferRowId, BrokeredKinds.Brokered, kindName, name, status, needsAttention, false, null,
-            _text.Format("Accounts_RowAutomation", kindName, name, hint is null ? status : status + " " + hint),
+            _text.Format("Accounts_RowAutomation", kindName, name, hint is null ? status : status + ". " + hint),
             string.Empty,
             string.Empty,
             _text.Format("Accounts_RemoveAutomation", name))
