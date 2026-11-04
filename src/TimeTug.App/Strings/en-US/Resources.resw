@@ -47,7 +47,7 @@
   <data name="TaskbarStep1.Text" xml:space="preserve"><value>Select Show TimeTug in the taskbar to open the setting.</value></data>
   <data name="TaskbarStep2.Text" xml:space="preserve"><value>Under Other system tray icons, turn TimeTug on.</value></data>
   <data name="TaskbarStepDrag.Text" xml:space="preserve"><value>Or select the arrow next to the clock and drag the TimeTug icon onto the taskbar.</value></data>
-  <data name="TaskbarGuide.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Animated guide. In Windows Settings, open Personalization, then Taskbar, open Other system tray icons and turn TimeTug on.</value></data>
+  <data name="TaskbarGuide.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Guide. In Windows Settings, open Personalization, then Taskbar, open Other system tray icons and turn TimeTug on.</value></data>
   <data name="Done.Content" xml:space="preserve"><value>Done</value></data>
   <data name="Done.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Done</value></data>
   <data name="CredentialDialog.PrimaryButtonText" xml:space="preserve"><value>Sign in</value></data>
