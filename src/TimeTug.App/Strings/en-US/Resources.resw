@@ -36,7 +36,6 @@
   <data name="SkipForNow.Content" xml:space="preserve"><value>Skip for now</value></data>
   <data name="SkipForNow.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Skip for now</value></data>
   <data name="ConnectedTitle.Text" xml:space="preserve"><value>You’re connected</value></data>
-  <data name="AccountsList.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Connected accounts</value></data>
   <data name="AddAnother.Content" xml:space="preserve"><value>Add another</value></data>
   <data name="AddAnother.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Add another account</value></data>
   <data name="TestTug.Content" xml:space="preserve"><value>Test tug</value></data>
@@ -48,6 +47,8 @@
   <data name="TaskbarStep2.Text" xml:space="preserve"><value>Under Other system tray icons, turn TimeTug on.</value></data>
   <data name="TaskbarStepDrag.Text" xml:space="preserve"><value>Or select the arrow next to the clock and drag the TimeTug icon onto the taskbar.</value></data>
   <data name="TaskbarGuide.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Guide. In Windows Settings, open Personalization, then Taskbar, open Other system tray icons and turn TimeTug on.</value></data>
+  <data name="HandyTitle.Text" xml:space="preserve"><value>Keep TimeTug handy</value><comment>Heading of the last screen of the first-run window, above the start-at-sign-in checkbox and the taskbar suggestion.</comment></data>
+  <data name="HandySubtitle.Text" xml:space="preserve"><value>Two small things so TimeTug is ready, and in sight, when your next meeting starts.</value><comment>Line under the heading of the last screen of the first-run window.</comment></data>
   <data name="Done.Content" xml:space="preserve"><value>Done</value></data>
   <data name="Done.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Done</value></data>
   <data name="CredentialDialog.PrimaryButtonText" xml:space="preserve"><value>Sign in</value></data>
@@ -493,6 +494,8 @@
   <data name="Welcome_WindowsRowDeclined" xml:space="preserve"><value>Not connected. Choose Continue to try again.</value><comment>Status of the Windows account's row after the Windows dialog was declined, closed or failed. 'Continue' is the label of the button below the list.</comment></data>
   <data name="Welcome_WindowsRowDeclinedGoesOn" xml:space="preserve"><value>Not connected. Continue goes on without it.</value><comment>Status of the Windows account's row after the Windows dialog was declined, closed or failed, once another account is in the list. 'Continue' is the label of the button below the list.</comment></data>
   <data name="Welcome_Continue" xml:space="preserve"><value>Continue</value><comment>Button on the 'Connect your calendars' screen of the first-run window. Windows asks for permission when it is pressed.</comment></data>
+  <data name="Welcome_ConnectedContinue" xml:space="preserve"><value>Continue</value><comment>Button on the 'You're connected' screen of the first-run window. It only goes on to the last screen; every choice on this screen is already saved.</comment></data>
+  <data name="Welcome_CalendarsEmpty" xml:space="preserve"><value>No calendars found yet. They appear here as soon as your account has loaded them.</value><comment>Shown on the 'You're connected' screen of the first-run window, in place of the list of calendars, while the list is empty.</comment></data>
   <data name="Accounts_AddAutomation" xml:space="preserve"><value>Add account</value><comment>Name of the '+' button below the accounts list, read by a screen reader. Pressing it opens a menu of the kinds of account that can be added.</comment></data>
   <data name="Accounts_ListAutomation" xml:space="preserve"><value>Connected accounts</value><comment>Name of the accounts list, read by a screen reader.</comment></data>
   <data name="Accounts_RemovedAnnouncement" xml:space="preserve"><value>{0} removed</value><comment>Announced by a screen reader after an account was removed. '{0}' is the account's name.</comment></data>

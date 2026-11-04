@@ -11,6 +11,7 @@ using TimeTug.Platform.Tray;
 using TimeTug.Presentation.Flyout;
 using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Tray;
+using TimeTug.Presentation.Welcome;
 using Windows.Graphics;
 
 namespace TimeTug.App.SelfTest.Scenarios;
@@ -258,7 +259,11 @@ internal static class SettingsAppearanceScenario
         var run = tug.Run;
         tug.Engine.Push(Scenes.Empty());
         settings.Store.Save(settings.Store.Load() with { Theme = AppTheme.Dark });
-        var welcome = WelcomeWindowFactory.Create(tug.Engine, tug.Forms, tug.Text, tug.Time, theme: settings.Theme);
+        var dispatcher = new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
+        using var client = new SettingsClient(tug.Engine);
+        var welcome = WelcomeWindowFactory.Create(
+            tug.Engine, tug.Forms, tug.Text, tug.Time, launchAtLogin: new LaunchAtLoginViewModel(settings.Startup, settings.Links, dispatcher, tug.Text), theme: settings.Theme,
+            taskbar: new TaskbarSettingsViewModel(settings.Links, dispatcher, tug.Text, tug.Diagnostics), uiSettings: tug.Settings, settings: client);
         welcome.Activate();
         await SelfTestRunner.WaitForFrameAsync(welcome, CancellationToken.None, 900);
         var root = (FrameworkElement)welcome.Content;
@@ -270,6 +275,38 @@ internal static class SettingsAppearanceScenario
         await tug.Settle(900);
         run.Check(root.ActualTheme == ElementTheme.Light && Same(welcome.AppWindow.TitleBar.BackgroundColor, ThemeColors.Get("SolidBackgroundFillColorBase", dark: false)), "and turns light while it is open");
         await PaintedShotAsync(run, welcome, "welcome-light");
+
+        // Steps 3 and 4 follow the theme as well: the calendar list (its colour boxes are drawn for the theme in force, or not at all under a contrast theme) and
+        // the start-at-sign-in and taskbar step.
+        tug.Engine.Push(SettingsRig.State(tug.Time.GetUtcNow()));
+        run.Check(ScenarioUi.Invoke(welcome, "Get started"), "Get started is pressed");
+        run.Check(await tug.WaitFor(() => welcome.ViewModel.Step == WelcomeStep.Connect && welcome.ViewModel.CanContinue), "the Connect step lists the connected account");
+        run.Check(ScenarioUi.Invoke(welcome, "Continue"), "Continue is pressed");
+        run.Check(await tug.WaitFor(() => welcome.ViewModel.Step == WelcomeStep.Connected), "the window shows You’re connected");
+        var list = welcome.CalendarsList;
+        await tug.Settle(900);
+        run.Check(list.SwatchLook == "light" && list.ControlsOf("google-conn-1/work") is not null, "the calendar list is drawn for the light theme");
+        await PaintedShotAsync(run, welcome, "welcome-connected-light");
+        settings.Store.Save(settings.Store.Load() with { Theme = AppTheme.Dark });
+        await tug.Settle(900);
+        run.Check(root.ActualTheme == ElementTheme.Dark && list.SwatchLook == "dark", "and again for the dark theme while the window is open");
+        await PaintedShotAsync(run, welcome, "welcome-connected-dark");
+        tug.Settings.HighContrast = true;
+        tug.Settings.Raise();
+        await tug.Settle(900);
+        run.Check(list.SwatchLook == "contrast" && list.ControlsOf("google-conn-1/work") is not null, "under a contrast theme the calendars' own colours are left out and the list is still there");
+        await PaintedShotAsync(run, welcome, "welcome-connected-contrast");
+        tug.Settings.HighContrast = false;
+        tug.Settings.Raise();
+        await tug.Settle(600);
+        run.Check(ScenarioUi.Invoke(welcome.ConnectedContinue), "Continue is pressed on You’re connected");
+        run.Check(await tug.WaitFor(() => welcome.ViewModel.Step == WelcomeStep.Handy), "the window shows Keep TimeTug handy");
+        await tug.Settle(1500);
+        await PaintedShotAsync(run, welcome, "welcome-handy-dark");
+        settings.Store.Save(settings.Store.Load() with { Theme = AppTheme.Light });
+        await tug.Settle(900);
+        run.Check(root.ActualTheme == ElementTheme.Light, "and turns light while it is open");
+        await PaintedShotAsync(run, welcome, "welcome-handy-light");
         welcome.Close();
         await tug.Settle(300);
         run.Check(settings.Theme.Attached == 1, "closing the welcome window detaches it: " + settings.Theme.Attached);

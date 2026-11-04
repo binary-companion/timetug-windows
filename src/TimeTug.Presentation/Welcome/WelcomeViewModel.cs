@@ -14,14 +14,20 @@ public enum WelcomeStep
     /// <summary>"Welcome to TimeTug": pick where to connect.</summary>
     Connect,
 
-    /// <summary>"You're connected": what was found, with Add another, Test tug and Done.</summary>
+    /// <summary>"You're connected": the calendars that were found, each with its Tug switch, with Add another, Test tug and Continue.</summary>
     Connected,
 
     /// <summary>"Welcome to TimeTug" with Get started. The Windows account listing runs while it is up.</summary>
     Intro,
+
+    /// <summary>"Keep TimeTug handy": start at sign-in and the taskbar card, with Done. Nothing for either runs before this step is shown.</summary>
+    Handy,
 }
 
-/// <summary>The first-run window: connect a first account, then see what was found. Never shown when accounts exist.</summary>
+/// <summary>
+/// The first-run window, four steps: Welcome, Connect your calendars, You're connected (choose which calendars tug), Keep TimeTug handy (start at sign-in, the taskbar).
+/// Every choice is saved as it is made, so closing the window at any step loses nothing. Never shown when accounts exist.
+/// </summary>
 public sealed class WelcomeViewModel : ObservableObject, IDisposable
 {
     private readonly Action? _openAccountsPane;
@@ -32,19 +38,24 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     /// showing the list of places to connect again; without one, "Add another" shows that list.
     /// </param>
     /// <param name="launchAtLogin">
-    /// Launch at login, for the "Start TimeTug when I sign in" checkbox on the second step. Without one the step has no checkbox.
+    /// Launch at login, for the "Start TimeTug when I sign in" checkbox on the last step. Without one the step has no checkbox.
     /// </param>
     /// <param name="taskbar">
     /// Opens the Taskbar page of Windows Settings, for the "Show TimeTug in the taskbar" button on the last step. Without one the step keeps its
     /// instructions and the animated guide but has no button.
     /// </param>
+    /// <param name="calendars">
+    /// The Calendars pane's model (built with <c>showAccountProblems</c>), for the list on the "You're connected" step; the window owns it and disposes it.
+    /// Without one that step lists no calendars.
+    /// </param>
     public WelcomeViewModel(
         IEngineClient engine, IUiDispatcher ui, ILocalizer text, TimeProvider? clock = null, Action? openAccountsPane = null,
-        LaunchAtLoginViewModel? launchAtLogin = null, TaskbarSettingsViewModel? taskbar = null)
+        LaunchAtLoginViewModel? launchAtLogin = null, TaskbarSettingsViewModel? taskbar = null, CalendarsViewModel? calendars = null)
     {
         _openAccountsPane = openAccountsPane;
         LaunchAtLogin = launchAtLogin;
         Taskbar = taskbar;
+        Calendars = calendars;
         Accounts = new AccountsViewModel(engine, ui, text, clock) { ShowWindowsOfferRow = true };
         Accounts.Connected += (_, _) => OnAccountConnected();
         Accounts.PropertyChanged += OnAccountsChanged;
@@ -52,6 +63,7 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
         GetStartedCommand = new RelayCommand(GetStarted, () => Step == WelcomeStep.Intro);
         ContinueCommand = new AsyncRelayCommand(ContinueAsync, () => CanContinue);
         AddAnotherCommand = new RelayCommand(AddAnother);
+        ConnectedContinueCommand = new RelayCommand(ConnectedContinue, () => Step == WelcomeStep.Connected);
         DoneCommand = new RelayCommand(Done);
         SkipCommand = new AsyncRelayCommand(SkipAsync);
     }
@@ -61,7 +73,10 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     public AccountsViewModel Accounts { get; }
 
-    /// <summary>Launch at login, shown as a checkbox on the second step; null when the app gives none.</summary>
+    /// <summary>The calendars found, each with its Tug switch, on the "You're connected" step (the Settings pane's list); null when the app gives none.</summary>
+    public CalendarsViewModel? Calendars { get; }
+
+    /// <summary>Launch at login, shown as a checkbox on the last step; null when the app gives none.</summary>
     public LaunchAtLoginViewModel? LaunchAtLogin { get; }
 
     /// <summary>"Show TimeTug in the taskbar" on the last step; null when the app gives none.</summary>
@@ -70,8 +85,8 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     /// <summary>The button is on screen: the app gave a model for it.</summary>
     public bool ShowTaskbarButton => Taskbar is not null;
 
-    /// <summary>The checkbox is on screen: the second step, with a launch-at-login model.</summary>
-    public bool ShowLaunchAtLogin => LaunchAtLogin is not null && IsConnectedStep;
+    /// <summary>The checkbox is on screen: the last step, with a launch-at-login model.</summary>
+    public bool ShowLaunchAtLogin => LaunchAtLogin is not null && IsHandyStep;
 
     /// <summary>The person ticked or unticked the checkbox. A tick asks Windows to enable the startup task; the checkbox then shows what Windows says.</summary>
     public Task SetLaunchAtLoginAsync(bool on) => LaunchAtLogin?.SetAsync(on) ?? Task.CompletedTask;
@@ -86,12 +101,14 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
                 OnPropertyChanged(nameof(IsConnectStep));
                 OnPropertyChanged(nameof(IsConnectedStep));
                 OnPropertyChanged(nameof(IsIntroStep));
+                OnPropertyChanged(nameof(IsHandyStep));
                 GetStartedCommand.NotifyCanExecuteChanged();
+                ConnectedContinueCommand.NotifyCanExecuteChanged();
                 RefreshContinue();
                 OnPropertyChanged(nameof(ShowLaunchAtLogin));
-                if (value == WelcomeStep.Connected && LaunchAtLogin is { } launch)
+                if (value == WelcomeStep.Handy && LaunchAtLogin is { } launch)
                 {
-                    // What Windows has right now, which is "off" on a first run: the checkbox is read here, not assumed.
+                    // What Windows has right now, which is "off" on a first run: the checkbox is read here (not before this step is shown), not assumed.
                     _ = launch.RefreshAsync();
                 }
             }
@@ -104,9 +121,20 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     public bool IsIntroStep => Step == WelcomeStep.Intro;
 
+    public bool IsHandyStep => Step == WelcomeStep.Handy;
+
     public string GetStartedText => Accounts.Text("Welcome_GetStarted");
 
     public string ContinueText => Accounts.Text("Welcome_Continue");
+
+    /// <summary>The button on the "You're connected" step; it only moves on, so it does not say Windows will ask for anything.</summary>
+    public string ConnectedContinueText => Accounts.Text("Welcome_ConnectedContinue");
+
+    /// <summary>The line under "You're connected": what the switches below it do (the words the Settings pane uses).</summary>
+    public string CalendarsIntroText => Accounts.Text("Calendars_Intro");
+
+    /// <summary>"No calendars found yet" on the "You're connected" step while the engine lists none.</summary>
+    public string CalendarsEmptyText => Accounts.Text("Welcome_CalendarsEmpty");
 
     /// <summary>"Get started": from the intro to the connect step.</summary>
     public IRelayCommand GetStartedCommand { get; }
@@ -128,6 +156,10 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     public IRelayCommand AddAnotherCommand { get; }
 
+    /// <summary>"Continue" on the "You're connected" step: on to "Keep TimeTug handy". The calendar choices are saved already.</summary>
+    public IRelayCommand ConnectedContinueCommand { get; }
+
+    /// <summary>"Done" on the last step.</summary>
     public IRelayCommand DoneCommand { get; }
 
     public IAsyncRelayCommand SkipCommand { get; }
@@ -217,13 +249,25 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     public void Done() => CloseRequested?.Invoke(this, EventArgs.Empty);
 
+    private void ConnectedContinue()
+    {
+        if (Step == WelcomeStep.Connected)
+        {
+            Step = WelcomeStep.Handy;
+        }
+    }
+
     public async Task SkipAsync()
     {
         await Accounts.CancelAsync();
         Done();
     }
 
-    public void Dispose() => Accounts.Dispose();
+    public void Dispose()
+    {
+        Calendars?.Dispose();
+        Accounts.Dispose();
+    }
 
     private void AddAnother()
     {

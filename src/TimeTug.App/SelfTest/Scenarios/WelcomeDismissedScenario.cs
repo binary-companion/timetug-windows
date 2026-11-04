@@ -64,6 +64,8 @@ internal static class WelcomeDismissedScenario
         run.Check(ScenarioUi.Invoke(first, "Continue"), "Continue is pressed");
         run.Check(await rig.WaitFor(() => first.ViewModel.Step == WelcomeStep.Connected), "the Windows dialog is allowed and the window moves to step 3");
         run.Check(rig.Latest is { Accounts: [{ KindId: "microsoft-brokered", Status: "ok" }] }, "the Windows account is connected");
+        run.Check(await rig.WaitFor(() => first.ViewModel.Calendars is { IsEmpty: false }), "step 3 lists its calendars");
+        // The window is closed on step 3, with Continue never pressed: nothing was lost (the account is connected, nothing about step 4 ran).
         first.Close();
 
         // ---- Settings: remove it with - ------------------------------------------------------------------------------------------------------------------
@@ -116,6 +118,9 @@ internal static class WelcomeDismissedScenario
         run.Check(await rig.WaitFor(() => model.Step == WelcomeStep.Connected), "the window moves to step 3");
         run.Check(rig.Broker.Calls.Count == calls && rig.Broker.Calls.Count(c => c.StartsWith("interactive", StringComparison.Ordinal)) == dialogsBefore + 1, "Continue asked Windows for nothing; the picker was the only new dialog");
         await run.ShotAsync(window, "re-added");
+
+        // Step 3 lists the calendars, Continue goes on to step 4, Done closes the window.
+        run.Check(await WelcomeWalk.FromConnectedToDoneAsync(rig, window, "re-added"), "(re-added) steps 3 and 4 hold");
 
         return rig.Finish();
     }

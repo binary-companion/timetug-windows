@@ -790,7 +790,7 @@ public sealed class AccountsViewModel : ObservableObject, IDisposable
                 var n => _text.Format("CalendarsMany", n),
             };
             var summary = _text.Format("AccountSummary", RowKindName(account.KindId, account.KindId), account.DisplayName, count);
-            var problem = account.Status == "ok" ? null : _text.TryGetString("Status_" + account.Status);
+            var problem = AccountProblems.For(account, _text);
             Accounts.Add(new AccountRow(account.ConnectionId, summary, problem));
         }
     }

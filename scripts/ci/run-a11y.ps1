@@ -25,7 +25,7 @@ $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not $OutputFolder) { $OutputFolder = Join-Path $repo 'build\a11y' }
 $OutputFolder = [System.IO.Path]::GetFullPath($OutputFolder)
 $alias = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\timetug-dev.exe'
-$rounds = 13   # the same number as A11yHoldScenario.Rounds
+$rounds = 14   # the same number as A11yHoldScenario.Rounds
 $scanner = Get-ChildItem -Path (Join-Path $repo "tests\TimeTug.App.A11y\bin\$Configuration") -Recurse -Filter 'TimeTug.App.A11y.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $scanner) {
     Write-Host 'building the scanner'

@@ -15,7 +15,7 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// Scenario <c>a11y-hold</c>: shows the welcome window and the tug (the main window, on one monitor) and holds them open while
 /// the accessibility scanner (<c>tests/TimeTug.App.A11y</c>, axe-windows) reads them. Round 0 is a canary: a window with a button that
 /// has no name, which the scanner must flag (a scan that finds nothing there is not seeing the app, and fails). Then three rounds: the
-/// welcome window's Connect step with the tug as it first appears, then its Connected step with the tug showing the link to copy after a
+/// welcome window's Connect step with the tug as it first appears, then its Connected step (the calendar list and an account that needs signing in again) with the tug showing the link to copy after a
 /// failed Join, then the flyout (a problem row and a long day), then the Settings window (its search results, then the Tug Rules, Calendars, Accounts and General panes and the About page, then the Appearance pane in the light theme and in the dark theme with the backdrop notice open). A round starts by writing <c>ready-N.json</c> (the process id) into the output folder and ends when the scanner writes
 /// <c>done-N.txt</c>; without it the scenario gives up after <see cref="WaitForScanner"/>.
 /// </summary>
@@ -24,7 +24,7 @@ internal static class A11yHoldScenario
     public const string Name = "a11y-hold";
 
     /// <summary>How many rounds the scanner is told to expect (<c>scripts/ci/run-a11y.ps1</c> passes the same number).</summary>
-    public const int Rounds = 13;
+    public const int Rounds = 14;
 
     private static readonly TimeSpan WaitForScanner = TimeSpan.FromSeconds(120);
 
@@ -42,12 +42,14 @@ internal static class A11yHoldScenario
 
         // The brokered kind is configured too, and Windows lists an account, so Continue has the Windows account to add and the menu has its single Microsoft entry.
         rig.Engine.Push(Scenes.Empty() with { AvailableKinds = [.. Scenes.Kinds, new AccountKindInfo("microsoft-brokered", "Microsoft", true, "oauth")] });
-        // The Connected step carries the launch-at-login checkbox: scanned while Windows blocks it (the checkbox disabled with its note and link).
+        // The last step carries the launch-at-login checkbox: scanned while Windows blocks it (the checkbox disabled with its note and link), in round 14.
         var welcomeStartup = new ScriptedStartupTask { State = StartupState.DisabledByUser };
         var welcomeLaunch = new LaunchAtLoginViewModel(
             welcomeStartup, new RecordingSystemLauncher(), new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()), rig.Text);
+        using var welcomeSettings = new SettingsClient(rig.Engine);
         var welcome = WelcomeWindowFactory.Create(rig.Engine, rig.Forms, rig.Text, rig.Time, launchAtLogin: welcomeLaunch, windowsAccounts: ScriptedWindowsAccountSource.Named("me@example.com"),
-            taskbar: new TaskbarSettingsViewModel(new RecordingSystemLauncher(), new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()), rig.Text), uiSettings: rig.Settings);
+            taskbar: new TaskbarSettingsViewModel(new RecordingSystemLauncher(), new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()), rig.Text), uiSettings: rig.Settings,
+            settings: welcomeSettings);
         welcome.Activate();
         await SelfTestRunner.WaitForFrameAsync(welcome, cancellation);
         run.Check(welcome.ViewModel.Step == WelcomeStep.Intro, "the welcome window starts on the welcome step");
@@ -58,10 +60,10 @@ internal static class A11yHoldScenario
         await rig.Settle();
         run.Check(await HoldForScannerAsync(rig, 1, "Connect step and the tug", cancellation), "the scanner finished round 1");
 
-        // Round 2: the other step of the welcome window, and the tug with the meeting link to copy.
+        // Round 2: the third step of the welcome window (the calendar list, the account needing a new sign-in), and the tug with the meeting link to copy.
         run.Check(await AccountsListUi.ChooseAsync((c, ms) => rig.WaitFor(c, ms), welcome.AccountsList, "Connect Google"), "Google is chosen from the + menu");
         await rig.Settle(500);
-        rig.Engine.Push(Scenes.Connected(rig.Time.GetUtcNow()));
+        rig.Engine.Push(SettingsRig.State(rig.Time.GetUtcNow()) with { Accounts = [new AccountInfo("conn-1", "google", "you@example.com", "authExpired", 3)] });
         rig.Launcher.Succeeds = false;
         run.Check(ScenarioUi.Invoke(rig.Host.Primary!, "Join meeting"), "Join is clicked (and fails)");
         run.Check(await rig.WaitFor(() => rig.Host.Primary?.ViewModel.HasJoinFailed == true), "the tug shows the link to copy");
@@ -69,7 +71,7 @@ internal static class A11yHoldScenario
         run.Check(ScenarioUi.Invoke(welcome, "Continue"), "Continue is pressed");
         run.Check(await rig.WaitFor(() => welcome.ViewModel.Step == WelcomeStep.Connected), "the welcome window moved to the Connected step");
         await rig.Settle();
-        run.Check(await HoldForScannerAsync(rig, 2, "Connected step and the link to copy", cancellation), "the scanner finished round 2");
+        run.Check(await HoldForScannerAsync(rig, 2, "Connected step (the calendar list, an account to sign in to again) and the link to copy", cancellation), "the scanner finished round 2");
 
         run.Check(ScenarioUi.Invoke(rig.Host.Primary!, "Dismiss this reminder"), "Dismiss can be pressed");
         run.Check(await rig.WaitHiddenAsync(), "the tug closes");
@@ -199,6 +201,26 @@ internal static class A11yHoldScenario
             run.Check(await HoldForScannerAsync(rig, 13, "the countdown chip", cancellation), "the scanner finished round 13");
             chip.Use(TimeTug.Presentation.Chip.ChipMode.Off);
         }
+
+        // Round 14: the last step of the welcome window, "Keep TimeTug handy": the launch-at-login checkbox blocked by Windows (disabled, with its note and link) and the taskbar card with its guide.
+        rig.Engine.Push(SettingsRig.State(rig.Time.GetUtcNow()));
+        var lastLaunch = new LaunchAtLoginViewModel(
+            new ScriptedStartupTask { State = StartupState.DisabledByUser }, new RecordingSystemLauncher(), new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()), rig.Text);
+        var last = WelcomeWindowFactory.Create(rig.Engine, rig.Forms, rig.Text, rig.Time, launchAtLogin: lastLaunch,
+            taskbar: new TaskbarSettingsViewModel(new RecordingSystemLauncher(), new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()), rig.Text), uiSettings: rig.Settings,
+            settings: welcomeSettings);
+        last.Activate();
+        await SelfTestRunner.WaitForFrameAsync(last, cancellation);
+        run.Check(ScenarioUi.Invoke(last, "Get started"), "Get started is pressed on the second welcome window");
+        run.Check(await rig.WaitFor(() => last.ViewModel.Step == WelcomeStep.Connect && last.ViewModel.CanContinue), "its Connect step lists the account");
+        run.Check(ScenarioUi.Invoke(last, "Continue"), "Continue is pressed");
+        run.Check(await rig.WaitFor(() => last.ViewModel.Step == WelcomeStep.Connected), "the window moved to the Connected step");
+        run.Check(ScenarioUi.Invoke(last.ConnectedContinue), "Continue is pressed on the Connected step");
+        run.Check(await rig.WaitFor(() => last.ViewModel.Step == WelcomeStep.Handy), "the window moved to Keep TimeTug handy");
+        run.Check(await rig.WaitFor(() => last.LaunchCheckBox is { IsEnabled: false } && last.LaunchSettingsLink.Visibility == Visibility.Visible), "launch at login is shown as blocked by Windows");
+        await rig.Settle();
+        run.Check(await HoldForScannerAsync(rig, 14, "the welcome window's last step, Keep TimeTug handy", cancellation), "the scanner finished round 14");
+        last.Close();
 
         return rig.Finish();
     }
