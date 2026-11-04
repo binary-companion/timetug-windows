@@ -186,7 +186,7 @@ internal static class WelcomeScenario
         var animated = (BitmapImage)window.TaskbarGuidePicture.Source;
         Check(await WaitFor(() => animated.PixelWidth > 0, 5000), "the recording loads");
         Check(animated.IsAnimatedBitmap && animated.AutoPlay && animated.PixelWidth == 640, $"it is an animated picture that plays on its own, {animated.PixelWidth} px wide");
-        Check(AutomationProperties.GetName(window.TaskbarGuidePicture).StartsWith("Animated guide. In Windows Settings, open Personalization, then Taskbar", StringComparison.Ordinal), "it has a text alternative: " + AutomationProperties.GetName(window.TaskbarGuidePicture));
+        Check(AutomationProperties.GetName(window.TaskbarGuidePicture).StartsWith("Guide. In Windows Settings, open Personalization, then Taskbar", StringComparison.Ordinal), "it has a text alternative: " + AutomationProperties.GetName(window.TaskbarGuidePicture));
         await Shot("connected-taskbar");
 
         // It really moves: the picture's own rectangle on the screen is copied again and again over a little more than one loop (about 8 seconds) and the copies are compared
