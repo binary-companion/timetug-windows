@@ -64,6 +64,14 @@ public sealed partial class WelcomeWindow : Window
             _uiSettings.Changed += OnUiSettingsChanged;
         }
 
+        if (viewModel.Calendars is { } calendars)
+        {
+            // The list Settings > Calendars shows, without the subscribed and system disclosure. It only reads the engine's state until the person changes something.
+            CalendarsBox.Attach(calendars, text, uiSettings, includeSystem: false);
+            calendars.PropertyChanged += (_, _) => SyncCalendarsEmpty();
+            SyncCalendarsEmpty();
+        }
+
         if (viewModel.LaunchAtLogin is { } launch)
         {
             LaunchLink.Content = launch.SettingsLinkText;
@@ -72,6 +80,23 @@ public sealed partial class WelcomeWindow : Window
             SyncLaunch();
         }
     }
+
+    /// <summary>The calendars list of the "You're connected" step, the line shown while it is empty and the step's button (for the self-test).</summary>
+    internal CalendarListView CalendarsList => CalendarsBox;
+
+    internal TextBlock CalendarsEmptyText => CalendarsEmpty;
+
+    internal Button ConnectedContinue => ConnectedContinueButton;
+
+    internal Button Done => DoneButton;
+
+    internal StackPanel ConnectedStepPanel => ConnectedPanel;
+
+    internal StackPanel HandyStepPanel => HandyPanel;
+
+    /// <summary>The "no calendars found yet" line stands in for the list while the engine lists none.</summary>
+    private void SyncCalendarsEmpty() =>
+        CalendarsEmpty.Visibility = ViewModel.Calendars is { IsEmpty: true } ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>The launch-at-login checkbox, its note, link and error (for the self-test).</summary>
     internal CheckBox LaunchCheckBox => LaunchCheck;
@@ -177,7 +202,7 @@ public sealed partial class WelcomeWindow : Window
         // Raised on whichever thread Windows called from.
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (ViewModel.IsConnectedStep)
+            if (ViewModel.IsHandyStep)
             {
                 ShowGuide();
             }
@@ -202,8 +227,9 @@ public sealed partial class WelcomeWindow : Window
         {
             // The new step's first control gets focus so the keyboard (and Narrator) continue where the person is looking.
             DispatcherQueue.TryEnqueue(FocusFirstControl);
-            if (ViewModel.IsConnectedStep)
+            if (ViewModel.IsHandyStep)
             {
+                // The loop starts when the person can see it.
                 ShowGuide();
             }
         }
@@ -211,9 +237,15 @@ public sealed partial class WelcomeWindow : Window
 
     private void FocusFirstControl()
     {
-        if (ViewModel.IsConnectedStep)
+        if (ViewModel.IsHandyStep)
         {
             DoneButton.Focus(FocusState.Programmatic);
+            return;
+        }
+
+        if (ViewModel.IsConnectedStep)
+        {
+            ConnectedContinueButton.Focus(FocusState.Programmatic);
             return;
         }
 

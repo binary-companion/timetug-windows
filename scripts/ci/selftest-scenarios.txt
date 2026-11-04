@@ -5,7 +5,7 @@
 # scripts/ci/check-repository-contracts.py fails when this list and the scenario classes in
 # src/TimeTug.App/SelfTest/Scenarios (their Name constants) differ.
 hello                    1  90   selftest
-welcome                  6  150  selftest
+welcome                  10  150  selftest
 toast                    0  90   selftest
 startup                  3  150  selftest
 tray                     1  120  selftest
@@ -35,7 +35,7 @@ settings-tugrules        4  180  selftest
 settings-calendars       7  210  selftest
 settings-accounts        6  240  selftest
 settings-general         13  240  selftest
-settings-appearance      9  240  selftest
+settings-appearance      14  240  selftest
 flyout-merge             6  240  selftest
 taskbar-buttons          0  180  selftest
 chip-modes                6  240  selftest
@@ -43,9 +43,9 @@ chip-interaction          1  240  selftest
 jump-list                 1  240  selftest
 menu-theme                0  240  selftest
 broker-probe              0  120  selftest
-welcome-brokered          4  210  selftest
-welcome-local-only        3  150  selftest
-welcome-dismissed         3  240  selftest
+welcome-brokered          6  210  selftest
+welcome-local-only        4  150  selftest
+welcome-dismissed         4  240  selftest
 accounts-brokered         4  210  selftest
 accounts-list             6  240  selftest
 brokered-reconnect        2  180  selftest

@@ -8,7 +8,8 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// <summary>
 /// Scenario <c>welcome-local-only</c>: a first run on a PC whose Windows account is local-only (the scripted broker lists no account). Step 2 offers no
 /// Windows account, shows the empty line, and Continue is disabled; "+" > Microsoft opens the Windows account picker, and Skip for now is the way
-/// out. Nothing but the listing is asked of Windows until the person chooses Microsoft.
+/// out. Nothing but the listing is asked of Windows until the person chooses Microsoft. A second run adds a Microsoft account with + and walks steps 3 (the calendars)
+/// and 4 (start at sign-in, the taskbar card) to Done.
 /// </summary>
 internal static class WelcomeLocalOnlyScenario
 {
@@ -64,6 +65,23 @@ internal static class WelcomeLocalOnlyScenario
         // Skip for now closes the window.
         run.Check(ScenarioUi.Invoke(window, "Skip for now"), "Skip for now is pressed");
         run.Check(await rig.WaitFor(() => rig.Shell.Welcome is null), "the window closes");
+
+        // A first run again: this time the person adds a Microsoft account with + > Microsoft (the picker is answered), goes on to the calendars and finishes.
+        rig.Broker.Interactive = null;
+        rig.Shell.ShowWelcome();
+        run.Check(await rig.WaitFor(() => rig.Shell.Welcome is not null), "the first-run window opens again");
+        window = rig.Shell.Welcome!;
+        await SelfTestRunner.WaitForFrameAsync(window, cancellation);
+        model = window.ViewModel;
+        box = window.AccountsList;
+        run.Check(ScenarioUi.Invoke(window, "Get started"), "Get started is pressed again");
+        run.Check(await rig.WaitFor(() => model.Step == WelcomeStep.Connect), "the window shows \"Connect your calendars\" again");
+        run.Check(await AccountsListUi.ChooseAsync(Wait, box, "Connect Microsoft"), "Microsoft is chosen from the + menu");
+        run.Check(await rig.WaitFor(() => rig.Latest is { Accounts.Count: 1 } && window.Continue.IsEnabled), "the account is added and Continue is enabled");
+        run.Check(model.Step == WelcomeStep.Connect, "the window stays on step 2 until Continue");
+        run.Check(ScenarioUi.Invoke(window, "Continue"), "Continue is pressed");
+        run.Check(await rig.WaitFor(() => model.Step == WelcomeStep.Connected), "the window moves to step 3");
+        run.Check(await WelcomeWalk.FromConnectedToDoneAsync(rig, window, "added"), "(added) steps 3 and 4 hold");
         return rig.Finish();
     }
 }

@@ -32,32 +32,28 @@
                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         </StackPanel>
 
-        <!-- Step 3: You're connected -->
+        <!-- Step 3: You're connected. The calendars found, each with its Tug switch: the list Settings > Calendars shows. Every change is saved as it is made. -->
         <StackPanel x:Name="ConnectedPanel" Spacing="12" Visibility="{x:Bind ViewModel.IsConnectedStep, Mode=OneWay}">
           <TextBlock x:Uid="ConnectedTitle" Style="{StaticResource TitleLargeTextBlockStyle}" TextWrapping="Wrap"
                      AutomationProperties.HeadingLevel="Level1" />
-          <ItemsControl x:Uid="AccountsList" ItemsSource="{x:Bind ViewModel.Accounts.Accounts}" IsTabStop="False">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="welcome:AccountRow">
-                <Border Padding="16,12" Margin="0,0,0,8" CornerRadius="6" BorderThickness="1"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        AutomationProperties.Name="{x:Bind Summary}">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="{x:Bind Summary}" TextWrapping="Wrap" />
-                    <TextBlock Text="{x:Bind Problem}" Style="{StaticResource CaptionTextBlockStyle}"
-                               Visibility="{x:Bind HasProblem}" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
-                  </StackPanel>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
+          <TextBlock Text="{x:Bind ViewModel.CalendarsIntroText}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+          <controls:CalendarListView x:Name="CalendarsBox" />
+          <TextBlock x:Name="CalendarsEmpty" Text="{x:Bind ViewModel.CalendarsEmptyText}" TextWrapping="Wrap"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
           <TextBlock Text="{x:Bind ViewModel.Accounts.NextMeetingText, Mode=OneWay}" TextWrapping="Wrap"
                      AutomationProperties.LiveSetting="Polite" />
           <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,8">
             <Button x:Name="AddAnotherButton" x:Uid="AddAnother" Command="{x:Bind ViewModel.AddAnotherCommand}" />
             <Button x:Uid="TestTug" Command="{x:Bind ViewModel.Accounts.TestTugCommand}" />
           </StackPanel>
+        </StackPanel>
+
+        <!-- Step 4: Keep TimeTug handy. Nothing here runs before this step is shown: Windows is asked about the startup task, and the guide picture is loaded, only on arrival. -->
+        <StackPanel x:Name="HandyPanel" Spacing="12" Visibility="{x:Bind ViewModel.IsHandyStep, Mode=OneWay}">
+          <TextBlock x:Uid="HandyTitle" Style="{StaticResource TitleLargeTextBlockStyle}" TextWrapping="Wrap"
+                     AutomationProperties.HeadingLevel="Level1" />
+          <TextBlock x:Uid="HandySubtitle" TextWrapping="Wrap" Margin="0,0,0,8"
+                     Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
           <!-- Launch at login: unchecked until the person ticks it. Windows decides what comes of the tick. -->
           <StackPanel x:Name="LaunchPanel" Spacing="2" Visibility="{x:Bind ViewModel.ShowLaunchAtLogin, Mode=OneWay}">
             <CheckBox x:Name="LaunchCheck" x:Uid="LaunchAtLoginCheck" Checked="OnLaunchChecked" Unchecked="OnLaunchChecked" />
@@ -123,8 +119,11 @@
       <Button x:Name="ContinueButton" Content="{x:Bind ViewModel.ContinueText}" Command="{x:Bind ViewModel.ContinueCommand}"
               AutomationProperties.Name="{x:Bind ViewModel.ContinueText}" Style="{StaticResource AccentButtonStyle}"
               Visibility="{x:Bind ViewModel.IsConnectStep, Mode=OneWay}" HorizontalAlignment="Right" MinWidth="96" />
-      <Button x:Name="DoneButton" x:Uid="Done" Command="{x:Bind ViewModel.DoneCommand}" Style="{StaticResource AccentButtonStyle}"
+      <Button x:Name="ConnectedContinueButton" Content="{x:Bind ViewModel.ConnectedContinueText}" Command="{x:Bind ViewModel.ConnectedContinueCommand}"
+              AutomationProperties.Name="{x:Bind ViewModel.ConnectedContinueText}" Style="{StaticResource AccentButtonStyle}"
               Visibility="{x:Bind ViewModel.IsConnectedStep, Mode=OneWay}" HorizontalAlignment="Right" MinWidth="96" />
+      <Button x:Name="DoneButton" x:Uid="Done" Command="{x:Bind ViewModel.DoneCommand}" Style="{StaticResource AccentButtonStyle}"
+              Visibility="{x:Bind ViewModel.IsHandyStep, Mode=OneWay}" HorizontalAlignment="Right" MinWidth="96" />
     </Grid>
   </Grid>
 </Window>

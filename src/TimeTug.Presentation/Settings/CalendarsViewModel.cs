@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using TimeTug.Presentation.Abstractions;
 using TimeTug.Presentation.Engine;
+using TimeTug.Presentation.Welcome;
 
 namespace TimeTug.Presentation.Settings;
 
@@ -22,8 +23,12 @@ public sealed record CalendarRowView(
 
 public sealed record CalendarGroupView(string SourceId, string AccountName, string Label, bool AllTug, string AllAutomationName, IReadOnlyList<CalendarRowView> Rows);
 
+/// <param name="Problem">
+/// Why the account needs the person ("Sign in again"), shown under the section's header; null when it does not, and always null in the Settings pane
+/// (the Accounts pane says it there). Only the first-run window asks for it (<c>showAccountProblems</c>), because it no longer lists the accounts apart.
+/// </param>
 public sealed record CalendarSectionView(
-    string SourceId, string Title, string Subtitle, string SubtitleText, CalendarSectionIcon Icon, string KindId, IReadOnlyList<CalendarGroupView> Groups);
+    string SourceId, string Title, string Subtitle, string SubtitleText, CalendarSectionIcon Icon, string KindId, IReadOnlyList<CalendarGroupView> Groups, string? Problem = null);
 
 /// <summary>
 /// The Calendars pane (the Mac's <c>CalendarsPane</c>): per account group an "All" Tug switch, per calendar a "show in list" checkbox and a
@@ -39,10 +44,12 @@ public sealed class CalendarsViewModel : ObservableObject, IDisposable
     private readonly IUiDispatcher _ui;
     private readonly ILocalizer _text;
     private readonly bool _inferenceSupported;
+    private readonly bool _showAccountProblems;
     private readonly IDisposable _subscription;
     private EngineSettingsView _view = EngineSettingsView.Defaults;
     private IReadOnlyList<CalendarGroup> _groups = [];
     private IReadOnlyList<CalendarEntry> _system = [];
+    private IReadOnlyList<AccountInfo> _accounts = [];
     private InferenceAvailability _inference = InferenceAvailability.Disabled;
     private string? _inferenceReason;
     private string? _inferenceEngine;
@@ -54,7 +61,11 @@ public sealed class CalendarsViewModel : ObservableObject, IDisposable
     /// once the switch is on, so without this the switch would be offered and then take itself away; false keeps it off and disabled with the
     /// engine's "no model" words from the start and persists nothing from it.
     /// </param>
-    public CalendarsViewModel(IEngineClient engine, ISettingsClient settings, IUiDispatcher ui, ILocalizer text, bool inferenceSupported = true)
+    /// <param name="showAccountProblems">
+    /// True for the first-run window, whose list replaces its per-account cards: an account that needs the person gets a line under its header, and one
+    /// with no calendar to list still gets its header. False in Settings, where the Accounts pane carries the status.
+    /// </param>
+    public CalendarsViewModel(IEngineClient engine, ISettingsClient settings, IUiDispatcher ui, ILocalizer text, bool inferenceSupported = true, bool showAccountProblems = false)
     {
         ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(settings);
@@ -65,6 +76,7 @@ public sealed class CalendarsViewModel : ObservableObject, IDisposable
         _ui = ui;
         _text = text;
         _inferenceSupported = inferenceSupported;
+        _showAccountProblems = showAccountProblems;
         Sections = [];
         SystemRows = [];
         _subscription = engine.State.Subscribe(new ActionObserver<AppState>(state => OnUi(() => Apply(state))));
@@ -279,6 +291,7 @@ public sealed class CalendarsViewModel : ObservableObject, IDisposable
         _view = state.Settings;
         _groups = state.CalendarGroups;
         _system = state.SystemCalendars;
+        _accounts = state.Accounts;
         _inference = state.Inference;
         _inferenceReason = state.InferenceReason;
         _inferenceEngine = state.InferenceEngineName;
@@ -302,7 +315,7 @@ public sealed class CalendarsViewModel : ObservableObject, IDisposable
     {
         var sections = BuildSections();
         var system = _system.Select(Row).ToList();
-        var signature = string.Join('\n', sections.SelectMany(s => s.Groups.Select(g => $"{s.SourceId}|{s.Title}|{s.Subtitle}|{g.AccountName}|{g.AllTug}|" + string.Join(',', g.Rows.Select(r => $"{r.Key}:{r.Title}:{r.ColorHex}:{r.IsShown}:{r.Tugs}")))))
+        var signature = string.Join('\n', sections.Select(s => $"{s.SourceId}|{s.Problem}|" + string.Join(';', s.Groups.Select(g => $"{s.Title}|{s.Subtitle}|{g.AccountName}|{g.AllTug}|" + string.Join(',', g.Rows.Select(r => $"{r.Key}:{r.Title}:{r.ColorHex}:{r.IsShown}:{r.Tugs}"))))))
             + "\n--\n" + string.Join(',', system.Select(r => $"{r.Key}:{r.Title}:{r.ColorHex}:{r.IsShown}:{r.Tugs}"));
         if (!force && signature == _signature)
         {
@@ -347,10 +360,38 @@ public sealed class CalendarsViewModel : ObservableObject, IDisposable
                     _ => CalendarSectionIcon.Unknown,
                 },
                 first.KindId,
-                groups));
+                groups,
+                ProblemOf(first.SourceId)));
+        }
+
+        if (_showAccountProblems)
+        {
+            AddHeadersOfAccountsWithoutCalendars(sections);
         }
 
         return sections;
+    }
+
+    /// <summary>The line under an account's header, when the first-run window asks for one and the account needs the person.</summary>
+    private string? ProblemOf(string sourceId) =>
+        _showAccountProblems && _accounts.FirstOrDefault(a => SourceIdOf(a) == sourceId) is { } account ? AccountProblems.For(account, _text) : null;
+
+    private static string SourceIdOf(AccountInfo account) => $"{account.KindId}-{account.ConnectionId}";
+
+    /// <summary>An account that has a problem and no calendar to list (it cannot sign in, so it has none) still gets its header, so the line has somewhere to be.</summary>
+    private void AddHeadersOfAccountsWithoutCalendars(List<CalendarSectionView> sections)
+    {
+        foreach (var account in _accounts)
+        {
+            if (AccountProblems.For(account, _text) is not { } problem || sections.Any(s => s.SourceId == SourceIdOf(account)))
+            {
+                continue;
+            }
+
+            var subtitle = _text.Format("Calendars_SubtitleDirect", account.DisplayName);
+            sections.Add(new CalendarSectionView(
+                SourceIdOf(account), CalendarSections.ProviderName(account.KindId, _text), subtitle, "· " + subtitle, CalendarSectionIcon.Provider, account.KindId, [], problem));
+        }
     }
 
     private CalendarRowView Row(CalendarEntry calendar) => new(

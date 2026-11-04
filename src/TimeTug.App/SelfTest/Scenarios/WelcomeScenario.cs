@@ -17,8 +17,9 @@ using TimeTug.Presentation.Welcome;
 namespace TimeTug.App.SelfTest.Scenarios;
 
 /// <summary>
-/// Scenario <c>welcome</c>: opens the welcome window against a scripted engine and walks it through the Connect step, a
-/// browser sign-in and its cancel, the iCloud form, a failed sign-in and the connected step, saving a screenshot at each stop.
+/// Scenario <c>welcome</c>: opens the welcome window against a scripted engine and walks all four steps: Welcome, Connect your calendars (a
+/// browser sign-in and its cancel, the iCloud form, a failed sign-in), You're connected (the calendars with their Tug switches, an account that needs the person, an account
+/// added meanwhile, Test tug) and Keep TimeTug handy (start at sign-in, the taskbar card and its guide), saving a screenshot at each stop.
 /// Controls are clicked through UI Automation, the way Narrator or a keyboard user would, so names and bindings are exercised too.
 /// </summary>
 internal static class WelcomeScenario
@@ -35,7 +36,9 @@ internal static class WelcomeScenario
         var queue = DispatcherQueue.GetForCurrentThread();
         var text = new ResourceLoaderLocalizer();
         using var forms = new AccountFormService(queue, text);
-        using var engine = new ScriptedEngineClient(forms) { ShowFormFor = "icloud" };
+        // The engine takes a settings patch the way the real one does, so the calendars' switches can be seen to change.
+        using var engine = new ScriptedEngineClient(forms) { ShowFormFor = "icloud", ReflectSettings = true };
+        using var settingsClient = new SettingsClient(engine);
         engine.Push(Scenes.Empty());
         var startup = new ScriptedStartupTask();
         var links = new RecordingSystemLauncher();
@@ -43,7 +46,7 @@ internal static class WelcomeScenario
         var diagnostics = new RecordingDiagnostics();
         var taskbar = new TaskbarSettingsViewModel(links, new DispatcherQueueDispatcher(queue), text, diagnostics);
         var uiSettings = new FakeUiSettings();
-        var window = WelcomeWindowFactory.Create(engine, forms, text, new FixedClock(Noon), launchAtLogin: launch, taskbar: taskbar, uiSettings: uiSettings);
+        var window = WelcomeWindowFactory.Create(engine, forms, text, new FixedClock(Noon), launchAtLogin: launch, taskbar: taskbar, uiSettings: uiSettings, settings: settingsClient);
         var model = window.ViewModel;
         window.Activate();
         await SelfTestRunner.WaitForFrameAsync(window, cancellation);
@@ -58,6 +61,7 @@ internal static class WelcomeScenario
         // Step 1: "Welcome to TimeTug" with Get started. Nothing else is on screen.
         Check(model.Step == WelcomeStep.Intro, "starts on the welcome step");
         Check(!model.ShowLaunchAtLogin && ((FrameworkElement)window.LaunchCheckBox.Parent).Visibility == Visibility.Collapsed, "the launch-at-login checkbox is not offered on the first step");
+        Check(startup.Calls.Count == 0 && window.GuideAsset is null, "nothing for the last step has run: Windows was not asked about the startup task and the guide is not loaded");
         Check(window.GetStarted.Visibility == Visibility.Visible && ((FrameworkElement)box.Parent).Visibility == Visibility.Collapsed, "the intro offers Get started and not the accounts list yet");
         Check(Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", Unnamed(window)));
         await Shot("intro");
@@ -119,7 +123,17 @@ internal static class WelcomeScenario
 
         // An account added with + joins the list and the window stays on this step; only Continue moves on.
         Check(await AccountsListUi.ChooseAsync(WaitFor, box, "Connect Google"), "Google can be tried again");
-        engine.Push(Scenes.Connected(Noon));
+        // The engine's settings agree with the calendars it lists: Work tugs, Café Sync does not, Family is hidden.
+        var connectedState = SettingsRig.State(Noon);
+        connectedState = connectedState with
+        {
+            Settings = connectedState.Settings with
+            {
+                TakeoverCalendarKeys = new HashSet<string>(["google-conn-1/work"], StringComparer.Ordinal),
+                HiddenCalendarKeys = new HashSet<string>(["google-conn-1/family"], StringComparer.Ordinal),
+            },
+        };
+        engine.Push(connectedState);
         Check(await WaitFor(() => model.Accounts.ListAccounts.Count == 1, 4000), "the new account is in the list");
         await Settle(600);
         Check(model.Step == WelcomeStep.Connect, "an account added with + does not move the window on");
@@ -129,24 +143,112 @@ internal static class WelcomeScenario
         Check(Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", Unnamed(window)));
         await Shot("connect-with-account");
 
-        // Step 3: connected.
+        // Step 3: you're connected. The calendars the engine found, each with its Tug switch: the list Settings > Calendars shows, saved as it is changed.
         Check(Invoke(window, "Continue"), "Continue can be invoked by name");
         await Settle(1000);
         Check(model.Step == WelcomeStep.Connected, "Continue moves to the Connected step");
         Check(model.Accounts.Accounts.Count == 1 && model.Accounts.Accounts[0].Summary.StartsWith("Google · you@example.com · 3 calendars", StringComparison.Ordinal), "the account is summarised");
         Check(Unnamed(window).Count == 0, "every control on the Connected step has an automation name: " + string.Join(", ", Unnamed(window)));
+        var list = window.CalendarsList;
+        Check(window.ConnectedStepPanel.Visibility == Visibility.Visible && window.HandyStepPanel.Visibility == Visibility.Collapsed && list.Visibility == Visibility.Visible, "step 3 shows the calendar list and not the last step");
+        var step3 = Texts(window.ConnectedStepPanel);
+        Check(step3.Contains("You’re connected") && step3.Contains("Choose which calendars are allowed to tug you away from your work.")
+            && step3.Contains("Tug calendars") && step3.Contains("Tug") && step3.Contains("Google") && step3.Contains("· you@example.com · connected directly") && step3.Contains("All calendars") && step3.Contains("All")
+            && step3.Contains("Work") && step3.Contains("Café Sync") && step3.Contains("Family"), "it has the heading, the line about the switches, the column titles, the account header, All and the calendars: " + string.Join(" | ", step3));
+        Check(!step3.Any(t => t.Contains("Holidays", StringComparison.Ordinal) || t.Contains("Subscribed and system", StringComparison.Ordinal)) && list.Disclosure is null, "the subscribed and system calendars are left to Settings");
+        Check(window.CalendarsEmptyText.Visibility == Visibility.Collapsed, "the empty line is not showing");
+        Check(window.ConnectedContinue is { Visibility: Visibility.Visible, IsEnabled: true } && AutomationProperties.GetName(window.ConnectedContinue) == "Continue" && !window.Continue.IsEnabled, "the primary button reads Continue (Done is for the last step)");
+        Check(window.Done.Visibility == Visibility.Collapsed && !model.ShowLaunchAtLogin && startup.Calls.Count == 0, "Done, the launch-at-login checkbox and the Windows startup task are not touched on this step");
+        var work = list.ControlsOf("google-conn-1/work");
+        var cafe = list.ControlsOf("google-conn-1/cafe");
+        var family = list.ControlsOf("google-conn-1/family");
+        var all = list.AllSwitchOf("google-conn-1", "you@example.com");
+        Check(work is not null && cafe is not null && family is not null && all is not null, "every calendar has its check box and Tug switch, and the account its All switch");
+        Check(work is { Show.IsChecked: true, Tug.IsOn: true } && cafe is { Show.IsChecked: true, Tug.IsOn: false } && family is { Show.IsChecked: false, Tug.IsEnabled: false } && all is { IsOn: false },
+            "the engine's settings are shown as they are (Work tugs, Café Sync does not, Family is hidden so its switch is disabled)");
+        Check(work is not null && AutomationProperties.GetName(work.Value.Show) == "Show Work in list" && AutomationProperties.GetName(work.Value.Tug) == "Tug for Work" && all is not null && AutomationProperties.GetName(all) == "Tug for every calendar in you@example.com",
+            "each switch has a name Narrator can read: " + (work is null ? "-" : AutomationProperties.GetName(work.Value.Tug)));
+        Check(list.ProblemOf("google-conn-1").Length == 0, "the account has no problem line");
+        await Settle(900);   // a window capture lags a repaint
         await Shot("connected");
 
-        // Launch at login: unchecked until the person ticks it, and shown as Windows says after the tick.
+        // Every change is saved at once: Café Sync's switch, then the account's All switch, then hiding Work.
+        var sent = engine.Sent.Count(c => c == "settings");
+        Check(cafe is not null && ScenarioUi.Toggle(cafe.Value.Tug), "Café Sync's Tug switch can be turned on through UI Automation");
+        Check(await WaitFor(() => engine.Sent.Count(c => c == "settings") == sent + 1 && model.Calendars!.Sections[0].Groups[0].Rows.Single(r => r.Key == "google-conn-1/cafe").Tugs, 4000), "it is saved at once (one settings patch) and the engine's state shows it");
+        Check(cafe is { Tug.IsOn: true }, "and the switch stays on");
+        Check(all is not null && ScenarioUi.Toggle(all), "the All switch can be turned on");
+        Check(await WaitFor(() => model.Calendars!.Sections[0].Groups[0].Rows.All(r => r.IsShown && r.Tugs) && all is { IsOn: true }, 4000), "every calendar tugs and All stays on");
+        Check(family is { Show.IsChecked: true, Tug.IsOn: true }, "All turns on every calendar of the account, the hidden one too, which it shows (as in Settings)");
+        Check(work is not null && ScenarioUi.Toggle(work.Value.Show), "Work's check box can be cleared");
+        Check(await WaitFor(() => work is { Show.IsChecked: false, Tug.IsEnabled: false, Tug.IsOn: false }, 4000), "hiding Work turns its Tug off and disables it (the same key lists as Settings)");
+        Check(await WaitFor(() => model.Calendars!.Sections[0].Groups[0].AllTug is false && all is { IsOn: false }, 4000), "and All goes off because a calendar of the account no longer tugs");
+        await Settle(900);   // a window capture lags a repaint
+        await Shot("connected-tugging");
+
+        // An account that needs the person says so under its own header.
+        void Republish(Func<AppState, AppState> change)
+        {
+            var latest = engine.Latest!;
+            engine.Push(change(latest) with { Revision = latest.Revision + 1 });
+        }
+
+        var well = connectedState.Accounts;
+        Republish(state => state with { Accounts = [new AccountInfo("conn-1", "google", "you@example.com", "authExpired", 3)] });
+        Check(await WaitFor(() => list.ProblemOf("google-conn-1") == "Sign in again", 4000), "an account that needs signing in again says so on its header: " + list.ProblemOf("google-conn-1"));
+        Check(Texts(window.ConnectedStepPanel).Contains("Sign in again"), "and the words are on screen");
+        await Settle(900);   // a window capture lags a repaint
+        await Shot("connected-problem");
+
+        // The list follows the accounts: another account arrives (it was added in Settings, say) with its calendars.
+        var second = new CalendarGroup("work@example.com", "microsoft-conn-2", "microsoft", CalendarOrigin.Account, "work@example.com · connected directly", false,
+            [new CalendarEntry("microsoft-conn-2/team", "Team", "#0078D4", true, false, "standard", false, false, "work@example.com")]) { Title = "Microsoft" };
+        Republish(state => state with
+        {
+            Accounts = [.. well, new AccountInfo("conn-2", "microsoft", "work@example.com", "ok", 1)],
+            CalendarGroups = [.. state.CalendarGroups, second],
+        });
+        Check(await WaitFor(() => list.ControlsOf("microsoft-conn-2/team") is not null && list.ProblemOf("google-conn-1").Length == 0, 4000), "a second account's calendars appear in the list without reopening the window, and the first account's line is gone");
+        Check(Texts(window.ConnectedStepPanel).Contains("Microsoft") && list.AllSwitchOf("microsoft-conn-2", "work@example.com") is not null, "under its own header, with its own All switch");
+        Republish(state => state with { Accounts = well, CalendarGroups = [.. state.CalendarGroups.Where(g => g.SourceId != "microsoft-conn-2")] });
+        Check(await WaitFor(() => list.ControlsOf("microsoft-conn-2/team") is null, 4000), "and goes again when the account does");
+
+        // Test tug still works from here, and so does the next meeting line.
+        Check(Invoke(window, "Show a test tug screen") && engine.Sent.Contains("testTug"), "Test tug sends the test takeover");
+        Check(model.Accounts.NextMeetingText.StartsWith("Next: Design review", StringComparison.Ordinal), "the next meeting line is there: " + model.Accounts.NextMeetingText);
+
+        // A narrow window: the list shrinks to fit and nothing runs off the side.
+        var wideStep3 = window.AppWindow.Size;
+        window.AppWindow.Resize(new Windows.Graphics.SizeInt32(440, wideStep3.Height));
+        await Settle(800);
+        var step3Width = ((FrameworkElement)window.Content).ActualWidth;
+        Check(list.ActualWidth > 0 && list.ActualWidth <= step3Width && Texts(list).Contains("Work"), $"in a narrow window the list ({list.ActualWidth:0} px) fits the window ({step3Width:0} px)");
+        await Shot("connected-narrow");
+        window.AppWindow.Resize(wideStep3);
         await Settle(400);
-        Check(model.ShowLaunchAtLogin && ((FrameworkElement)window.LaunchCheckBox.Parent).Visibility == Visibility.Visible, "the second step offers the launch-at-login checkbox");
+
+        // Continue goes on to the last step; every choice above is saved already.
+        Check(ScenarioUi.Invoke(window.ConnectedContinue), "Continue can be invoked");
+        Check(await WaitFor(() => model.Step == WelcomeStep.Handy, 3000), "Continue moves to Keep TimeTug handy");
+        Check(window.HandyStepPanel.Visibility == Visibility.Visible && window.ConnectedStepPanel.Visibility == Visibility.Collapsed && window.Done.Visibility == Visibility.Visible && window.ConnectedContinue.Visibility == Visibility.Collapsed,
+            "step 4 shows its own panel and the Done button");
+        Check(Texts(window.HandyStepPanel).Contains("Keep TimeTug handy") && Texts(window.HandyStepPanel).Any(t => t.StartsWith("Two small things", StringComparison.Ordinal)), "with its heading and line: " + string.Join(" | ", Texts(window.HandyStepPanel).Take(2)));
+        Check(Unnamed(window).Count == 0, "every control on the last step has an automation name: " + string.Join(", ", Unnamed(window)));
+        Check(AutomationProperties.GetName(window.Done) == "Done", "the last button reads Done");
+        Check(engine.Sent.Count(c => c == "settings") == 3, "the window sent exactly the three patches the choices made: " + engine.Sent.Count(c => c == "settings"));
+        await Settle(900);   // a window capture lags a repaint
+        await Shot("handy");
+
+        // Launch at login (step 4): unchecked until the person ticks it, and shown as Windows says after the tick.
+        await Settle(400);
+        Check(model.ShowLaunchAtLogin && ((FrameworkElement)window.LaunchCheckBox.Parent).Visibility == Visibility.Visible, "the last step offers the launch-at-login checkbox");
         Check(window.LaunchCheckBox.IsChecked == false && window.LaunchCheckBox.IsEnabled, "it starts unchecked");
         Check(AutomationProperties.GetName(window.LaunchCheckBox) == "Start TimeTug when I sign in" && window.LaunchCheckBox.Content is "Start TimeTug when I sign in", "and is named: " + AutomationProperties.GetName(window.LaunchCheckBox));
         Check(startup.Calls.SequenceEqual(["get"]) && startup.State == StartupState.Disabled, "Windows was only asked for the state; nothing was enabled");
         Check(ScenarioUi.Toggle(window.LaunchCheckBox), "the checkbox can be ticked through UI Automation");
         await Settle(500);
         Check(startup.Calls.SequenceEqual(["get", "enable"]) && window.LaunchCheckBox.IsChecked == true, "a tick requests enabling and the box stays ticked because Windows enabled it");
-        await Shot("connected-launch-ticked");
+        await Shot("handy-launch-ticked");
         Check(ScenarioUi.Toggle(window.LaunchCheckBox), "unticking");
         await Settle(500);
         Check(startup.Calls.Last() == "disable" && window.LaunchCheckBox.IsChecked == false, "turns it off again");
@@ -156,14 +258,13 @@ internal static class WelcomeScenario
         await Settle(500);
         Check(window.LaunchCheckBox.IsChecked == false && !window.LaunchCheckBox.IsEnabled, "the box goes back to unchecked and is disabled: Windows decides");
         Check(window.LaunchSettingsLink.Visibility == Visibility.Visible && window.LaunchNoteText.Text.Contains("Startup apps", StringComparison.Ordinal), "with the reason and the link: " + window.LaunchNoteText.Text);
-        await Shot("connected-launch-blocked");
+        await Shot("handy-launch-blocked");
         Check(ScenarioUi.Invoke(window, "Open Startup apps in Windows Settings") && links.Opened.SequenceEqual(["ms-settings:startupapps"]), "the link opens the Startup apps page");
-        Check(Invoke(window, "Show a test tug screen") && engine.Sent.Contains("testTug"), "Test tug sends the test takeover");
 
-        // The recommended last step: keep the tray icon visible. Instructions, a button that opens the Taskbar page of Windows Settings, and the looping guide.
+        // The recommended taskbar card (step 4): keep the tray icon visible. Instructions, a button that opens the Taskbar page of Windows Settings, and the looping guide.
         window.TaskbarStepCard.StartBringIntoView();
         await Settle(500);
-        Check(window.TaskbarStepCard.Visibility == Visibility.Visible && AutomationProperties.GetName(window.TaskbarStepCard) == "Keep TimeTug in view", "the last step has the keep-TimeTug-in-view card: " + AutomationProperties.GetName(window.TaskbarStepCard));
+        Check(window.TaskbarStepCard.Visibility == Visibility.Visible && AutomationProperties.GetName(window.TaskbarStepCard) == "Keep TimeTug in view", "step 4 has the keep-TimeTug-in-view card: " + AutomationProperties.GetName(window.TaskbarStepCard));
         var cardTexts = Texts(window.TaskbarStepCard);
         Check(cardTexts.Contains("Recommended: keep TimeTug in view") && cardTexts.Contains("1.") && cardTexts.Contains("2.")
             && cardTexts.Contains("Select Show TimeTug in the taskbar to open the setting.") && cardTexts.Contains("Under Other system tray icons, turn TimeTug on.")
@@ -177,17 +278,17 @@ internal static class WelcomeScenario
         Check(Invoke(window, "Show TimeTug in the taskbar. Opens Windows Settings.") && await WaitFor(() => window.TaskbarErrorText.Visibility == Visibility.Visible, 3000), "a page that does not open shows an error");
         Check(window.TaskbarErrorText.Text == "Couldn’t open Windows Settings. Open Settings, then Personalization, then Taskbar.", "in words: " + window.TaskbarErrorText.Text);
         Check(diagnostics.Entries.Any(e => e.Category == "taskbar" && e.Level == "warning") && diagnostics.Entries.All(e => !e.Message.Contains("ms-settings", StringComparison.Ordinal)), "and logs a warning without content");
-        Check(model.Step == WelcomeStep.Connected, "the window carries on");
+        Check(model.Step == WelcomeStep.Handy, "the window carries on");
         links.Succeeds = true;
         Check(Invoke(window, "Show TimeTug in the taskbar. Opens Windows Settings.") && await WaitFor(() => window.TaskbarErrorText.Visibility == Visibility.Collapsed, 3000), "the next press that opens clears the error");
 
         // The guide: the recording loops (an animated bitmap) while animations are on, and is a still picture of its last frame when Windows has them off.
-        Check(window.GuideAsset == "Assets/taskbar-guide.gif" && window.TaskbarGuidePicture.Source is BitmapImage, "the guide is the animated recording");
+        Check(window.GuideAsset == "Assets/taskbar-guide.gif" && window.TaskbarGuidePicture.Source is BitmapImage, "the guide is the animated recording (loaded when step 4 appeared)");
         var animated = (BitmapImage)window.TaskbarGuidePicture.Source;
         Check(await WaitFor(() => animated.PixelWidth > 0, 5000), "the recording loads");
         Check(animated.IsAnimatedBitmap && animated.AutoPlay && animated.PixelWidth == 640, $"it is an animated picture that plays on its own, {animated.PixelWidth} px wide");
         Check(AutomationProperties.GetName(window.TaskbarGuidePicture).StartsWith("Guide. In Windows Settings, open Personalization, then Taskbar", StringComparison.Ordinal), "it has a text alternative: " + AutomationProperties.GetName(window.TaskbarGuidePicture));
-        await Shot("connected-taskbar");
+        await Shot("handy-taskbar");
 
         // It really moves: the picture's own rectangle on the screen is copied again and again over a little more than one loop (about 8 seconds) and the copies are compared
         // byte for byte. The Windows desktop is needed for this, so a machine without a screen only notes it.
@@ -236,7 +337,7 @@ internal static class WelcomeScenario
         Check(await WaitFor(() => window.GuideAsset == "Assets/taskbar-guide-still.png", 3000), "with animations off in Windows the guide switches to a still picture");
         Check(await WaitFor(() => window.TaskbarGuidePicture.Source is BitmapImage { PixelWidth: > 0 }, 5000) && !((BitmapImage)window.TaskbarGuidePicture.Source).IsAnimatedBitmap, "and it does not move");
         Check(AutomationProperties.GetName(window.TaskbarGuidePicture).Length > 0, "and keeps its text alternative");
-        await Shot("connected-taskbar-still");
+        await Shot("handy-taskbar-still");
         // The first copy may still show the swap being painted; what follows should not change at all (noted, not failed, when a slow machine is still repainting).
         var still = (await SampleWindowAsync(6, 700)).Skip(1).ToList();
         if (still.Count >= 4 && still.Distinct().Count() == 1)
@@ -264,7 +365,7 @@ internal static class WelcomeScenario
         var label = (TextBlock)window.TaskbarSettingsButton.Content;
         Check(window.TaskbarSettingsButton.ActualWidth <= window.TaskbarStepCard.ActualWidth && label.ActualWidth <= window.TaskbarSettingsButton.ActualWidth && label.ActualHeight > 0,
             $"the button ({window.TaskbarSettingsButton.ActualWidth:0} px) fits the card and its label wraps instead of being cut off ({label.ActualWidth:0} x {label.ActualHeight:0} px)");
-        await Shot("connected-taskbar-narrow");
+        await Shot("handy-taskbar-narrow");
         window.AppWindow.Resize(wideSize);
         await Settle(400);
 

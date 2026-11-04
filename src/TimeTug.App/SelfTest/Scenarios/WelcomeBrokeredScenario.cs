@@ -10,8 +10,9 @@ namespace TimeTug.App.SelfTest.Scenarios;
 /// opens by itself on "Welcome to TimeTug"; Get started shows "Connect your calendars": the box holds the Windows account as its first row (the Microsoft logo, the
 /// email, "Ready to connect" and what Windows will do), and nothing but the listing has been asked of Windows. Continue asks for the Windows dialog. Closing it leaves
 /// the window on step 2 with the row saying "Not connected. Choose Continue to try again.", no error words and "Use your browser instead"; allowing it connects the
-/// account (an ordinary Microsoft row with the Microsoft logo) and moves to step 3. A second pass shows that an account added with
-/// "+" first lets Continue go on with no Windows dialog. Controls are pressed through UI Automation, so their names are exercised too.
+/// account (an ordinary Microsoft row with the Microsoft logo) and moves to step 3, which lists the account's calendars (the real engine's, from the recorded Graph answers)
+/// with their Tug switches; a switch is saved by the real engine, and Continue goes on to step 4 (start at sign-in and the taskbar card). A second pass shows that an account
+/// added with "+" first lets Continue go on with no Windows dialog, and that Done on step 4 closes the window. Controls are pressed through UI Automation, so their names are exercised too.
 /// </summary>
 internal static class WelcomeBrokeredScenario
 {
@@ -90,14 +91,34 @@ internal static class WelcomeBrokeredScenario
         run.Check(await rig.WaitFor(() => model.Accounts.NextMeetingText.Contains("Design review", StringComparison.Ordinal) && model.Accounts.NextMeetingText.Contains("2:30", StringComparison.Ordinal)),
             "and the next meeting: " + model.Accounts.NextMeetingText);
         run.Check(rig.Latest is { Accounts: [{ KindId: "microsoft-brokered", Status: "ok" }] }, "the engine holds one brokered account that is connected");
-        // The app's own welcome window (not a scripted one) offers the recommended taskbar step: its card, the button, and the guide playing.
+        // Step 3 lists the calendars the real engine found for the account, with the switches Settings > Calendars has.
+        var list = window.CalendarsList;
+        run.Check(await rig.WaitFor(() => model.Calendars is { IsEmpty: false }), "the engine lists the account's calendars");
+        var section = model.Calendars!.Sections is [var first, ..] ? first : null;
+        run.Check(section is { Title: "Microsoft", SubtitleText: "· me@example.com · connected directly", Problem: null }, "under a Microsoft header with the account's address and no problem line: " + section?.Title + " " + section?.SubtitleText);
+        var team = model.Calendars.Sections.SelectMany(s => s.Groups).SelectMany(g => g.Rows).FirstOrDefault(r => r.Title == "Team");
+        run.Check(team is { Tugs: false, IsShown: true } && model.Calendars.Sections.SelectMany(s => s.Groups).SelectMany(g => g.Rows).All(r => !r.Tugs), "nothing is preset to tug, and the calendars are shown");
+        run.Check(team is not null && list.ControlsOf(team.Key) is not null && list.Visibility == Visibility.Visible, "each calendar has its check box and Tug switch on screen");
+        run.Check(window.ConnectedContinue.Visibility == Visibility.Visible && window.Done.Visibility == Visibility.Collapsed && !model.ShowLaunchAtLogin, "the button is Continue and the last step's controls are not shown yet");
+        run.Check(ScenarioUi.Unnamed(window).Count == 0, "every control has an automation name: " + string.Join(", ", ScenarioUi.Unnamed(window)));
+        await rig.Settle(900);
+        await run.ShotAsync(window, "connected");
+        run.Check(team is not null && list.ControlsOf(team.Key) is { } teamControls && ScenarioUi.Toggle(teamControls.Tug), "Team's Tug switch is turned on through UI Automation");
+        run.Check(await rig.WaitFor(() => team is not null && rig.Latest is { } state && state.Settings.TakeoverCalendarKeys.Contains(team.Key)), "the real engine stored it: " + string.Join(", ", rig.Latest?.Settings.TakeoverCalendarKeys ?? new HashSet<string>()));
+        run.Check(team is not null && list.ControlsOf(team.Key) is { Tug.IsOn: true }, "and the switch shows it");
+
+        // Step 4: Continue goes on. The app's own welcome window (not a scripted one) offers the recommended taskbar card, and Windows is asked about the startup task now.
+        run.Check(ScenarioUi.Invoke(window.ConnectedContinue), "Continue is pressed on step 3");
+        run.Check(await rig.WaitFor(() => model.Step == WelcomeStep.Handy), "the window moves to step 4, Keep TimeTug handy");
         window.TaskbarStepCard.StartBringIntoView();
-        run.Check(window.TaskbarStepCard.Visibility == Visibility.Visible && window.TaskbarSettingsButton.Visibility == Visibility.Visible, "step 3 shows the keep-TimeTug-in-view card with its button");
+        run.Check(window.TaskbarStepCard.Visibility == Visibility.Visible && window.TaskbarSettingsButton.Visibility == Visibility.Visible, "step 4 shows the keep-TimeTug-in-view card with its button");
         run.Check(window.GuideAsset == "Assets/taskbar-guide.gif" && window.TaskbarGuidePicture.Source is Microsoft.UI.Xaml.Media.Imaging.BitmapImage, "and the animated guide");
+        run.Check(window.Done.Visibility == Visibility.Visible && model.ShowLaunchAtLogin, "with Done and the start-at-sign-in checkbox");
+        run.Check(ScenarioUi.Unnamed(window).Count == 0, "every control on step 4 has an automation name: " + string.Join(", ", ScenarioUi.Unnamed(window)));
         run.Check(rig.Host.Secrets.Calls.Count == 0, "no credential was stored for it: " + string.Join(", ", rig.Host.Secrets.Calls));
         run.Check(rig.Broker.Calls.Count(c => c == "interactive:WindowsAccount") == 2, "the broker saw exactly the two dialogs: " + string.Join(", ", rig.Broker.Calls));
         await rig.Settle(900);
-        await run.ShotAsync(window, "connected");
+        await run.ShotAsync(window, "handy");
 
         // ---- a second first run: an account added with + first, then Continue asks Windows for nothing ------------------------------------
         var second = await SecondPassAsync(rig, window, cancellation);
@@ -148,8 +169,7 @@ internal static class WelcomeBrokeredScenario
         await rig.Settle(600);
         run.Check(rig.Broker.Calls.Count == calls, "(second pass) Continue asked Windows for nothing: " + string.Join(", ", rig.Broker.Calls.Skip(calls)));
         run.Check(rig.Broker.Calls.Count(c => c.StartsWith("interactive", StringComparison.Ordinal)) == dialogsBefore + 1, "(second pass) the only new dialog was the picker");
-        await run.ShotAsync(window, "second-connected");
-        return true;
+        return await WelcomeWalk.FromConnectedToDoneAsync(rig, window, "second");
     }
 }
 #endif

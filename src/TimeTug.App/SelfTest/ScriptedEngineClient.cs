@@ -15,10 +15,20 @@ internal sealed class ScriptedEngineClient(AccountFormService forms) : IEngineCl
     private readonly Channel<TakeoverRequest> _due = new(replay: false);
     private readonly Channel<string> _withdrawn = new(replay: false);
     private CancellationTokenSource? _form;
+    private AppState? _latest;
 
     public List<string> Sent { get; } = [];
 
     public string? ShowFormFor { get; set; }
+
+    /// <summary>
+    /// True: a settings patch is taken the way the engine takes it, and the next state carries it (the calendars' show and Tug choices, with hidden winning over the
+    /// tug list). False (the default): the patch is only recorded, as most scenarios expect.
+    /// </summary>
+    public bool ReflectSettings { get; set; }
+
+    /// <summary>The state pushed last, or null before the first.</summary>
+    public AppState? Latest => _latest;
 
     public IObservable<AppState> State => _state;
 
@@ -28,7 +38,11 @@ internal sealed class ScriptedEngineClient(AccountFormService forms) : IEngineCl
 
     public IObservable<EngineDiagnosticInfo> Diagnostics => _diagnostics;
 
-    public void Push(AppState state) => _state.Emit(state);
+    public void Push(AppState state)
+    {
+        _latest = state;
+        _state.Emit(state);
+    }
 
     public ValueTask StartAsync() => ValueTask.CompletedTask;
 
@@ -79,7 +93,37 @@ internal sealed class ScriptedEngineClient(AccountFormService forms) : IEngineCl
 
     public ValueTask SetEnabledAsync(bool enabled) => Record("enabled:" + enabled);
 
-    public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null) => Record("settings");
+    public ValueTask ApplySettingsAsync(TimeTug.Presentation.Settings.EngineSettingsPatch patch, string? commandId = null)
+    {
+        Sent.Add("settings");
+        if (ReflectSettings && _latest is { } latest)
+        {
+            Push(Reflect(latest, patch));
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    // The engine's answer to a patch: the keys it sets replace the stored ones (hidden wins over the tug list), and every calendar shows the result.
+    private static AppState Reflect(AppState state, TimeTug.Presentation.Settings.EngineSettingsPatch patch)
+    {
+        var hidden = patch.HiddenCalendarKeys ?? state.Settings.HiddenCalendarKeys;
+        var tug = (patch.TakeoverCalendarKeys ?? state.Settings.TakeoverCalendarKeys).Where(k => !hidden.Contains(k)).ToHashSet(StringComparer.Ordinal);
+        var settings = state.Settings with
+        {
+            SkipAllDayEvents = patch.SkipAllDayEvents ?? state.Settings.SkipAllDayEvents,
+            HiddenCalendarKeys = new HashSet<string>(hidden, StringComparer.Ordinal),
+            TakeoverCalendarKeys = tug,
+        };
+        TimeTug.Presentation.Settings.CalendarEntry Entry(TimeTug.Presentation.Settings.CalendarEntry c) => c with { IsShown = !hidden.Contains(c.Key), Tugs = tug.Contains(c.Key) };
+        return state with
+        {
+            Settings = settings,
+            CalendarGroups = [.. state.CalendarGroups.Select(g => g with { Calendars = [.. g.Calendars.Select(Entry)] })],
+            SystemCalendars = [.. state.SystemCalendars.Select(Entry)],
+            Revision = state.Revision + 1,
+        };
+    }
 
     public ValueTask ForgetCorrectionsAsync() => Record("forget");
 

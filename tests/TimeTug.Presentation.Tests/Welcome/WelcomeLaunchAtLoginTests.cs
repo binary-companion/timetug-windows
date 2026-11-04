@@ -5,7 +5,7 @@ using TimeTug.Presentation.Welcome;
 
 namespace TimeTug.Presentation.Tests.Welcome;
 
-/// <summary>The "Start TimeTug when I sign in" checkbox on the welcome window's second step.</summary>
+/// <summary>The "Start TimeTug when I sign in" checkbox on the welcome window's last step ("Keep TimeTug handy").</summary>
 public sealed class WelcomeLaunchAtLoginTests
 {
     private readonly FakeEngineClient _engine = new();
@@ -28,14 +28,20 @@ public sealed class WelcomeLaunchAtLoginTests
         await model.ContinueCommand.ExecuteAsync(null);
     }
 
+    private async Task ReachHandyAsync(WelcomeViewModel model)
+    {
+        await ReachConnectedAsync(model);
+        model.ConnectedContinueCommand.Execute(null);
+    }
+
     [Fact]
     public async Task The_checkbox_is_unchecked_and_asks_nothing_of_Windows_until_the_person_ticks_it()
     {
         var model = Model();
 
-        await ReachConnectedAsync(model);
+        await ReachHandyAsync(model);
 
-        model.Step.Should().Be(WelcomeStep.Connected);
+        model.Step.Should().Be(WelcomeStep.Handy);
         model.ShowLaunchAtLogin.Should().BeTrue();
         model.LaunchAtLogin!.IsOn.Should().BeFalse("it starts unchecked");
         model.LaunchAtLogin.CanChange.Should().BeTrue();
@@ -44,22 +50,27 @@ public sealed class WelcomeLaunchAtLoginTests
     }
 
     [Fact]
-    public async Task The_checkbox_is_not_shown_before_the_connected_step()
+    public async Task The_checkbox_is_not_shown_and_Windows_is_not_asked_before_the_last_step()
     {
         var model = Model();
 
         model.Step.Should().Be(WelcomeStep.Connect);
         model.ShowLaunchAtLogin.Should().BeFalse();
-        _startup.Calls.Should().BeEmpty("the state is read when the connected step appears");
+        _startup.Calls.Should().BeEmpty("the state is read when the last step appears");
         await ReachConnectedAsync(model);
+        model.Step.Should().Be(WelcomeStep.Connected);
+        model.ShowLaunchAtLogin.Should().BeFalse("the calendars come first");
+        _startup.Calls.Should().BeEmpty("nothing about starting at sign-in runs on the calendars step");
+        model.ConnectedContinueCommand.Execute(null);
         model.ShowLaunchAtLogin.Should().BeTrue();
+        _startup.Calls.Should().Equal("get");
     }
 
     [Fact]
     public async Task A_tick_requests_enabling()
     {
         var model = Model();
-        await ReachConnectedAsync(model);
+        await ReachHandyAsync(model);
 
         await model.SetLaunchAtLoginAsync(true);
 
@@ -72,7 +83,7 @@ public sealed class WelcomeLaunchAtLoginTests
     public async Task Unticking_turns_it_off_again()
     {
         var model = Model();
-        await ReachConnectedAsync(model);
+        await ReachHandyAsync(model);
         await model.SetLaunchAtLoginAsync(true);
 
         await model.SetLaunchAtLoginAsync(false);
@@ -85,7 +96,7 @@ public sealed class WelcomeLaunchAtLoginTests
     public async Task A_tick_that_Windows_refuses_leaves_the_checkbox_unchecked_with_the_reason()
     {
         var model = Model();
-        await ReachConnectedAsync(model);
+        await ReachHandyAsync(model);
         _startup.StateAfterRequest = StartupState.DisabledByUser;
 
         await model.SetLaunchAtLoginAsync(true);
@@ -101,7 +112,7 @@ public sealed class WelcomeLaunchAtLoginTests
         _startup.State = StartupState.Enabled;
         var model = Model();
 
-        await ReachConnectedAsync(model);
+        await ReachHandyAsync(model);
 
         model.LaunchAtLogin!.IsOn.Should().BeTrue("the checkbox shows what Windows has");
         _startup.Calls.Should().Equal("get");
@@ -112,7 +123,7 @@ public sealed class WelcomeLaunchAtLoginTests
     {
         var model = Model(withLaunchAtLogin: false);
 
-        await ReachConnectedAsync(model);
+        await ReachHandyAsync(model);
 
         model.ShowLaunchAtLogin.Should().BeFalse();
         await model.SetLaunchAtLoginAsync(true);

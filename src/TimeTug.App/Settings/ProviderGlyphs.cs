@@ -9,7 +9,7 @@ internal static class ProviderGlyphs
     public static string Of(string kindId) => kindId switch
     {
         "google" => "",
-        "microsoft" => "",
+        "microsoft" or TimeTug.Presentation.Accounts.BrokeredKinds.Brokered => "",
         "icloud" => "",
         "caldav" => "",
         "icalsub" => "",

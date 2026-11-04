@@ -17,10 +17,14 @@ public static class WelcomeWindowFactory
     public static WelcomeWindow Create(IEngineClient engine, AccountFormService forms, ILocalizer text, TimeProvider? clock = null, Action? openAccountsPane = null,
         LaunchAtLoginViewModel? launchAtLogin = null, ThemeService? theme = null,
         BrokerParentWindow? brokerParent = null, IBrokerSignInIntent? brokerIntents = null, IWindowsAccountSource? windowsAccounts = null,
-        IWindowsAccountDismissalStore? dismissals = null, TaskbarSettingsViewModel? taskbar = null, IUiSettings? uiSettings = null)
+        IWindowsAccountDismissalStore? dismissals = null, TaskbarSettingsViewModel? taskbar = null, IUiSettings? uiSettings = null,
+        ISettingsClient? settings = null)
     {
         var dispatcher = new DispatcherQueueDispatcher(DispatcherQueue.GetForCurrentThread());
-        var model = new WelcomeViewModel(engine, dispatcher, text, clock, openAccountsPane, launchAtLogin, taskbar);
+        // The "You're connected" step lists the calendars the way Settings > Calendars does and saves each choice at once through the same client; without a client the step has no list.
+        // Windows 1.0 registers no on-device text generator, so the model is told so (nothing here shows or sends it). The window owns the model and disposes it; the client is the app's.
+        var calendars = settings is null ? null : new CalendarsViewModel(engine, settings, dispatcher, text, inferenceSupported: false, showAccountProblems: true);
+        var model = new WelcomeViewModel(engine, dispatcher, text, clock, openAccountsPane, launchAtLogin, taskbar, calendars);
         // The Windows account broker (when this build has one): what the person chose reaches the broker host, and Continue can add the Windows account unless the
         // person removed it before. The store is set first: it decides whether the listing is asked for at all.
         model.Accounts.BrokerIntents = brokerIntents;

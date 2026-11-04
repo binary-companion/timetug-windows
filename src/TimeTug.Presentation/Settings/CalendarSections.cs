@@ -1,4 +1,5 @@
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Accounts;
 using TimeTug.Presentation.Engine;
 using Pkg = global::TimeTug.Engine;
 
@@ -39,7 +40,8 @@ public static class CalendarSections
     public static string ProviderName(string kindId, ILocalizer? text)
     {
         ArgumentNullException.ThrowIfNull(kindId);
-        var key = "CalendarProvider_" + kindId;
+        // Microsoft through the Windows account broker is still "Microsoft" to the person.
+        var key = "CalendarProvider_" + (kindId == BrokeredKinds.Brokered ? BrokeredKinds.Browser : kindId);
         if (kindId.Length > 0 && (text?.TryGetString(key) ?? EnglishText.GetValueOrDefault(key)) is { } known)
         {
             return known;
