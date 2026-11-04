@@ -44,7 +44,8 @@ internal sealed class SettingsRig : IDisposable
                 () => new DiagnosticsViewModel(tug.Engine, new DiagnosticsReader(LogFolder), Clipboard, dispatcher, tug.Text, TimeProvider.System, "1.0.0.0", "10.0.26100.0 (Test)"),
                 () => new GeneralViewModel(
                     new LaunchAtLoginViewModel(Startup, Links, dispatcher, tug.Text), new HotkeyRecorderViewModel(Hotkeys, dispatcher, tug.Text),
-                    new AboutViewModel("1.0.0.0", "8060ec0a1", isDevelopmentBuild: false, Links, dispatcher, tug.Text)),
+                    new AboutViewModel("1.0.0.0", "8060ec0a1", isDevelopmentBuild: false, Links, dispatcher, tug.Text),
+                    new TaskbarSettingsViewModel(Links, dispatcher, tug.Text, tug.Diagnostics)),
                 () => new AppearanceViewModel(Store, tug.Settings, dispatcher, tug.Text)),
             Theme);
         Host = new SettingsHost(

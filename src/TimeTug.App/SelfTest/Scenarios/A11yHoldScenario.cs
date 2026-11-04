@@ -46,7 +46,8 @@ internal static class A11yHoldScenario
         var welcomeStartup = new ScriptedStartupTask { State = StartupState.DisabledByUser };
         var welcomeLaunch = new LaunchAtLoginViewModel(
             welcomeStartup, new RecordingSystemLauncher(), new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()), rig.Text);
-        var welcome = WelcomeWindowFactory.Create(rig.Engine, rig.Forms, rig.Text, rig.Time, launchAtLogin: welcomeLaunch, windowsAccounts: ScriptedWindowsAccountSource.Named("me@example.com"));
+        var welcome = WelcomeWindowFactory.Create(rig.Engine, rig.Forms, rig.Text, rig.Time, launchAtLogin: welcomeLaunch, windowsAccounts: ScriptedWindowsAccountSource.Named("me@example.com"),
+            taskbar: new TaskbarSettingsViewModel(new RecordingSystemLauncher(), new DispatcherQueueDispatcher(Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread()), rig.Text), uiSettings: rig.Settings);
         welcome.Activate();
         await SelfTestRunner.WaitForFrameAsync(welcome, cancellation);
         run.Check(welcome.ViewModel.Step == WelcomeStep.Intro, "the welcome window starts on the welcome step");

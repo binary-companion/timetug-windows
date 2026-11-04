@@ -3,10 +3,12 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media.Imaging;
 using TimeTug.App.Controls;
 using TimeTug.App.Theming;
 using TimeTug.Platform.Broker;
 using TimeTug.Presentation.Abstractions;
+using TimeTug.Presentation.Settings;
 using TimeTug.Presentation.Welcome;
 using Windows.Graphics;
 
@@ -22,17 +24,23 @@ public sealed partial class WelcomeWindow : Window
     private const int HeightInDips = 700;
     private readonly AccountFormService _forms;
     private readonly IDisposable? _theme;
+    private readonly IUiSettings? _uiSettings;
+    private string? _guideAsset;
     private bool _syncing;
 
     private readonly BrokerParentWindow? _brokerParent;
     private readonly nint _handle;
 
     /// <param name="brokerParent">Where this window registers itself while open, so the Windows sign-in dialog opens in front of it.</param>
-    public WelcomeWindow(WelcomeViewModel viewModel, AccountFormService forms, ILocalizer text, ThemeService? theme = null, BrokerParentWindow? brokerParent = null)
+    /// <param name="uiSettings">Tells whether Windows has animations on; the taskbar guide on the last step plays only then and is a still picture otherwise. Without it the guide plays.</param>
+    public WelcomeWindow(
+        WelcomeViewModel viewModel, AccountFormService forms, ILocalizer text, ThemeService? theme = null, BrokerParentWindow? brokerParent = null,
+        IUiSettings? uiSettings = null)
     {
         ViewModel = viewModel;
         _forms = forms;
         _brokerParent = brokerParent;
+        _uiSettings = uiSettings;
         InitializeComponent();
         _handle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _brokerParent?.Register(_handle);
@@ -43,6 +51,19 @@ public sealed partial class WelcomeWindow : Window
         ViewModel.PropertyChanged += OnViewModelChanged;
         Closed += OnClosed;
         Root.Loaded += OnLoaded;
+        if (viewModel.Taskbar is { } taskbar)
+        {
+            // The label wraps in a narrow window instead of being cut off.
+            TaskbarButton.Content = new TextBlock { Text = taskbar.ButtonText, TextWrapping = TextWrapping.Wrap };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TaskbarButton, taskbar.ButtonAutomationName);
+            taskbar.PropertyChanged += (_, _) => SyncTaskbar();
+        }
+
+        if (_uiSettings is not null)
+        {
+            _uiSettings.Changed += OnUiSettingsChanged;
+        }
+
         if (viewModel.LaunchAtLogin is { } launch)
         {
             LaunchLink.Content = launch.SettingsLinkText;
@@ -108,6 +129,61 @@ public sealed partial class WelcomeWindow : Window
 
     public WelcomeViewModel ViewModel { get; }
 
+    /// <summary>The taskbar guide's picture, the button that opens Windows Settings and its error line (for the self-test).</summary>
+    internal Image TaskbarGuidePicture => GuideImage;
+
+    internal Button TaskbarSettingsButton => TaskbarButton;
+
+    internal TextBlock TaskbarErrorText => TaskbarError;
+
+    internal Border TaskbarStepCard => TaskbarCard;
+
+    /// <summary>The asset the guide shows now (the animation or its still), or null before the last step.</summary>
+    internal string? GuideAsset => _guideAsset;
+
+    private async void OnTaskbarSettings(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Taskbar is { } taskbar)
+        {
+            await taskbar.OpenAsync();
+        }
+    }
+
+    private void SyncTaskbar()
+    {
+        var error = ViewModel.Taskbar?.Error;
+        TaskbarError.Text = error ?? string.Empty;
+        TaskbarError.Visibility = error is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Shows the guide: the looping recording when Windows has animations on, a still of its last frame when they are off. Called when the last step appears (so the
+    /// loop starts when the person can see it) and when the Windows setting changes meanwhile. Does nothing when the right picture is already in.
+    /// </summary>
+    private void ShowGuide()
+    {
+        var asset = TaskbarGuide.AssetFor(_uiSettings?.AnimationsEnabled ?? true);
+        if (asset == _guideAsset)
+        {
+            return;
+        }
+
+        _guideAsset = asset;
+        GuideImage.Source = new BitmapImage(new Uri("ms-appx:///" + asset));
+    }
+
+    private void OnUiSettingsChanged()
+    {
+        // Raised on whichever thread Windows called from.
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (ViewModel.IsConnectedStep)
+            {
+                ShowGuide();
+            }
+        });
+    }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         _forms.XamlRoot = Root.XamlRoot;
@@ -126,6 +202,10 @@ public sealed partial class WelcomeWindow : Window
         {
             // The new step's first control gets focus so the keyboard (and Narrator) continue where the person is looking.
             DispatcherQueue.TryEnqueue(FocusFirstControl);
+            if (ViewModel.IsConnectedStep)
+            {
+                ShowGuide();
+            }
         }
     }
 
@@ -165,6 +245,11 @@ public sealed partial class WelcomeWindow : Window
     private void OnClosed(object sender, WindowEventArgs args)
     {
         _brokerParent?.Unregister(_handle);
+        if (_uiSettings is not null)
+        {
+            _uiSettings.Changed -= OnUiSettingsChanged;
+        }
+
         _forms.XamlRoot = null;
         _theme?.Dispose();
         // Closing the window mid sign-in cancels it, so the engine is not left waiting for a browser or a form.

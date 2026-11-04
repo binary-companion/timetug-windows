@@ -34,12 +34,17 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
     /// <param name="launchAtLogin">
     /// Launch at login, for the "Start TimeTug when I sign in" checkbox on the second step. Without one the step has no checkbox.
     /// </param>
+    /// <param name="taskbar">
+    /// Opens the Taskbar page of Windows Settings, for the "Show TimeTug in the taskbar" button on the last step. Without one the step keeps its
+    /// instructions and the animated guide but has no button.
+    /// </param>
     public WelcomeViewModel(
         IEngineClient engine, IUiDispatcher ui, ILocalizer text, TimeProvider? clock = null, Action? openAccountsPane = null,
-        LaunchAtLoginViewModel? launchAtLogin = null)
+        LaunchAtLoginViewModel? launchAtLogin = null, TaskbarSettingsViewModel? taskbar = null)
     {
         _openAccountsPane = openAccountsPane;
         LaunchAtLogin = launchAtLogin;
+        Taskbar = taskbar;
         Accounts = new AccountsViewModel(engine, ui, text, clock) { ShowWindowsOfferRow = true };
         Accounts.Connected += (_, _) => OnAccountConnected();
         Accounts.PropertyChanged += OnAccountsChanged;
@@ -58,6 +63,12 @@ public sealed class WelcomeViewModel : ObservableObject, IDisposable
 
     /// <summary>Launch at login, shown as a checkbox on the second step; null when the app gives none.</summary>
     public LaunchAtLoginViewModel? LaunchAtLogin { get; }
+
+    /// <summary>"Show TimeTug in the taskbar" on the last step; null when the app gives none.</summary>
+    public TaskbarSettingsViewModel? Taskbar { get; }
+
+    /// <summary>The button is on screen: the app gave a model for it.</summary>
+    public bool ShowTaskbarButton => Taskbar is not null;
 
     /// <summary>The checkbox is on screen: the second step, with a launch-at-login model.</summary>
     public bool ShowLaunchAtLogin => LaunchAtLogin is not null && IsConnectedStep;

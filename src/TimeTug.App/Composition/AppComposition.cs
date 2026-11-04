@@ -118,6 +118,8 @@ internal static class AppComposition
         // The links the app chooses itself (Windows Settings, the Store, the website): not the meeting-link launcher above.
         services.AddSingleton<ISystemLauncher>(_ => new AppLinkLauncher());
         services.AddSingleton<IStartupTaskService>(_ => new StartupTaskService());
+        services.AddTransient(sp => new TaskbarSettingsViewModel(
+            sp.GetRequiredService<ISystemLauncher>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<IDiagnostics>()));
         services.AddTransient(sp => new LaunchAtLoginViewModel(
             sp.GetRequiredService<IStartupTaskService>(), sp.GetRequiredService<ISystemLauncher>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()));
 
@@ -222,7 +224,8 @@ internal static class AppComposition
                 new HotkeyRecorderViewModel(sp.GetRequiredService<IHotkeyControl>(), sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()),
                 new AboutViewModel(
                     AppVersion.Current(), AppVersion.BuildCommit(), BuildFlavour.Current != Flavour.Store, sp.GetRequiredService<ISystemLauncher>(),
-                    sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>())),
+                    sp.GetRequiredService<IUiDispatcher>(), sp.GetRequiredService<ILocalizer>()),
+                sp.GetRequiredService<TaskbarSettingsViewModel>()),
             appearance: () => new AppearanceViewModel(
                 sp.GetRequiredService<IPresentationSettingsStore>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<IUiDispatcher>(),
                 sp.GetRequiredService<ILocalizer>())));

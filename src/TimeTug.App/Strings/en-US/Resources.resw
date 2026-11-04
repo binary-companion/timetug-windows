@@ -41,9 +41,13 @@
   <data name="AddAnother.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Add another account</value></data>
   <data name="TestTug.Content" xml:space="preserve"><value>Test tug</value></data>
   <data name="TestTug.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Show a test tug screen</value></data>
-  <data name="TrayNoteTitle.Text" xml:space="preserve"><value>TimeTug lives in the system tray</value></data>
-  <data name="TrayNote.Text" xml:space="preserve"><value>Look for its icon near the clock. If you don’t see it, select the arrow in the taskbar and drag the TimeTug icon out to keep it visible.</value></data>
-  <data name="TrayNoteCard.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Where to find TimeTug</value></data>
+  <data name="TaskbarStepCard.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Keep TimeTug in view</value></data>
+  <data name="TaskbarStepTitle.Text" xml:space="preserve"><value>Recommended: keep TimeTug in view</value></data>
+  <data name="TaskbarStepIntro.Text" xml:space="preserve"><value>Windows tucks new tray icons behind the arrow next to the clock. Show TimeTug on the taskbar so your next meeting is always in sight.</value></data>
+  <data name="TaskbarStep1.Text" xml:space="preserve"><value>Select Show TimeTug in the taskbar to open the setting.</value></data>
+  <data name="TaskbarStep2.Text" xml:space="preserve"><value>Under Other system tray icons, turn TimeTug on.</value></data>
+  <data name="TaskbarStepDrag.Text" xml:space="preserve"><value>Or select the arrow next to the clock and drag the TimeTug icon onto the taskbar.</value></data>
+  <data name="TaskbarGuide.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Guide. In Windows Settings, open Personalization, then Taskbar, open Other system tray icons and turn TimeTug on.</value></data>
   <data name="Done.Content" xml:space="preserve"><value>Done</value></data>
   <data name="Done.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve"><value>Done</value></data>
   <data name="CredentialDialog.PrimaryButtonText" xml:space="preserve"><value>Sign in</value></data>
@@ -284,6 +288,7 @@
   <data name="SettingsText_popup-card-style" xml:space="preserve"><value>Flyout backdrop</value></data>
   <data name="SettingsText_tray-icon-style" xml:space="preserve"><value>Tray icon</value></data>
   <data name="SettingsText_launch-at-login" xml:space="preserve"><value>Launch at login</value></data>
+  <data name="SettingsText_taskbar-icon" xml:space="preserve"><value>Show TimeTug in the taskbar</value></data>
   <data name="SettingsText_popup-shortcut" xml:space="preserve"><value>Show today’s meetings</value></data>
   <data name="SettingsText_about" xml:space="preserve"><value>About TimeTug</value></data>
   <data name="SettingsKeywords_accounts" xml:space="preserve"><value>google;microsoft;outlook;office 365;exchange;account;accounts;sign in;add account;remove account;icloud;caldav;fastmail;nextcloud;ical;ics;webcal;feed;subscription;meetup;connect</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
@@ -299,6 +304,7 @@
   <data name="SettingsKeywords_popup-card-style" xml:space="preserve"><value>glass;frosted;translucent;mica;acrylic;solid;transparency;cards;style;popup;flyout;background</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
   <data name="SettingsKeywords_tray-icon-style" xml:space="preserve"><value>tray;notification area;taskbar;icon;minutes;countdown;digit;next meeting</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
   <data name="SettingsKeywords_launch-at-login" xml:space="preserve"><value>startup;open at login;sign in;sign-in;boot;start with windows;autostart</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
+  <data name="SettingsKeywords_taskbar-icon" xml:space="preserve"><value>tray;system tray;notification area;overflow;hidden icons;arrow;pin;visible;promote;taskbar settings</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
   <data name="SettingsKeywords_popup-shortcut" xml:space="preserve"><value>hotkey;shortcut;keyboard;global;popup;flyout;open;toggle</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
   <data name="SettingsKeywords_about" xml:space="preserve"><value>version;license;licence;copyright;website;build;app info</value><comment>Words that also find this setting, separated by semicolons.</comment></data>
   <data name="Settings_WindowTitle" xml:space="preserve"><value>Settings</value><comment>The title of the Settings window.</comment></data>
@@ -397,6 +403,12 @@
   <data name="LaunchAtLogin_Unreadable" xml:space="preserve"><value>Couldn’t read launch at login: {0}</value></data>
   <data name="LaunchAtLogin_NotTurnedOn" xml:space="preserve"><value>Windows didn’t turn on launch at login.</value></data>
   <data name="LaunchAtLogin_NotTurnedOff" xml:space="preserve"><value>Windows didn’t turn off launch at login.</value></data>
+  <data name="Taskbar_Button" xml:space="preserve"><value>Show TimeTug in the taskbar</value><comment>Button on the last step of the first-run window. Opens the Taskbar page of Windows Settings, where TimeTug is turned on under Other system tray icons.</comment></data>
+  <data name="Taskbar_ButtonAutomation" xml:space="preserve"><value>Show TimeTug in the taskbar. Opens Windows Settings.</value></data>
+  <data name="Taskbar_OpenFailed" xml:space="preserve"><value>Couldn’t open Windows Settings. Open Settings, then Personalization, then Taskbar.</value></data>
+  <data name="General_TaskbarDescription" xml:space="preserve"><value>Windows keeps new tray icons behind the arrow next to the clock. In Taskbar settings, turn TimeTug on under Other system tray icons.</value></data>
+  <data name="General_TaskbarButton" xml:space="preserve"><value>Taskbar settings</value><comment>Button in Settings, General. Opens the Taskbar page of Windows Settings.</comment></data>
+  <data name="General_TaskbarButtonAutomation" xml:space="preserve"><value>Taskbar settings. Opens Windows Settings.</value></data>
   <data name="General_SectionApp" xml:space="preserve"><value>App</value></data>
   <data name="General_SectionShortcut" xml:space="preserve"><value>Shortcut</value></data>
   <data name="LaunchAtLoginCheck.Content" xml:space="preserve"><value>Start TimeTug when I sign in</value></data>

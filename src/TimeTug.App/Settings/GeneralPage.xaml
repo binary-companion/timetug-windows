@@ -48,6 +48,19 @@
                    Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed"
                    AutomationProperties.LiveSetting="Assertive" />
 
+        <!-- Show TimeTug in the taskbar: opens the Taskbar page of Windows Settings, where the tray icon is turned on -->
+        <Grid x:Name="TaskbarHost">
+          <toolkit:SettingsCard x:Name="TaskbarCard">
+            <toolkit:SettingsCard.HeaderIcon>
+              <FontIcon Glyph="&#xE7C4;" />
+            </toolkit:SettingsCard.HeaderIcon>
+            <Button x:Name="TaskbarButton" Click="OnTaskbarSettings" />
+          </toolkit:SettingsCard>
+        </Grid>
+        <TextBlock x:Name="TaskbarError" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="14,2,0,2"
+                   Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed"
+                   AutomationProperties.LiveSetting="Assertive" />
+
         <!-- Shortcut: the popup's global shortcut -->
         <TextBlock x:Name="ShortcutHeader" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="2,14,0,2" AutomationProperties.HeadingLevel="Level2" />
         <Grid x:Name="ShortcutHost">

@@ -7,7 +7,7 @@ public sealed record SettingsSearchItem(string Id, string Title, IReadOnlyList<s
 /// The Mac's settings search (<c>SettingsSearch.swift</c>), ported. The catalog is every control's id, title, keywords and pane, plus one
 /// entry per calendar (id <see cref="CalendarIdPrefix"/> + the calendar's key). The ids are the Mac's where the control is the same; the
 /// differences on Windows are recorded in <c>docs/parity.md</c>: no Software Update entries (the Store updates the app), no Apple Calendar
-/// words, the tray icon replaces the menu-bar text, the flyout backdrop replaces the popup card style, and About is an entry of its own.
+/// words, the tray icon replaces the menu-bar text, "Show TimeTug in the taskbar" (the Windows tray overflow) has an entry of its own, the flyout backdrop replaces the popup card style, and About is an entry of its own.
 /// Matching is the Mac's: the query is trimmed and folded (case- and diacritic-insensitive), a substring of the folded title is a title match, a
 /// substring of a folded keyword is a keyword match, title matches come first, each group keeps catalog order, and an empty query finds nothing.
 /// </summary>
@@ -31,6 +31,7 @@ public sealed class SettingsSearch
         ("tray-icon-style", SettingsPane.Appearance),
         ("countdown-chip", SettingsPane.Appearance),
         ("launch-at-login", SettingsPane.General),
+        ("taskbar-icon", SettingsPane.General),
         ("popup-shortcut", SettingsPane.General),
         ("about", SettingsPane.General),
     ];
