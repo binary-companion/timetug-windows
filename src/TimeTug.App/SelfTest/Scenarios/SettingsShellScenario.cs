@@ -187,25 +187,35 @@ internal static class SettingsShellScenario
         window.Choose(((IReadOnlyList<SettingsSearchResult>)window.SearchBox.ItemsSource!).First(r => r.Item.Id == "about"));
         run.Check(window.Shell.SelectedPane == SettingsPane.General && window.Shell.Destination == GeneralDestination.About, "the About entry drills into About");
         // The tint is a timed effect (it fades in over a quarter of a second, stays until 1.5 s after the reveal, fades out), so it is
-        // watched: the opacity is sampled every 20 ms for up to 5 s, each sample stamped with the time since the reveal, and the three
-        // statements below are read off those samples. A slow runner delays the samples; it does not move a one-shot read past the end
-        // of the tint.
-        var firstSample = revealed.ElapsedMilliseconds;
-        var revealedAgain = false;
+        // watched: the halo's opacity is sampled every 20 ms for up to 5 s, each sample stamped with the time since the reveal, and the
+        // statements below are read off those samples. The opacity is the halo's own, not a screen capture.
+        // A slow runner delays the samples; it does not move a one-shot read past the end of the tint.
+        var samplingBegan = revealed.ElapsedMilliseconds;
         var samples = await SampleTintAsync(window, revealed, 5000, cancellation);
-        if (samples.Overlay is null && firstSample > 1000)
+        var revealedAgain = 0;
+        while (samples.IsInconclusive(samplingBegan) && revealedAgain < 2)
         {
-            // The UI thread was stalled for longer than the tint lasts (a loaded runner: main CI run 41320643305 saw no tint at all after
-            // 'Choose' took this long), so the whole effect ended before the first sample. Reveal it again and watch that one. A tint that never
-            // appears still fails: the second reveal is watched from the moment it is requested, and the reduced-motion check below reveals it a third time.
+            // The UI thread stalled for a good part of the tint's life (a loaded runner: main CI run 41320643305 saw no tint at all after
+            // 'Choose' took this long), so what was sampled says nothing about the tint. Reveal it again and watch that one. This is not a
+            // way past a real failure: a tint that never appears, or never fades, is sampled without a gap and fails on every attempt.
+            run.Info($"the UI thread was stalled while the tint was watched (sampling began {samplingBegan} ms after the reveal, longest gap between samples {samples.LongestGap} ms); revealing About again");
             window.Shell.Open(SettingsPane.General, "about", GeneralDestination.About);
             revealed.Restart();
-            revealedAgain = true;
+            samplingBegan = 0;
+            revealedAgain++;
             samples = await SampleTintAsync(window, revealed, 5000, cancellation);
         }
 
+        run.Info("tint timeline (ms since the reveal = opacity): " + samples.Timeline());
         var overlay = samples.Overlay;
-        run.Check(overlay is not null && samples.Points.Any(p => p.Opacity > 0.01), $"the revealed control is tinted (the first sample was taken {firstSample} ms after the reveal{(revealedAgain ? ", so it was revealed again" : string.Empty)})");
+        if (overlay is null)
+        {
+            // What was on the page when the reveal found nothing to tint (this failed on a hosted runner without anyone able to look).
+            run.Info("no halo behind the About title: " + DescribeHighlightHosts(window));
+        }
+
+        run.Check(overlay is not null, "the reveal puts a halo behind the About title");
+        run.Check(samples.Points.Any(p => p.Opacity > 0.01), $"the revealed control is tinted (the first sample was taken {(samples.Points.Count == 0 ? "never" : samples.Points[0].Elapsed + " ms after the reveal")}{(revealedAgain > 0 ? $", so it was revealed again {revealedAgain} time(s)" : string.Empty)}; strongest {(samples.Points.Count == 0 ? double.NaN : samples.Points.Max(p => p.Opacity)):0.000} in {samples.Points.Count} samples)");
         var mid = samples.Points.Where(p => p.Elapsed >= 450 && p.Elapsed <= 1250).ToList();
         run.Check(mid.Count > 0 && mid.All(p => p.Opacity > 0.01), $"the tint is still there half a second later ({mid.Count} samples between 0.45 s and 1.25 s, lowest {(mid.Count == 0 ? double.NaN : mid.Min(p => p.Opacity)):0.000})");
         await run.ShotAsync(window, "highlight");
@@ -418,7 +428,57 @@ internal static class SettingsShellScenario
     }
 
     /// <summary>The tint's opacity over time since the reveal: the halo that was found and every sample taken (time in ms, opacity).</summary>
-    private sealed record TintSamples(Border? Overlay, IReadOnlyList<(long Elapsed, double Opacity)> Points);
+    private sealed record TintSamples(Border? Overlay, IReadOnlyList<(long Elapsed, double Opacity)> Points)
+    {
+        /// <summary>The longest time between two samples (or from the reveal to the first one), in ms: a UI thread that stalled shows as a gap.</summary>
+        public long LongestGap
+        {
+            get
+            {
+                long longest = 0;
+                long previous = 0;
+                foreach (var (elapsed, _) in Points)
+                {
+                    longest = Math.Max(longest, elapsed - previous);
+                    previous = elapsed;
+                }
+
+                return longest;
+            }
+        }
+
+        /// <summary>
+        /// True when the UI thread was away for too long for the samples to say anything about the tint: a gap wider than 400 ms (counting from
+        /// the reveal to the first sample) hides part of the stretch the checks look at, or nothing was sampled at all after a start more than a
+        /// second after the reveal (the whole tint was over). A tint that never shows up on a UI thread that kept running is not inconclusive.
+        /// </summary>
+        public bool IsInconclusive(long startedAt) => LongestGap > 400 || (Points.Count == 0 && startedAt > 1000);
+
+        /// <summary>The opacity at the moments it changed, for the result file (what a failure on a runner nobody can see looked like).</summary>
+        public string Timeline()
+        {
+            if (Points.Count == 0)
+            {
+                return "no halo was ever found";
+            }
+
+            var changes = Points.Where((p, i) => i == 0 || i == Points.Count - 1 || Math.Abs(p.Opacity - Points[i - 1].Opacity) > 0.0001);
+            return string.Join(" ", changes.Select(p => $"{p.Elapsed}={p.Opacity:0.000}")) + $" ({Points.Count} samples, longest gap {LongestGap} ms)";
+        }
+    }
+
+    /// <summary>The page, whether it is loaded, the highlight in force and every marked control with its id and whether it has a halo.</summary>
+    private static string DescribeHighlightHosts(SettingsWindow window) =>
+        window.CurrentPage is not { } page
+            ? "no page"
+            : $"{page.GetType().Name} (loaded {page.IsLoaded}), shell highlight '{window.Shell.HighlightedId}', destination {window.Shell.Destination}, controls: "
+              + string.Join(", ", SettingsHighlight.Hosts(page).Select(h => $"'{SettingsHighlight.GetId(h)}'{(SettingsHighlight.OverlayOf(h) is { } halo ? $" halo {halo.Opacity:0.000}" : string.Empty)}"));
+
+    /// <summary>The halo behind the About title (it exists from the moment the reveal asks for the tint, at opacity 0 until it fades in).</summary>
+    private static Border? AboutHalo(SettingsWindow window) =>
+        window.CurrentPage is { } page
+            ? SettingsHighlight.Hosts(page).Where(h => SettingsHighlight.GetId(h) == "about").Select(SettingsHighlight.OverlayOf).FirstOrDefault(o => o is not null)
+            : null;
 
     private static async Task<TintSamples> SampleTintAsync(SettingsWindow window, System.Diagnostics.Stopwatch sinceReveal, int milliseconds, CancellationToken cancellation)
     {
@@ -427,9 +487,7 @@ internal static class SettingsShellScenario
         var stop = sinceReveal.ElapsedMilliseconds + milliseconds;
         while (sinceReveal.ElapsedMilliseconds < stop)
         {
-            found ??= window.CurrentPage is { } page
-                ? SettingsHighlight.Hosts(page).Select(SettingsHighlight.OverlayOf).FirstOrDefault(o => o is { Opacity: > 0 })
-                : null;
+            found ??= AboutHalo(window);
             if (found is not null)
             {
                 points.Add((sinceReveal.ElapsedMilliseconds, found.Opacity));
