@@ -295,7 +295,21 @@ public sealed partial class SettingsWindow : Window
         }
 
         PaneHost.Content = page;
-        // The new page has not been laid out yet; tint its control once it has.
+        // The new page has not been laid out yet, so there is nothing to tint on it. Tint its control once it has: when it loads (a General
+        // page that was off screen only rebuilds for About, which is what the tint is behind, when it loads; its own Loaded handler comes first
+        // because it was added first) and, for pages that never need that, at the next idle moment. The idle moment alone is not enough: it can
+        // come before the page has loaded, and then the reveal finds no control and the 1.5 s tint is spent on nothing.
+        if (!page.IsLoaded)
+        {
+            RoutedEventHandler? loaded = null;
+            loaded = (_, _) =>
+            {
+                page.Loaded -= loaded;
+                ApplyHighlight();
+            };
+            page.Loaded += loaded;
+        }
+
         DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, ApplyHighlight);
     }
 
