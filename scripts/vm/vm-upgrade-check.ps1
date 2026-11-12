@@ -64,7 +64,7 @@ if ($Stage -in 'Build', 'All') {
         if ($LASTEXITCODE -ne 0) { throw 'cannot read Directory.Packages.props of origin/main (git fetch origin first)' }
         $OldEngineVersion = Get-PinnedEngineVersion $main
     }
-    if ($OldEngineVersion -eq $newVersion) { throw "the old and the new engine are both $newVersion: nothing to upgrade from" }
+    if ($OldEngineVersion -eq $newVersion) { throw "the old and the new engine are both ${newVersion}: nothing to upgrade from" }
     Write-Step "building the old package (TimeTug.Engine $OldEngineVersion) and the new one ($newVersion), $Platform"
 
     New-Item -ItemType Directory -Force -Path $OutputFolder | Out-Null
@@ -100,11 +100,11 @@ function Invoke-Scenario([string]$Name, [string]$Folder) {
     while (-not (Test-Path $resultFile) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 500 }
     if (-not $process.WaitForExit(30000)) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
     Stop-App
-    if (-not (Test-Path $resultFile)) { throw "$Name: no result.json (the app crashed, hung or never started)" }
+    if (-not (Test-Path $resultFile)) { throw "${Name}: no result.json (the app crashed, hung or never started)" }
     $result = Get-Content -Raw $resultFile | ConvertFrom-Json
     $failed = @($result.checks | Where-Object { $_ -and $_.ok -ne $true } | ForEach-Object { $_.name })
     if ($result.ok -ne $true -or $failed.Count -gt 0) { throw ("{0} failed: {1} {2}" -f $Name, $result.error, ($failed -join '; ')) }
-    if (-not (Test-Path (Join-Path $Folder 'state.json'))) { throw "$Name: no state.json" }
+    if (-not (Test-Path (Join-Path $Folder 'state.json'))) { throw "${Name}: no state.json" }
     Write-Step ("{0}: ok ({1} checks, package {2})" -f $Name, @($result.checks).Count, $result.packageFullName)
 }
 
