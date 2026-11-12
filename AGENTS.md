@@ -43,6 +43,8 @@ artwork/                    brand artwork, all rights reserved (artwork/LICENSE.
 
 Owner rule (2026-10-16): within a major version, a release of `TimeTug.Engine` must drop into this app with no change to the app. A non-major `TimeTug.Engine` bump is therefore merged when CI is green and requires no app change; Dependabot or the bump workflow opens it. The app is released only by the owner. A need that the engine cannot meet goes back to `timetug-shared` as an additive change.
 
+`TimeTug.Engine` 2.x is the Rust engine; its package holds one native file per architecture (x64 and ARM64), so the same managed surface runs on both. Dependabot's `nuget` entry does not ignore major versions: a major bump arrives as its own pull request, outside the `timetug-engine` group, and is never merged on a green CI alone. The 1.x to 2.0.0 cutover pull request is made by hand. A prerelease `TimeTug.Engine` version (one containing `-`, such as `2.0.0-alpha.1`) is never merged to the default branch and never released or flighted; it lives only on the `rust-engine-trial` branch. `scripts/ci/check-repository-contracts.py` fails when `Directory.Packages.props` pins one, on any branch and pull request, so the trial pull request shows that check red by design.
+
 ## Verify
 
 `scripts/verify.ps1` (build and test for the current architecture; see `docs/development.md` for the Windows 11 ARM VM recipe). The WinUI project builds only on Windows.
