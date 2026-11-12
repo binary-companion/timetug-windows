@@ -5,12 +5,12 @@
 .DESCRIPTION
   Runs in Windows (Windows PowerShell 5.1 or 7); scripts/vm/vm-upgrade-check.sh drives it from the Mac. Two stages, because they need different rights
   (as in scripts/ci/build-msix.ps1):
-    Build  (SYSTEM or an elevated session) builds two development packages from this checkout, the second as it is and the first with
+    Build  (SYSTEM or an elevated session) builds two development packages from this checkout, the second as it is (package version raised to 0.1.1.0 for this build only) and the first with
            Directory.Packages.props temporarily pinned to -OldEngineVersion, trusts both throwaway certificates. Nothing is installed.
     Run    (the signed-in user) installs the old package, copies the synthetic files of scripts\vm\upgrade-fixtures into its LocalState, runs the
            self-test scenario upgrade-seed (changes three settings through the engine) and upgrade-state (writes state.json), records every file of
-           LocalState, installs the new package over the old one (Add-AppxPackage -ForceUpdateFromAnyVersion: both carry the same package version,
-           0.1.0.0, and a real upgrade has a higher one; the data is kept either way), records the files again, runs upgrade-state again and compares.
+           LocalState, installs the new package over the old one (Add-AppxPackage: the new package is built as version 0.1.1.0 because
+           Windows refuses a same-version replacement, and a real upgrade has a higher version), records the files again, runs upgrade-state again and compares.
   Passes only when: the account kinds include microsoft-brokered; accounts, account kinds, settings and the engine's ledger line are equal before and
   after; the settings the seed changed are what the new engine reports; no file of the data folder was deleted or emptied by the install or by the
   new engine; the counts in the data files (ledger records, lessons, verdicts, sync entries) are equal. Nothing here reads or prints calendar content:
@@ -74,7 +74,17 @@ if ($Stage -in 'Build', 'All') {
         & (Join-Path $repo 'scripts\ci\build-msix.ps1') -Platform $Platform -Stage Build -OutputFolder $oldFolder
     }
     finally { [System.IO.File]::WriteAllText($props, $original) }
-    & (Join-Path $repo 'scripts\ci\build-msix.ps1') -Platform $Platform -Stage Build -OutputFolder $newFolder
+    # Both packages carry package version 0.1.0.0 and Windows refuses to replace a package by another of the same version (0x80073CFB), but a real
+    # upgrade has a higher one: the new package is built as 0.1.1.0 (the manifest is changed for this build only and restored).
+    $manifest = Join-Path $repo 'src\TimeTug.App\Package.appxmanifest'
+    $manifestOriginal = [System.IO.File]::ReadAllText($manifest)
+    try {
+        $bumped = [regex]::Replace($manifestOriginal, '(?s)(<Identity\b[^>]*?\bVersion=")0\.1\.0\.0(")', '${1}0.1.1.0${2}')
+        if ($bumped -eq $manifestOriginal) { throw 'could not find the package version 0.1.0.0 in Package.appxmanifest' }
+        [System.IO.File]::WriteAllText($manifest, $bumped)
+        & (Join-Path $repo 'scripts\ci\build-msix.ps1') -Platform $Platform -Stage Build -OutputFolder $newFolder
+    }
+    finally { [System.IO.File]::WriteAllText($manifest, $manifestOriginal) }
     Write-Step 'both packages built and their certificates trusted'
 }
 
@@ -187,8 +197,8 @@ if (Test-Path $dependencyRoot) {
     if ($archFolder) { $dependencies = @(Get-ChildItem -LiteralPath $archFolder.FullName -Filter '*.msix' -File | ForEach-Object { $_.FullName }) }
 }
 Write-Step ("installing {0} over the installed package" -f $newMsix.Name)
-if ($dependencies.Count -gt 0) { Add-AppxPackage -Path $newMsix.FullName -DependencyPath $dependencies -ForceUpdateFromAnyVersion }
-else { Add-AppxPackage -Path $newMsix.FullName -ForceUpdateFromAnyVersion }
+if ($dependencies.Count -gt 0) { Add-AppxPackage -Path $newMsix.FullName -DependencyPath $dependencies }
+else { Add-AppxPackage -Path $newMsix.FullName }
 $newPackage = Get-AppxPackage -Name $packageName
 Assert-That ($null -ne $newPackage) 'the new package is installed'
 Assert-That ($newPackage.InstallLocation -ne $oldPackage.InstallLocation -or $newPackage.PackageFullName -ne $oldPackage.PackageFullName) 'the install replaced the package content (a new install location)'
