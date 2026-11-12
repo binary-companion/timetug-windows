@@ -204,7 +204,9 @@ Assert-That ($null -ne $newPackage) 'the new package is installed'
 Assert-That ($newPackage.InstallLocation -ne $oldPackage.InstallLocation -or $newPackage.PackageFullName -ne $oldPackage.PackageFullName) 'the install replaced the package content (a new install location)'
 Assert-That ((Get-DataFolder) -eq $data) 'the data folder is the same folder'
 $engineDll = @(Get-ChildItem -LiteralPath $newPackage.InstallLocation -Recurse -Filter 'TimeTugEngineC.dll' -File)
-Assert-That ($engineDll.Count -eq 1) ("the new package holds exactly one TimeTugEngineC.dll ({0} found)" -f $engineDll.Count)
+# The development package carries the native library of both architectures (the Store and Direct packages carry one): one file per runtime folder.
+$engineDirs = @($engineDll | ForEach-Object { Split-Path -Leaf (Split-Path -Parent (Split-Path -Parent $_.FullName)) } | Sort-Object)
+Assert-That (($engineDirs -join ',') -eq 'win-arm64,win-x64') ("the new package holds exactly one TimeTugEngineC.dll per architecture ({0} found: {1})" -f $engineDll.Count, ($engineDirs -join ', '))
 $swiftFiles = @(Get-ChildItem -LiteralPath $newPackage.InstallLocation -Recurse -File | Where-Object { $_.Name -match '^(swift.*|Foundation.*|_FoundationICU|dispatch|BlocksRuntime)\.dll$' })
 Assert-That ($swiftFiles.Count -eq 0) ("the new package holds no Swift runtime file ({0} found)" -f $swiftFiles.Count)
 
