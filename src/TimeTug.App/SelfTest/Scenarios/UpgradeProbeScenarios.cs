@@ -24,7 +24,7 @@ internal static class UpgradeSeedScenario
     public const string Name = "upgrade-seed";
 
     public static Task<SelfTestResult> RunAsync(SelfTestOptions options, CancellationToken cancellation) =>
-        UpgradeProbe.RunAsync(options, cancellation, seedSettings: true);
+        UpgradeProbe.RunAsync(options, seedSettings: true, cancellation);
 }
 
 /// <summary>
@@ -38,14 +38,14 @@ internal static class UpgradeStateScenario
     public const string Name = "upgrade-state";
 
     public static Task<SelfTestResult> RunAsync(SelfTestOptions options, CancellationToken cancellation) =>
-        UpgradeProbe.RunAsync(options, cancellation, seedSettings: false);
+        UpgradeProbe.RunAsync(options, seedSettings: false, cancellation);
 }
 
 internal static class UpgradeProbe
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    public static async Task<SelfTestResult> RunAsync(SelfTestOptions options, CancellationToken cancellation, bool seedSettings)
+    public static async Task<SelfTestResult> RunAsync(SelfTestOptions options, bool seedSettings, CancellationToken cancellation)
     {
         var run = new ScenarioRun(options);
         var dataDirectory = EngineStartup.DefaultDataDirectory();
