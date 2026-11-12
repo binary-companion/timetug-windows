@@ -89,6 +89,13 @@ SCENARIO_CLASSES = {
     'src/TimeTug.App/SelfTest/Scenarios/A11yHoldScenario.cs': 'internal static class A11yHoldScenario { public const string Name = "a11y-hold"; }\n',
 }
 
+PACKAGES = '''<Project>
+  <ItemGroup>
+    <PackageVersion Include="TimeTug.Engine" Version="{version}" />
+  </ItemGroup>
+</Project>
+'''
+
 def make(root: Path, **overrides):
     files = {
         'LICENSE': 'MIT License ... Commons Clause License Condition v1.0\n',
@@ -98,6 +105,7 @@ def make(root: Path, **overrides):
         '.github/workflows/ci.yml': CI,
         '.github/workflows/windows-release.yml': RELEASE,
         '.github/workflows/windows-release-dryrun.yml': DRYRUN,
+        'Directory.Packages.props': PACKAGES.format(version='2.0.0'),
         '.gitignore': '*.pfx\n*.p12\n*.pvk\n*.key\n*.snk\n',
         'scripts/ci/selftest-scenarios.txt': SCENARIOS,
         **SCENARIO_CLASSES,
@@ -130,6 +138,23 @@ class RepositoryContracts(unittest.TestCase):
         self.fails('missing documented path: AGENTS.md', **{'AGENTS.md': None})
         self.fails('missing documented path: LICENSE', LICENSE=None)
         self.fails('missing documented path: .github/dependabot.yml', **{'.github/dependabot.yml': None})
+
+    def test_a_prerelease_engine_pin_fails(self):
+        for version in ('2.0.0-alpha.1', '2.0.0-rc.2', '1.9.0-beta'):
+            self.fails(f'TimeTug.Engine pins the prerelease {version}', **{'Directory.Packages.props': PACKAGES.format(version=version)})
+
+    def test_a_stable_engine_pin_passes(self):
+        for version in ('1.8.0', '2.0.0', '2.1.3'):
+            result = run(**{'Directory.Packages.props': PACKAGES.format(version=version)})
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_the_engine_pin_must_exist(self):
+        self.fails('Directory.Packages.props: no TimeTug.Engine version is pinned', **{'Directory.Packages.props': '<Project />\n'})
+        self.fails('missing documented path: Directory.Packages.props', **{'Directory.Packages.props': None})
+
+    def test_a_prerelease_version_override_fails(self):
+        props = '<Project><ItemGroup><PackageVersion Include="TimeTug.Engine" Version="2.0.0" VersionOverride="2.1.0-alpha.1" /></ItemGroup></Project>'
+        self.fails('TimeTug.Engine pins the prerelease 2.1.0-alpha.1', **{'Directory.Packages.props': props})
 
     def test_license_needs_the_commons_clause(self):
         self.fails('Commons Clause', LICENSE='MIT License\n')

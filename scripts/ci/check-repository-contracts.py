@@ -3,6 +3,7 @@
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
 import yaml
@@ -71,6 +72,24 @@ def secret_use(node):
             names |= {(m.group(1) or m.group(2)).upper() for m in SECRET_NAME.finditer(expression)}
             whole = whole or bool(WHOLE_CONTEXT.search(expression))
     return names, whole
+
+# A prerelease TimeTug.Engine (a version containing "-", for example 2.0.0-alpha.1) lives only on the branch rust-engine-trial and is never
+# merged to the default branch. The rule is not scoped by branch name on purpose: the check runs on the default branch and on every pull
+# request, so a prerelease pin is red wherever it appears, and the trial pull request shows it red as a guard until the stable version exists.
+packages = root / 'Directory.Packages.props'
+require(packages.is_file(), 'missing documented path: Directory.Packages.props')
+if packages.is_file():
+    try:
+        pins = [(element.get('Version'), element.get('VersionOverride')) for element in ElementTree.parse(packages).iter()
+                if element.get('Include') == 'TimeTug.Engine']
+    except ElementTree.ParseError as problem:
+        pins = []
+        require(False, f'Directory.Packages.props: not valid XML: {problem}')
+    else:
+        require(any(version for version, _ in pins), 'Directory.Packages.props: no TimeTug.Engine version is pinned')
+    for version in (value for pin in pins for value in pin if value):
+        require('-' not in version,
+                f'Directory.Packages.props: TimeTug.Engine pins the prerelease {version}; a prerelease is never merged to the default branch (AGENTS.md, Backward compatibility)')
 
 workflows = sorted((root / '.github' / 'workflows').glob('*.y*ml'))
 require(bool(workflows), 'missing documented path: .github/workflows')
