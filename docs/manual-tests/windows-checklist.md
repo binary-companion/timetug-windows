@@ -716,3 +716,136 @@ Everything in the Settings window and the flyout's merge menu. Build for all of 
 - **Expect:** if the browser cannot reach the local redirect or Credential Locker is blocked, the accounts UI says so clearly and the log names the step; other accounts keep working; the app does not crash.
 - **Automated:** partly. Platform tests simulate a blocked store and a failing loopback. Not automated: a real locked-down PC.
 - **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+---
+
+## 8. Rust engine cutover
+
+The engine inside the app is changing from the Swift library (`TimeTug.Engine` 1.x) to the Rust library (`TimeTug.Engine` 2.x). Nothing a person sees should change. The automated side (the full self-test on both architectures, the upgrade-in-place check with synthetic data, the clean-machine check) is done by CI and by the scripts in `scripts/vm`; this section is what only a person with real accounts, a real lock screen, a real sleep and a real clock can check. Run it once on the trial build before the Windows app adopts `TimeTug.Engine` 2.0.0, and once more on the release candidate.
+
+**Which build.** The trial build is the development package that CI builds from the `rust-engine-trial` branch (draft pull request "Trial: Rust engine prerelease (do not merge)"); the artifacts are `msix-x64` and `msix-arm64` as for every other section, kept 14 days:
+
+```
+gh run list --repo binary-companion/timetug-windows --branch rust-engine-trial --workflow CI --limit 3   # newest green run
+gh run download <run-id> --repo binary-companion/timetug-windows --name msix-arm64 --dir msix-trial-arm64   # or msix-x64
+```
+
+Read `commit.txt` in the artifact and write it in the Record line. The last Swift-engine build is the same download from a green `main` run made before the engine change landed (`--branch main`); items 8.2 and 8.13 need both.
+
+**It must be a build with the OAuth client ids.** The CI package has none: CI holds no OAuth secret, and a development package reads the Google and Microsoft client ids at run time from `%LOCALAPPDATA%\TimeTug\dev-oauth.json` (`docs/development.md`, "OAuth client ids for local builds"). With the file absent the Accounts pane shows "This build is missing configuration for some account types, so they can’t be added right now.", Google and Microsoft are greyed in the `+` menu, and every item below that needs a real Google or Microsoft account is impossible. So: install the CI `msix-x64` or `msix-arm64` artifact **and** copy `dev-oauth.json` onto the PC by hand (the same Google desktop client and Microsoft client the Mac app uses; copy the file, never paste or print its contents). The Store and Direct packages that `windows-release.yml` builds carry the ids themselves, but that workflow builds only the default branch or a version tag, so it cannot build the trial; use it only for the release-candidate pass. The Windows account kind (item 8.9) also needs the Microsoft client id, because `BrokeredEngineHost` is offered only when the build has one.
+
+**The unexplained start failure.** One earlier run on the owner’s PC showed the dialog "TimeTug couldn’t start". Its cause is not known. Item 8.1 is how it is caught if it comes back.
+
+Recording is as in the rest of this file: one box per item, the date, the commit from `commit.txt` and notes. A failed item becomes an issue on `timetug-windows`; do not merge the engine cutover while one is open.
+
+### 8.1 Start: no "TimeTug couldn’t start" dialog
+
+- **Build:** the trial `msix-x64` or `msix-arm64`, installed with `vm-install.ps1`, with `dev-oauth.json` in place.
+- **Do:** start TimeTug from the Start menu. Quit it from the tray and start it again, ten times in a row; once also right after signing in to Windows (with launch at sign-in on) and once after the PC has been asleep. Watch for a window titled "TimeTug couldn’t start".
+- **Expect:** it never appears. Each start reaches the tray icon (and the welcome window when there is no account) within a few seconds. **If the dialog appears, leave it open** (do not click Close), and before anything else: copy the text of the dialog (select it, or screenshot it), then read `%LOCALAPPDATA%\Packages\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew\LocalState\logs\timetug.log` and find the line **`TimeTug could not start. <reason>`**: the reason is the exception type and message, which is the whole diagnosis. Keep the log (the lines carry steps and outcomes, never an email or token), note which of the starts failed, what ran just before (a restart, an install over the old package, sleep, sign-in) and the time, and file it. Do not reinstall first: the failing state is the evidence.
+- **Automated:** partly. `startup` starts the real composition root and the real native engine once per CI run, with a scripted host; the clean-machine check started the installed development package on an ARM64 VM with no Visual C++ runtime. Neither repeats starts, so a rare failure like the owner’s needs this item. Not automated: the owner’s PC, its policies and its antivirus.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.2 Add each account kind
+
+- **Build:** the trial package with `dev-oauth.json`.
+- **Do:** from the welcome window or Settings > Accounts add, one after the other: a Google account (browser sign-in), a Microsoft account (browser sign-in), iCloud with an app-specific password, an iCal link (an https calendar link), and Other (CalDAV) if you have one. Choose which calendars tug for each. Then check each row again after quitting and restarting.
+- **Expect:** each kind signs in as in sections 2.1 to 2.5, shows "Connected" and its calendars, and the next meetings of each appear in the flyout. Nothing differs from the same steps on the last Swift-engine build (install that build on a second PC or earlier in the day to compare the wording and the calendar lists).
+- **Automated:** partly. The engine’s conformance scenarios and the .NET suite run against the Rust library, and the self-test covers the accounts UI over a scripted engine and over the real engine. Not automated: the real providers.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.3 Refresh
+
+- **Build:** the trial package, after 8.2.
+- **Do:** change a meeting on each calendar from another device (new title, a time moved, one added, one deleted). Wait for the next refresh, or press refresh in the flyout.
+- **Expect:** the flyout and the tooltip show the change within the usual refresh time, a moved meeting’s tug moves with it, a deleted meeting’s tug is gone, and no account turns to "Sign in again" or "Can’t reach this calendar" without cause.
+- **Automated:** partly. The engine’s scenarios replay recorded provider answers. Not automated: real provider changes and timing.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.4 A takeover fires at the lead time
+
+- **Build:** the trial package.
+- **Do:** create a meeting that starts 4 minutes from now with a conferencing link; leave the PC alone.
+- **Expect:** the tug takes over the screen 60 seconds before the start, with the right title, the countdown and Join; not earlier, not later, and once.
+- **Automated:** partly (`tug-basic`, and the engine’s scenarios on a manual clock). Not automated: the real clock and the real calendar.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.5 Join, snooze (it fires again), dismiss
+
+- **Build:** the trial package.
+- **Do:** on three real tugs: press Join; press Snooze and pick 1 minute; press Dismiss.
+- **Expect:** Join opens the conferencing link in the default app or browser and closes the tug. The snoozed tug comes back after a minute, once. A dismissed tug does not come back for that meeting, also not after you quit and start TimeTug. Nothing changes in your calendar.
+- **Automated:** partly (`tug-snooze`, `tug-dismiss`; sections 3.2 and 3.4). Not automated: the real return of a snoozed tug.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.6 A takeover while the screen is locked
+
+- **Build:** the trial package, on a real PC.
+- **Do:** create a meeting that starts 4 minutes from now. Lock the PC (Win+L) before the tug is due and wait until 2 minutes after the start. Unlock. Repeat once with a meeting that you delete from another device while locked.
+- **Expect:** as 4.3: nothing on the lock screen; right after the unlock one tug with "Started 2 min ago" and Join; for the deleted meeting, no tug.
+- **Automated:** partly (`tug-late-return`, `tug-meeting-gone`). Not automated: a real lock screen.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.7 Resume from sleep across a meeting start
+
+- **Build:** the trial package, on a real PC with sleep available.
+- **Do:** create a meeting that starts 6 minutes from now. Put the PC to sleep (Start > Power > Sleep) at once and wake it 2 minutes after the meeting’s start time. Repeat with the lid closed if it is a laptop.
+- **Expect:** after the wake **one** late takeover ("Started 2 min ago", Join as the primary button): not zero and not two. TimeTug is still running, the tooltip is right, the CPU is not busy (Task Manager, a minute after the wake), no "TimeTug couldn’t start" and no repeat of a tug you already dismissed.
+- **Automated:** no. On the Parallels VM `scripts/vm/vm-suspend.sh` followed by a resume was used to check that the app and its engine survive a suspend (process alive, window responding, memory and CPU unchanged; recorded in `docs/rust-port/baselines.md` of `timetug-shared`), but a scheduled takeover needs a calendar account, which the VM does not have. This item is owner-attended.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.8 Time-zone change while the app runs
+
+- **Build:** the trial package, with a meeting later today.
+- **Do:** with TimeTug running, change the time zone in Settings > Time & language > Date & time (for example 3 hours east), without restarting TimeTug. Look at the flyout and the tooltip. Change it back. Then create a meeting that starts 4 minutes from now in the new zone and wait for its tug.
+- **Expect:** the same meeting shows at its new local clock time (3 hours later), the countdown is unchanged, the tug for a meeting fires 60 seconds before its real start in either zone, and nothing fires twice or is dropped at the moment of the change.
+- **Automated:** no scenario changes the Windows time zone while the app runs.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.9 The Windows account kind: sign out and back in
+
+- **Build:** the trial `msix-arm64` or `msix-x64` with `dev-oauth.json` containing the Microsoft client, on a PC signed in to Windows with a Microsoft account (sections 2.6 and 2.11).
+- **Do:** add the Windows account (Continue in the welcome window, or `+` > Microsoft). Then sign out of Windows and in again, and start TimeTug. Then remove the account under Settings > Accounts and add it again.
+- **Expect:** the account is an ordinary Microsoft row, "Connected", with its calendars; after the sign-out and in again it is still connected and refreshes without a Windows dialog; after the removal and re-adding it is back as in 2.6. The account kind is the same as on the Swift-engine build (`microsoft-brokered`; the upgrade check proves this on synthetic data).
+- **Automated:** partly (`welcome-brokered`, `accounts-brokered`, the upgrade check). Not automated: the real Windows dialog and a real sign-out.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.10 Duplicate merge, unmerge, separate, forget
+
+- **Build:** the trial package, with a meeting that sits on two calendars (for example a shared invitation also on your own calendar) and two overlapping meetings that are not copies.
+- **Do:** as 5.19: open the flyout; merge the overlapping pair by hand; unmerge it; mark a doubled meeting "Not the same meeting"; then Settings > Calendars > Forget learned corrections (confirm); quit and restart TimeTug between the steps.
+- **Expect:** the doubled meeting shows once, "N events merged"; unmerge and "Not the same meeting" keep their result after a restart; after Forget learned corrections the engine decides again by itself (the doubled meeting is merged again). The same cards and wording as on the Swift-engine build for the same calendars.
+- **Automated:** partly (`flyout-merge`, the engine’s dedup vectors and the dedup benchmark). Not automated: your real calendars.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.11 Remove an account
+
+- **Build:** the trial package, with two or more accounts.
+- **Do:** remove one account (Settings > Accounts > the `-` or the three dots > Remove account) and confirm; look in Control Panel > Credential Manager > Windows Credentials before and after.
+- **Expect:** as 5.14: the question names the account; after Remove its meetings are gone from the flyout, its `TimeTug` credential entries are gone, the other accounts are untouched and still refresh.
+- **Automated:** partly (`settings-accounts`). Not automated: the real Credential Locker.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.12 Quit and restart: state persists
+
+- **Build:** the trial package, after 8.2 to 8.11 with settings changed (lead time, a calendar’s Tug switch, a dismissed meeting, a manual merge).
+- **Do:** quit TimeTug from the tray and start it again; then end the process in Task Manager (not a clean quit) and start it again; then restart Windows.
+- **Expect:** after each: the same accounts, calendars, settings, dismissed and merged state; no welcome window; a meeting you dismissed before stays dismissed; no "TimeTug couldn’t start" (item 8.1).
+- **Automated:** partly (the upgrade check compares accounts, settings, ledger and lessons before and after an install). Not automated: the real accounts and a real Windows restart.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.13 Upgrade a PC that has real accounts (Swift engine to Rust engine)
+
+- **Build:** first the last Swift-engine build (a green `main` run from before the engine change; the same `msix-x64` or `msix-arm64` download), then a trial build of the same architecture **with a higher package version**, with `dev-oauth.json` in place for both. The CI artifacts of the trial branch all carry package version `0.1.0.0`, the same as `main`, and Windows refuses to replace a package by another of the same identity and version (error `0x80073CFB`; checked on the Parallels VM, also with `Add-AppxPackage -ForceUpdateFromAnyVersion`). So before this item can be run, the trial branch needs one commit that raises `Version="0.1.0.0"` to `0.1.1.0` in `src/TimeTug.App/Package.appxmanifest` (this is what `vm-upgrade-check.ps1` does for its new package, and the in-place install of `0.1.1.0` over `0.1.0.0` passed on the VM); ask an agent to push it and use the artifact of that run. Removing the old package first is not an option: a removal deletes the app’s data, which is what this item checks.
+- **Do:** on the PC that has real **Google, Microsoft (browser), Microsoft through the Windows account, iCloud and iCal-link** accounts on the Swift-engine build: change two settings, mark one meeting dismissed, and note what each account shows (Settings > Accounts, and the flyout). Quit TimeTug from the tray. From an elevated PowerShell trust the trial certificate (`vm-install.ps1 -Stage Trust` from the trial artifact), then install the trial package over the old one from a normal PowerShell: `Add-AppxPackage -Path <trial>.msix -DependencyPath (Get-ChildItem <trial>\Dependencies\<arch>\*.msix).FullName`. **Do not use `vm-install.ps1 -Stage Install` or `-Stage All` for this step**: it removes the installed package first. Start TimeTug.
+- **Expect:** all five accounts are still there with the same names and calendars, none asks to sign in again, the two settings and the dismissed meeting are as you left them, and every account refreshes (change a meeting on each calendar and see it arrive). No welcome window, no "TimeTug couldn’t start". If an account asks to sign in again, note which kind and what the row says: that is a persisted-format or credential-store break and blocks the cutover.
+- **Automated:** partly. `scripts/vm/vm-upgrade-check.sh` (on the trial branch) installs the Swift-engine build, seeds synthetic engine data, installs the Rust-engine build (as `0.1.1.0`) over it and compares accounts by kind and name, settings, ledger entries and lessons, and that no data file was deleted or emptied; the account kinds include `microsoft-brokered`. Not automated: real accounts, real tokens in the Credential Locker, a real PC. **Owner only**, and it needs a build with OAuth client ids (see "Which build" above).
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
+
+### 8.14 Footprint on a real PC
+
+- **Build:** the Swift-engine and the trial build of the PC’s architecture.
+- **Do:** on one PC and one account set, note for each build: the folder size of the install location (`(Get-AppxPackage BinaryCompanion.TimeTug.Dev).InstallLocation`), Task Manager’s Memory and CPU for TimeTug ten minutes after the start with nothing happening, and the seconds from starting TimeTug to the tray icon. `scripts/vm/vm-measure.ps1` records the same numbers.
+- **Expect:** the trial package is smaller; memory, idle CPU and start time are no worse than the Swift-engine build (10% tolerance on time and CPU). The VM numbers are in `docs/rust-port/baselines.md` of `timetug-shared`, "Windows app, Swift engine versus Rust engine".
+- **Automated:** yes for the VM (`vm-measure.ps1`). Not automated: your PC.
+- **Record:** ☐ pass ☐ fail · Date: ________ · Commit: ________ · Notes: ________
