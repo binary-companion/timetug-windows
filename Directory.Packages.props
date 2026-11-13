@@ -11,7 +11,7 @@
     <!-- MSAL.NET and the Web Account Manager broker (phase 6), referenced only by TimeTug.Platform. Exact pins chosen in docs/spikes/2026-11-wam-broker.md (S1): the
          broker package brings Microsoft.Identity.Client.NativeInterop 0.20.6 and msalruntime transitively. Pins must stay at 4.67 or later (4.50 fixed the MSIX
          msalruntime lookup, 4.67 with NativeInterop 0.17.1 fixed sign-in in virtual machines). -->
-    <PackageVersion Include="Microsoft.Identity.Client" Version="4.91.0" />
+    <PackageVersion Include="Microsoft.Identity.Client" Version="4.92.0" />
     <PackageVersion Include="Microsoft.Identity.Client.Broker" Version="4.91.0" />
 
     <!-- App -->
