@@ -12,7 +12,7 @@
   <Identity
     Name="BinaryCompanion.TimeTug.Dev"
     Publisher="CN=TimeTug Development"
-    Version="0.1.0.0" />
+    Version="0.1.1.0" />
 
   <Properties>
     <DisplayName>TimeTug (development)</DisplayName>
