@@ -46,6 +46,7 @@ The VM is named `Windows 11` (Windows 11 build 26200, ARM64) and is normally sus
 | `scripts/vm/vm-screenshot.sh <file.png>` | Captures the VM's whole screen (`prlctl capture`). |
 | `scripts/vm/vm-suspend.sh` | Suspends the VM again (nothing happens if it is already suspended). Do this when you are done. |
 | `scripts/vm/vm-install.ps1` | Runs in Windows, not on the Mac: installs a development MSIX and trusts its throwaway certificate. It is also what the CI artifact ships; see "Installing a CI build". |
+| `scripts/vm/vm-measure.ps1` | Runs in Windows, in the signed-in user's session: measures the installed package (installed size, working set and private bytes five minutes after the start, CPU used over ten idle minutes, time from process start to the tray icon), three fresh starts by default, and writes JSON. It measures whichever build is installed, so run it once per build with a different `-Label`. It takes about 46 minutes for three runs: start it detached (see the script's help). The Parallels setting "Pause idle" must be off for the VM while it runs. Used for the Swift-engine versus Rust-engine table in `timetug-shared`'s `docs/rust-port/baselines.md`. |
 
 Typical session:
 
