@@ -5,11 +5,11 @@
 .DESCRIPTION
   Runs in Windows (Windows PowerShell 5.1 or 7); scripts/vm/vm-upgrade-check.sh drives it from the Mac. Two stages, because they need different rights
   (as in scripts/ci/build-msix.ps1):
-    Build  (SYSTEM or an elevated session) builds two development packages from this checkout, the second as it is (package version raised to 0.1.1.0 for this build only) and the first with
+    Build  (SYSTEM or an elevated session) builds two development packages from this checkout, the second as it is (its package version raised by one in the third part for this build only, for example 0.2.0.0 to 0.2.1.0) and the first with
            Directory.Packages.props temporarily pinned to -OldEngineVersion, trusts both throwaway certificates. Nothing is installed.
     Run    (the signed-in user) installs the old package, copies the synthetic files of scripts\vm\upgrade-fixtures into its LocalState, runs the
            self-test scenario upgrade-seed (changes three settings through the engine) and upgrade-state (writes state.json), records every file of
-           LocalState, installs the new package over the old one (Add-AppxPackage: the new package is built as version 0.1.1.0 because
+           LocalState, installs the new package over the old one (Add-AppxPackage: the new package is built with a higher version because
            Windows refuses a same-version replacement, and a real upgrade has a higher version), records the files again, runs upgrade-state again and compares.
   Passes only when: the account kinds include microsoft-brokered; accounts, account kinds, settings and the engine's ledger line are equal before and
   after; the settings the seed changed are what the new engine reports; no file of the data folder was deleted or emptied by the install or by the
@@ -74,13 +74,19 @@ if ($Stage -in 'Build', 'All') {
         & (Join-Path $repo 'scripts\ci\build-msix.ps1') -Platform $Platform -Stage Build -OutputFolder $oldFolder
     }
     finally { [System.IO.File]::WriteAllText($props, $original) }
-    # Both packages carry package version 0.1.0.0 and Windows refuses to replace a package by another of the same version (0x80073CFB), but a real
-    # upgrade has a higher one: the new package is built as 0.1.1.0 (the manifest is changed for this build only and restored).
+    # Both packages carry the manifest's package version (A.B.C.D) and Windows refuses to replace a package by another of the same version
+    # (0x80073CFB), but a real upgrade has a higher one: the new package is built as A.B.(C+1).D (the manifest is changed for this build only and
+    # restored).
     $manifest = Join-Path $repo 'src\TimeTug.App\Package.appxmanifest'
     $manifestOriginal = [System.IO.File]::ReadAllText($manifest)
     try {
-        $bumped = [regex]::Replace($manifestOriginal, '(?s)(<Identity\b[^>]*?\bVersion=")0\.1\.0\.0(")', '${1}0.1.1.0${2}')
-        if ($bumped -eq $manifestOriginal) { throw 'could not find the package version 0.1.0.0 in Package.appxmanifest' }
+        $identity = [regex]::Match($manifestOriginal, '(?s)(<Identity\b[^>]*?\bVersion=")(\d+)\.(\d+)\.(\d+)\.(\d+)(")')
+        if (-not $identity.Success) { throw 'could not find the package version in Package.appxmanifest' }
+        $g = $identity.Groups
+        $higher = '{0}.{1}.{2}.{3}' -f $g[2].Value, $g[3].Value, ([int]$g[4].Value + 1), $g[5].Value
+        $bumped = $manifestOriginal.Substring(0, $identity.Index) + $g[1].Value + $higher + $g[6].Value +
+            $manifestOriginal.Substring($identity.Index + $identity.Length)
+        Write-Step "the new package is built as version $higher"
         [System.IO.File]::WriteAllText($manifest, $bumped)
         & (Join-Path $repo 'scripts\ci\build-msix.ps1') -Platform $Platform -Stage Build -OutputFolder $newFolder
     }
