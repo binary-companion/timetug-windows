@@ -9,6 +9,12 @@ The release workflow (`.github/workflows/windows-release.yml`) builds the unsign
 
 The decision is made by `scripts/release/resolve-release.ps1` (unit-tested), in a job that has no secret and no environment. The same job runs `assert-on-default-branch.ps1`: it resolves the ref to its commit, requires that commit to be the default branch's tip or an ancestor of it, and hands the commit id (not the name) to the build jobs, which check out exactly that commit, so neither a tag on a commit that was never merged nor a tag moved after the check can build with the secrets (the approval in the Actions page is by environment, not by commit; keep tag creation owner-only in the repository rulesets as well).
 
+## Version
+
+The package version comes from the release tag (`vX.Y.Z` is package version `X.Y.Z.0`); no file in the repository sets it for a release. `src/TimeTug.App/Package.appxmanifest` holds only the development version that CI and local builds use.
+
+The first release on the Rust engine (`TimeTug.Engine` 2.0.0 and later) is a **major** version (Rust engine program, design section 8: each app takes its next major version when it adopts the 2.x engine). No Windows release has been published yet, so that first release is `v1.0.0`; if one is published on the 1.x engine first, the Rust-engine release is the next `X.0.0`. The development package version was raised from `0.1.0.0` to `0.2.0.0` with the 2.0.0 engine, so a development build of the Rust engine installs over a Swift-engine development build in place (Windows refuses to replace a package by one of the same version, `0x80073CFB`, and removing the package deletes its data).
+
 ## The owner's approval
 
 Both build jobs run in the `release` environment. **Create it before the first run** (Settings > Environments > New environment > `release`): required reviewer the owner, deployment branches limited to `main` and the `v*` tags. GitHub creates an environment that does not exist yet when a workflow first names it, with no protection, so an unprotected `release` must never exist. Nothing builds, and no OAuth value is readable, until the owner approves the run.
