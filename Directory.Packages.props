@@ -6,7 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- The shared engine, from nuget.org (built in binary-companion/timetug-shared). -->
-    <PackageVersion Include="TimeTug.Engine" Version="1.8.0" />
+    <PackageVersion Include="TimeTug.Engine" Version="1.8.4" />
 
     <!-- MSAL.NET and the Web Account Manager broker (phase 6), referenced only by TimeTug.Platform. Exact pins chosen in docs/spikes/2026-11-wam-broker.md (S1): the
          broker package brings Microsoft.Identity.Client.NativeInterop 0.20.6 and msalruntime transitively. Pins must stay at 4.67 or later (4.50 fixed the MSIX
