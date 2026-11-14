@@ -22,7 +22,7 @@ docs/parity.md             every Mac capability and its Windows status (the rele
 docs/development.md        how to build and test, including on the Windows 11 ARM VM
 docs/manual-tests/         the owner's manual checklist (windows-checklist.md; every human check, with the CI artifact to use)
 scripts/                    verify.ps1 and friends; logic lives in scripts, not workflow YAML
-scripts/vm/                 drive the Windows 11 ARM VM from the Mac (vm-up, vm-run, vm-sync, vm-selftest, vm-screenshot, vm-suspend) and vm-install.ps1, which ships in the dev MSIX artifact
+scripts/vm/                 drive the Windows 11 ARM VM from the Mac (vm-up, vm-run, vm-sync, vm-selftest, vm-screenshot, vm-suspend) and vm-install.ps1, which ships in the dev MSIX artifact; the owner-PC and remote-verification scripts (owner-upgrade-check, run-in-user-session, start-cycles, session-check, power-settings, ssh-ps; `docs/manual-tests/x64-remote-verification.md`)
 artwork/                    brand artwork, all rights reserved (artwork/LICENSE.md)
 ```
 
