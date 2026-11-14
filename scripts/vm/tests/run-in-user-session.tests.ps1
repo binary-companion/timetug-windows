@@ -21,6 +21,13 @@ Check 'single quotes in a literal are doubled' {
     Assert-Equal (ConvertTo-SingleQuoted 'C:\a b\c.ps1') "'C:\a b\c.ps1'"
 }
 
+Check 'a comma list that powershell -File passed as one string is split' {
+    Assert-Equal ((Expand-ScriptArgument @('-Cycles,1')) -join '|') '-Cycles|1'
+    Assert-Equal ((Expand-ScriptArgument @('-Cycles', '1')) -join '|') '-Cycles|1'
+    Assert-Equal ((Expand-ScriptArgument @('a,b')) -join '|') 'a,b'
+    Assert-Equal (Count-Of (Expand-ScriptArgument @())) 0
+}
+
 Check 'job names are limited to safe characters' {
     Assert-True (Test-JobName 'selftest-1_a') 'a normal name'
     Assert-True (-not (Test-JobName 'a b')) 'space'
@@ -90,11 +97,51 @@ Check 'a job that has not finished has no exit code yet' {
     try { Assert-Equal (Get-ExitCode (Join-Path $f 'none.log')) $null } finally { Remove-Item -Recurse -Force $f }
 }
 
-Check 'the script registers only an interactive, limited task and never kills or elevates anything' {
-    $text = [regex]::Replace((Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'run-in-user-session.ps1')), '(?s)<#.*?#>', '')
-    Assert-True ($text -match '-LogonType Interactive') 'not interactive'
-    Assert-True ($text -match '-RunLevel Limited') 'not limited'
-    Assert-True ($text -notmatch 'RunLevel Highest|-Password|Stop-Process|Stop-ScheduledTask') 'elevates, stores a password or kills'
+Check 'the task XML is interactive, limited, has no password and no trigger unless asked' {
+    $xml = New-UserTaskXml -UserId 'PC\me & you' -Command 'powershell.exe' -Arguments '-File "C:\a b\w.ps1"' -TimeLimitSeconds 4500
+    $doc = [xml]$xml
+    $ns = New-Object Xml.XmlNamespaceManager $doc.NameTable
+    $ns.AddNamespace('t', 'http://schemas.microsoft.com/windows/2004/02/mit/task')
+    Assert-Equal $doc.SelectSingleNode('//t:LogonType', $ns).InnerText 'InteractiveToken'
+    Assert-Equal $doc.SelectSingleNode('//t:RunLevel', $ns).InnerText 'LeastPrivilege'
+    Assert-Equal $doc.SelectSingleNode('//t:UserId', $ns).InnerText 'PC\me & you'
+    Assert-Equal $doc.SelectSingleNode('//t:ExecutionTimeLimit', $ns).InnerText 'PT4500S'
+    Assert-Equal $doc.SelectSingleNode('//t:Arguments', $ns).InnerText '-File "C:\a b\w.ps1"'
+    Assert-Equal $doc.SelectSingleNode('//t:WakeToRun', $ns).InnerText 'false'
+    Assert-True ($null -eq $doc.SelectSingleNode('//t:Triggers', $ns)) 'a trigger without being asked'
+    Assert-True ($xml -notmatch 'Password|Highest') 'password or elevation'
+}
+
+Check 'a one-time wake trigger is written when asked' {
+    $xml = New-UserTaskXml -UserId 'PC\me' -Command 'x.exe' -Arguments '' -StartBoundary ([datetime]'2026-11-14T10:05:09') -WakeToRun
+    Assert-True ($xml -match '<StartBoundary>2026-11-14T10:05:09</StartBoundary>') 'start boundary'
+    Assert-True ($xml -match '<WakeToRun>true</WakeToRun>') 'wake'
+}
+
+Check 'schtasks query CSV is read by column position' {
+    $line = '"PC","\TimeTug-user-session-x","N/A","Running","Interactive only","11/14/2026 3:02:00 AM","267009","me","","","","","","","","","","","","","","","","","","","","","","","",""'
+    $r = ConvertFrom-TaskQueryCsv $line
+    Assert-Equal $r.Status 'Running'
+    Assert-Equal $r.LastResult '267009'
+    Assert-True (Test-TaskStarted $r $false) 'a running task has started'
+    $never = ConvertFrom-TaskQueryCsv ($line -replace '"Running"', '"Ready"' -replace '"267009"', '"267011"')
+    Assert-True (-not (Test-TaskStarted $never $false)) 'a task that never ran has not started'
+    Assert-True (Test-TaskStarted $never $true) 'output means it started'
+    Assert-True (-not (Test-TaskStarted $null $false)) 'no record'
+    $done = ConvertFrom-TaskQueryCsv ($line -replace '"Running"', '"Ready"' -replace '"267009"', '"0"')
+    Assert-True (Test-TaskStarted $done $false) 'it ran and finished'
+}
+
+Check 'the script registers only an interactive, limited task through schtasks and never kills or elevates anything' {
+    $folder = Split-Path -Parent $PSScriptRoot
+    $text = [regex]::Replace((Get-Content -Raw -LiteralPath (Join-Path $folder 'run-in-user-session.ps1')), '(?s)<#.*?#>', '')
+    $lib = [regex]::Replace((Get-Content -Raw -LiteralPath (Join-Path $folder 'user-task.ps1')), '(?s)<#.*?#>', '')
+    Assert-True ($lib -match 'InteractiveToken' -and $lib -match 'LeastPrivilege') 'not interactive and limited'
+    Assert-True (($text + $lib) -notmatch 'RunLevel Highest|-Password|Stop-Process|/end|Stop-ScheduledTask') 'elevates, stores a password or kills'
+    foreach ($name in 'run-in-user-session.ps1', 'user-task.ps1', 'session-check.ps1', 'vm-measure.ps1', 'start-cycles.ps1', 'power-settings.ps1', 'owner-upgrade-check.ps1') {
+        $code = [regex]::Replace((Get-Content -Raw -LiteralPath (Join-Path $folder $name)), '(?s)<#.*?#>', '')
+        Assert-True ($code -notmatch '(?m)^[^#\r\n]*(ScheduledTask|Get-CimInstance|Get-WmiObject)') "$name uses CIM or the ScheduledTasks cmdlets, which a standard user is denied over SSH"
+    }
 }
 
 if ($script:failures -gt 0) { Write-Host "$($script:failures) check(s) failed"; exit 1 }

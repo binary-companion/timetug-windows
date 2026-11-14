@@ -49,6 +49,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'user-task.ps1')
 
 # ---- pure helpers (tested in scripts/vm/tests/run-in-user-session.tests.ps1) ------------------------------------------------------------------
 
@@ -57,6 +58,14 @@ function ConvertTo-SingleQuoted([string]$Text) { return "'" + $Text.Replace("'",
 
 # A job name safe for a task name and file names.
 function Test-JobName([string]$Name) { return $Name -match '^[A-Za-z0-9_-]{1,60}$' }
+
+# powershell -File passes a comma list ("-Cycles,1" typed over SSH) as ONE string, not an array. A single element that starts with a parameter name and
+# a comma is therefore split at its commas; anything else is left alone.
+function Expand-ScriptArgument([string[]]$Arguments) {
+    $list = @($Arguments)
+    if ($list.Count -eq 1 -and $list[0] -match '^-[A-Za-z][A-Za-z0-9]*,') { return @($list[0] -split ',') }
+    return $list
+}
 
 # The wrapper that runs inside the session: runs the script with its arguments, appends everything it prints (all streams) to the log, and writes
 # the exit code to <log>.exit as the last thing it does. An error that stops the script is written to the log and gives exit code 1.
@@ -126,13 +135,19 @@ if ($MyInvocation.InvocationName -ne '.') {
         $seen = 0
         Read-JobOutput $log ([ref]$seen)
         $code = Get-ExitCode $log
-        if ($null -eq $code) { Write-Host "[user-session] $Collect is still running" } else { Write-Host "[user-session] $Collect finished with exit code $code" }
+        if ($null -eq $code) { Write-Host "[user-session] $Collect is still running" }
+        else {
+            # A finished job's task is no longer needed (a -Detach job leaves it): remove it and the wrapper.
+            Remove-UserTask "TimeTug-user-session-$Collect"
+            Remove-Item -LiteralPath (Join-Path $folder "$Collect.wrapper.ps1") -Force -ErrorAction SilentlyContinue
+            Write-Host "[user-session] $Collect finished with exit code $code"
+        }
         if ($null -ne $code) { exit $code } else { exit 0 }
     }
 
     if (-not $ScriptPath) { throw 'give -ScriptPath <script.ps1> to run, or -Collect <job name> to read a job' }
     if (-not (Test-Path -LiteralPath $ScriptPath -PathType Leaf)) { throw "script not found: $ScriptPath" }
-    if (-not $UserId) { $UserId = "$env:USERDOMAIN\$env:USERNAME" }
+    if (-not $UserId) { $UserId = Get-CurrentUserId }
     if (-not $Name) { $Name = 'job-' + (Get-Date).ToString('yyyyMMdd-HHmmss') }
     if (-not (Test-JobName $Name)) { throw "invalid job name '$Name': letters, digits, - and _ only, at most 60" }
     $userName = ($UserId -split '\\')[-1]
@@ -145,31 +160,28 @@ if ($MyInvocation.InvocationName -ne '.') {
     $log = Join-Path $folder "$Name.log"
     foreach ($stale in $log, ($log + '.exit'), (Join-Path $folder "$Name.wrapper.ps1")) { if (Test-Path -LiteralPath $stale) { Remove-Item -LiteralPath $stale -Force } }
     $wrapper = Join-Path $folder "$Name.wrapper.ps1"
-    Set-Content -LiteralPath $wrapper -Value (New-WrapperScript $ScriptPath $ScriptArguments $log) -Encoding UTF8
+    Set-Content -LiteralPath $wrapper -Value (New-WrapperScript $ScriptPath (Expand-ScriptArgument $ScriptArguments) $log) -Encoding UTF8
 
     $taskName = "TimeTug-user-session-$Name"
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ("-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"{0}`"" -f $wrapper)
-    $principal = New-ScheduledTaskPrincipal -UserId $UserId -LogonType Interactive -RunLevel Limited
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Seconds ($TimeoutSeconds + 3600)) -MultipleInstances IgnoreNew
-    Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Settings $settings -Force | Out-Null
+    $xml = New-UserTaskXml -UserId $UserId -Command 'powershell.exe' -Arguments ("-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"{0}`"" -f $wrapper) -TimeLimitSeconds ($TimeoutSeconds + 3600)
+    Register-UserTaskXml $taskName $xml
     Write-Host "[user-session] job $Name for $UserId; log $log"
-    Start-ScheduledTask -TaskName $taskName
+    Start-UserTask $taskName
 
     # Wait for it to start in the session.
     $started = $false
     $deadline = (Get-Date).AddSeconds($StartTimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
-        $info = Get-ScheduledTask -TaskName $taskName | Get-ScheduledTaskInfo
-        $state = (Get-ScheduledTask -TaskName $taskName).State
-        if ($state -eq 'Running' -or (Test-Path -LiteralPath $log) -or (Test-Path -LiteralPath ($log + '.exit')) -or $info.LastRunTime.Year -gt 2000) { $started = $true; break }
+        $hasOutput = (Test-Path -LiteralPath $log) -or (Test-Path -LiteralPath ($log + '.exit'))
+        if (Test-TaskStarted (Get-UserTaskRecord $taskName) $hasOutput) { $started = $true; break }
         Start-Sleep -Milliseconds 500
     }
     if (-not $started) {
-        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+        Remove-UserTask $taskName
         throw "the task did not start within ${StartTimeoutSeconds}s: is $UserId signed in on the desktop (not only over SSH)? Task removed."
     }
     if ($Detach) {
-        Write-Host "[user-session] started; read it with: -Collect $Name (the task $taskName stays until you remove it: Unregister-ScheduledTask -TaskName $taskName -Confirm:`$false)"
+        Write-Host "[user-session] started; read it with: -Collect $Name (the task $taskName stays until you remove it: schtasks /delete /tn $taskName /f)"
         return
     }
 
@@ -184,10 +196,10 @@ if ($MyInvocation.InvocationName -ne '.') {
     }
     Read-JobOutput $log ([ref]$seen)
     if ($null -eq $code) {
-        Write-Host "[user-session] job $Name is still running after ${TimeoutSeconds}s; left running. Read it with -Collect $Name, remove the task with: Unregister-ScheduledTask -TaskName $taskName -Confirm:`$false"
+        Write-Host "[user-session] job $Name is still running after ${TimeoutSeconds}s; left running. Read it with -Collect $Name, remove the task with: schtasks /delete /tn $taskName /f"
         exit 124
     }
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+    Remove-UserTask $taskName
     Remove-Item -LiteralPath $wrapper -Force -ErrorAction SilentlyContinue
     Write-Host "[user-session] job $Name finished with exit code $code"
     exit $code
