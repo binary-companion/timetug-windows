@@ -9,6 +9,8 @@ One row per capability of the Mac app (`Apps/macOS/Sources` in `binary-companion
 
 This table is the release gate for phase 9: a real release needs every row done, differs on purpose or not applicable, and every "later" row owned by a phase that has shipped (with the reason in Notes). There are no "Soon" placeholders in the app: a capability that is not built is absent, not greyed out.
 
+**Engine:** Rust engine from `TimeTug.Engine` 2.0.0 (one native `TimeTugEngineC.dll` per architecture, no Swift runtime; the C interface, wire contract and fixtures are unchanged from 1.x, so no row below changed). The Mac stays on the Swift 1.x libraries until it moves to the same engine.
+
 Slice 3 closed the Settings window: all five Mac panes (General, Appearance, Accounts, Calendars, Tug Rules), About, search and diagnostics are present, and the per-control rows below say which are done, differ on purpose or wait for a later phase.
 
 | Area | Feature | Mac capability | Status | Notes |

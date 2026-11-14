@@ -200,6 +200,13 @@ expect "vm-selftest: --artifact and --no-build" 1 "contradict" -- "$vm_dir/vm-se
 expect "vm-selftest: --artifact needs a folder" 1 "--artifact needs" -- "$vm_dir/vm-selftest.sh" --artifact
 expect "vm-selftest: help" 0 "usage: vm-selftest.sh" -- "$vm_dir/vm-selftest.sh" --help
 
+# ---- vm-upgrade-check (argument checks only: the run itself needs a real VM) ----------------------------------------------------
+expect "vm-upgrade-check: unknown option" 1 "unknown argument: --bogus" -- "$vm_dir/vm-upgrade-check.sh" --bogus
+expect "vm-upgrade-check: --old-engine needs a version" 1 "--old-engine needs" -- "$vm_dir/vm-upgrade-check.sh" --old-engine
+expect "vm-upgrade-check: bad version" 1 "must be a version" -- "$vm_dir/vm-upgrade-check.sh" --old-engine 'x;y'
+expect "vm-upgrade-check: --out needs a folder" 1 "--out needs" -- "$vm_dir/vm-upgrade-check.sh" --out
+expect "vm-upgrade-check: help" 0 "usage: vm-upgrade-check.sh" -- "$vm_dir/vm-upgrade-check.sh" --help
+
 # ---- vm-sync: a real repository with a bare origin, the VM scripts copied in, the stub for the VM -----------------------------
 repo="$work/repo"
 mkdir -p "$repo/scripts" "$work/origin.git"

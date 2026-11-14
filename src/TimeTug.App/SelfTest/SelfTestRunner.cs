@@ -100,6 +100,8 @@ internal static class SelfTestRunner
         [AccountsListScenario.Name] = AccountsListScenario.RunAsync,
         [BrokeredReconnectScenario.Name] = BrokeredReconnectScenario.RunAsync,
         [BrokeredUnavailableScenario.Name] = BrokeredUnavailableScenario.RunAsync,
+        [UpgradeSeedScenario.Name] = UpgradeSeedScenario.RunAsync,
+        [UpgradeStateScenario.Name] = UpgradeStateScenario.RunAsync,
     };
 
     /// <summary>Runs the scenario, writes the result and exits.</summary>
