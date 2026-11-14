@@ -44,6 +44,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'user-task.ps1')
 $script:PackageName = 'BinaryCompanion.TimeTug.Dev'
 $script:FailureLine = 'TimeTug could not start.'
 
@@ -144,11 +145,9 @@ if ($Mode -eq 'Sleep') {
     if (Test-Path -LiteralPath $stamp) { Remove-Item -LiteralPath $stamp -Force }
     if (-not $DryRun) {
         $at = (Get-Date).AddMinutes($WakeAfterMinutes)
-        $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ("-NoProfile -WindowStyle Hidden -Command `"Set-Content -LiteralPath '{0}' -Value (Get-Date -Format o)`"" -f $stamp)
-        $trigger = New-ScheduledTaskTrigger -Once -At $at
-        $settings = New-ScheduledTaskSettingsSet -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-        $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+        $command = "-NoProfile -WindowStyle Hidden -Command `"Set-Content -LiteralPath '{0}' -Value (Get-Date -Format o)`"" -f $stamp
+        # schtasks.exe, not the ScheduledTasks cmdlets: those need CIM, which a standard user is denied over SSH.
+        Register-UserTaskXml $taskName (New-UserTaskXml -UserId (Get-CurrentUserId) -Command 'powershell.exe' -Arguments $command -StartBoundary $at -WakeToRun)
         Say ("wake task registered for {0}; sleeping now (sleep, not hibernate)" -f $at.ToString('HH:mm:ss'))
         Start-Sleep -Seconds 3
         $sleepAt = Get-Date
@@ -184,7 +183,7 @@ $failures = Get-FailureLineCount $logFrom
 $wakeFired = $null
 if ($Mode -eq 'Sleep' -and -not $DryRun) {
     $wakeFired = Test-Path -LiteralPath $stamp
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+    Remove-UserTask $taskName
 }
 $problems = @(Test-StateTransition $before $after $cpuWhile $dialogs $failures $CpuBudgetSeconds)
 if ($Mode -eq 'Sleep' -and -not $DryRun) {

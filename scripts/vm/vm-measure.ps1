@@ -126,7 +126,8 @@ $engineFiles = @($files | Where-Object { $_.Name -match $nativeNames } | Sort-Ob
         [ordered]@{ path = $_.FullName.Substring($install.Length + 1); bytes = $_.Length }
     })
 
-$os = Get-CimInstance Win32_OperatingSystem
+# The registry, not Get-CimInstance: CIM is denied to a standard user over SSH.
+$osKey = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 $result = [ordered]@{
     label            = $Label
     package          = $package.Name
@@ -136,7 +137,7 @@ $result = [ordered]@{
     installedBytes   = [long]$installedBytes
     fileCount        = $files.Count
     nativeEngineFiles = $engineFiles
-    os               = "$($os.Caption) build $($os.BuildNumber)"
+    os               = "$($osKey.ProductName) build $($osKey.CurrentBuildNumber)"
     measuredAt       = (Get-Date).ToString('s')
     settleSeconds    = $SettleSeconds
     idleSeconds      = $IdleSeconds
