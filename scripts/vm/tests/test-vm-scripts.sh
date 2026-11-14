@@ -276,5 +276,45 @@ if [ "$status" -eq 124 ]; then pass "run_with_timeout: a slow command is stopped
 cleaned="$(printf '%s\n' '#< CLIXML' '<Objs Version="1.1.0.1" xmlns="x"><S S="Error">boom : bad_x000D__x000A_</S><S S="Error">At line:1 &lt;here&gt;_x000D__x000A_</S></Objs>' 'plain line' | vm_clean_stderr 2>&1)"
 if [ "$cleaned" = "$(printf 'boom : bad\nAt line:1 <here>\nplain line')" ]; then pass "vm_clean_stderr: CLIXML errors become plain lines"; else fail "vm_clean_stderr" "$cleaned"; fi
 
+# ---- ssh-ps ---------------------------------------------------------------------------------------------------------------------
+cat >"$work/bin/ssh" <<'STUB'
+#!/usr/bin/env bash
+printf 'ssh %s\n' "$*" >>"$STUB_LOG"
+exit "${STUB_SSH_RC:-0}"
+STUB
+cat >"$work/bin/scp" <<'STUB'
+#!/usr/bin/env bash
+printf 'scp %s\n' "$*" >>"$STUB_LOG"
+STUB
+chmod +x "$work/bin/ssh" "$work/bin/scp"
+ssh_ps="$vm_dir/ssh-ps.sh"
+fake_key="$work/key"
+: >"$fake_key"
+reset running
+expect "ssh-ps: --host is required" 1 "--host USER@HOST is required" -- "$ssh_ps" --key "$fake_key" 'hostname'
+expect "ssh-ps: the host must have a user" 1 "user@address" -- "$ssh_ps" --host 192.168.1.20 --key "$fake_key" 'hostname'
+expect "ssh-ps: a missing key is an error" 1 "no private key" -- "$ssh_ps" --host u@h --key "$work/nokey" 'hostname'
+expect "ssh-ps: nothing to do is an error" 1 "no PowerShell code" -- "$ssh_ps" --host u@h --key "$fake_key"
+expect "ssh-ps: a bad port is an error" 1 "whole number" -- "$ssh_ps" --host u@h --key "$fake_key" --port x 'hostname'
+expect "ssh-ps: unknown option" 1 "unknown option: --bogus" -- "$ssh_ps" --bogus
+reset running
+"$ssh_ps" --host ttagent@192.168.1.20 --key "$fake_key" --port 2222 'Get-Date; "it'"'"'s fine"' >/dev/null 2>&1
+log_has "ssh-ps: connects as the given user, key-only, with strict host keys" "ssh -i $fake_key -p 2222 -o IdentitiesOnly=yes -o PasswordAuthentication=no -o BatchMode=yes -o StrictHostKeyChecking=yes ttagent@192.168.1.20 powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand"
+sent="$(decoded_calls | grep '^ssh ')"
+if [ "${sent#*"Get-Date; \"it's fine\""}" != "$sent" ]; then pass "ssh-ps: the code travels encoded and unchanged"; else fail "ssh-ps: encoded code" "$sent"; fi
+if [ "${sent#*"ErrorActionPreference='Stop'"}" != "$sent" ]; then pass "ssh-ps: errors stop the code"; else fail "ssh-ps: error preference" "$sent"; fi
+reset running
+export STUB_SSH_RC=255
+status=0
+"$ssh_ps" --host u@h --key "$fake_key" 'hostname' >/dev/null 2>&1 || status=$?
+unset STUB_SSH_RC
+if [ "$status" -eq 255 ]; then pass "ssh-ps: a failed connection returns 255"; else fail "ssh-ps: exit code" "$status"; fi
+reset running
+mkdir -p "$work/payload"
+"$ssh_ps" --host u@h --key "$fake_key" --put "$work/payload" timetug/trial >/dev/null 2>&1
+log_has "ssh-ps: --put copies with scp, key-only" "scp -r -i $fake_key -P 22 -o IdentitiesOnly=yes -o PasswordAuthentication=no -o BatchMode=yes -o StrictHostKeyChecking=yes $work/payload u@h:timetug/trial"
+log_lacks "ssh-ps: --put alone runs no ssh command" "ssh -i"
+expect "ssh-ps: --put of a missing path" 1 "not found" -- "$ssh_ps" --host u@h --key "$fake_key" --put "$work/missing" x
+
 printf '\n%s check(s), %s failed\n' "$checks" "$failures"
 [ "$failures" -eq 0 ]
