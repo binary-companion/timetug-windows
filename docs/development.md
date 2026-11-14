@@ -47,6 +47,7 @@ The VM is named `Windows 11` (Windows 11 build 26200, ARM64) and is normally sus
 | `scripts/vm/vm-suspend.sh` | Suspends the VM again (nothing happens if it is already suspended). Do this when you are done. |
 | `scripts/vm/vm-install.ps1` | Runs in Windows, not on the Mac: installs a development MSIX and trusts its throwaway certificate. It is also what the CI artifact ships; see "Installing a CI build". |
 | `scripts/vm/vm-measure.ps1` | Runs in Windows, in the signed-in user's session: measures the installed package (installed size, working set and private bytes five minutes after the start, CPU used over ten idle minutes, time from process start to the tray icon), three fresh starts by default, and writes JSON. It measures whichever build is installed, so run it once per build with a different `-Label`. It takes about 46 minutes for three runs: start it detached (see the script's help). The Parallels setting "Pause idle" must be off for the VM while it runs. Used for the Swift-engine versus Rust-engine table in `timetug-shared`'s `docs/rust-port/baselines.md`. |
+| `scripts/vm/owner-upgrade-check.ps1` | Runs in Windows on the owner's real PC, not in the VM: the non-destructive half of checklist item 8.13 (Swift-engine to Rust-engine upgrade in place). Step `Before` checks that the architectures of the PC, the installed package and the build folders agree and snapshots the app's `LocalState` folder (file names, sizes and SHA-256 only, never contents); `Trust` (elevated) trusts the trial certificate; `Upgrade` installs the trial package over the old one with `Add-AppxPackage` (never `vm-install.ps1 -Stage Install`, which removes the package and its data), starts the app and prints a before/after comparison. It never reads `dev-oauth.json`, tokens or calendar content. Logic tests: `scripts/vm/tests/owner-upgrade-check.tests.ps1`. |
 
 Typical session:
 
@@ -88,7 +89,7 @@ The tray icon with its minute digit is drawn in managed code (`TimeTug.Platform/
 
 ### Tests for the helper scripts
 
-`scripts/vm/tests/test-vm-scripts.sh` checks the shell scripts against a stub `prlctl` (argument parsing, VM state handling, what is sent to the VM, patch contents); `scripts/vm/tests/vm-install.tests.ps1` checks how `vm-install.ps1` finds the package, dependencies and certificate (plain PowerShell: Windows PowerShell 5.1 and `pwsh`). Both, and `shellcheck`, run in the `architecture` CI job through `scripts/ci/architecture.sh`.
+`scripts/vm/tests/test-vm-scripts.sh` checks the shell scripts against a stub `prlctl` (argument parsing, VM state handling, what is sent to the VM, patch contents); `scripts/vm/tests/vm-install.tests.ps1` checks how `vm-install.ps1` finds the package, dependencies and certificate and `scripts/vm/tests/owner-upgrade-check.tests.ps1` the logic of `owner-upgrade-check.ps1` (plain PowerShell: Windows PowerShell 5.1 and `pwsh`). Both, and `shellcheck`, run in the `architecture` CI job through `scripts/ci/architecture.sh`.
 
 ## Pinned versions
 
