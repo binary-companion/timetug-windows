@@ -441,6 +441,8 @@
   <data name="About_WebsiteAutomation" xml:space="preserve"><value>TimeTug website</value></data>
   <data name="About_Licences" xml:space="preserve"><value>Licences</value></data>
   <data name="About_LicencesAutomation" xml:space="preserve"><value>TimeTug licence</value></data>
+  <data name="About_ThirdPartyNotices" xml:space="preserve"><value>Third-party notices</value></data>
+  <data name="About_ThirdPartyNoticesAutomation" xml:space="preserve"><value>Licences of the third-party libraries in TimeTug</value></data>
   <data name="About_LinkFailed" xml:space="preserve"><value>Couldn’t open the link.</value></data>
   <data name="About_HeroAutomation" xml:space="preserve"><value>TimeTug</value></data>
   <data name="SoftwareUpdate_Title" xml:space="preserve"><value>TimeTug {0}</value></data>

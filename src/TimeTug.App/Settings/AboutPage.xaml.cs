@@ -26,6 +26,8 @@ public sealed partial class AboutPage : UserControl
         AutomationProperties.SetName(WebsiteLink, model.WebsiteAutomationName);
         LicenceLink.Content = model.LicencesText;
         AutomationProperties.SetName(LicenceLink, model.LicencesAutomationName);
+        NoticesLink.Content = model.ThirdPartyNoticesText;
+        AutomationProperties.SetName(NoticesLink, model.ThirdPartyNoticesAutomationName);
         Loaded += (_, _) => model.PropertyChanged += OnModelChanged;
         Unloaded += (_, _) => model.PropertyChanged -= OnModelChanged;
     }
@@ -45,6 +47,8 @@ public sealed partial class AboutPage : UserControl
 
     internal HyperlinkButton Licences => LicenceLink;
 
+    internal HyperlinkButton ThirdPartyNotices => NoticesLink;
+
     internal TextBlock Error => ErrorText;
 
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
@@ -56,4 +60,6 @@ public sealed partial class AboutPage : UserControl
     private async void OnWebsite(object sender, RoutedEventArgs e) => await _model.OpenWebsiteAsync();
 
     private async void OnLicence(object sender, RoutedEventArgs e) => await _model.OpenLicenceAsync();
+
+    private async void OnNotices(object sender, RoutedEventArgs e) => await _model.OpenThirdPartyNoticesAsync();
 }

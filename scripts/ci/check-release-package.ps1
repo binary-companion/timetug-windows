@@ -6,6 +6,7 @@
     - AppxManifest.xml: no execution alias, no `timetug-dev`, not the throwaway publisher CN=TimeTug Development, a name that does not end
       in .Dev, no __PARTNER_CENTER_*__ placeholder left, only the capabilities the app needs, a version of the form X.Y.Z.0 (the Store
       reserves the revision), and the logo files the manifest names are in the package.
+    - Licence notices: Assets\Licenses\LICENSE.txt and Assets\Licenses\THIRD-PARTY-NOTICES.md are in the package and not empty.
     - Assemblies (TimeTug*.dll and TimeTug.exe): no self-test runner type or switch, no reference to the developer OAuth file, the developer
       shortcut file or the development alias.
     - The Windows account broker (MSAL, phase 6): Microsoft.Identity.Client.dll, Microsoft.Identity.Client.Broker.dll and
@@ -139,6 +140,18 @@ function Get-ManifestProblems([string]$Root, [string]$ExpectedVersion) {
     return $problems
 }
 
+# The licence notices the package must carry (docs/third-party.md): this repository's LICENSE and the engine's THIRD-PARTY-NOTICES.md, which hold the
+# licence texts the MIT, Apache-2.0, Unicode-3.0 and MPL-2.0 crates of the engine require to travel with a binary.
+function Get-LicenceProblems([string]$Root) {
+    $problems = New-Object System.Collections.Generic.List[string]
+    foreach ($name in 'LICENSE.txt', 'THIRD-PARTY-NOTICES.md') {
+        $path = Join-Path $Root "Assets\Licenses\$name"
+        if (-not (Test-Path -LiteralPath $path)) { $problems.Add("Assets\Licenses\$name is missing (the package must carry the licence notices)") }
+        elseif ((Get-Item -LiteralPath $path).Length -lt 500) { $problems.Add("Assets\Licenses\$name is nearly empty") }
+    }
+    return $problems
+}
+
 function Get-AssemblyProblems([string]$Root) {
     $problems = New-Object System.Collections.Generic.List[string]
     $files = @(Get-ChildItem -LiteralPath $Root -Recurse -File | Where-Object { $_.Name -like 'TimeTug*.dll' -or $_.Name -eq 'TimeTug.exe' })
@@ -213,6 +226,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         if (-not $OnlyBroker) {
             $all += @(Get-ManifestProblems $Folder $ExpectedVersion)
             $all += @(Get-AssemblyProblems $Folder)
+            $all += @(Get-LicenceProblems $Folder)
         }
         $all += @(Get-BrokerProblems $Folder $Development.IsPresent)
         if ($Sentinel.Count -gt 0) { $all += @(Get-SentinelProblems $Folder $Sentinel $SentinelHome) }

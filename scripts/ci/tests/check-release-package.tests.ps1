@@ -31,7 +31,7 @@ $manifestTemplate = @'
 $aliasXml = '<Extensions><uap5:Extension Category="windows.appExecutionAlias" Executable="TimeTug.exe" EntryPoint="Windows.FullTrustApplication"><uap5:AppExecutionAlias><uap5:ExecutionAlias Alias="timetug-dev.exe" /></uap5:AppExecutionAlias></uap5:Extension></Extensions>'
 
 function New-Fixture([hashtable]$Options) {
-    $values = @{ Name = 'BinaryCompanion.TimeTug'; Publisher = 'CN=Binary Companion'; Version = '1.2.3.0'; Alias = ''; Capability = ''; Assemblies = @{ 'TimeTug.dll' = 'plain'; 'TimeTug.Presentation.dll' = 'plain' }; Logos = $true; Arch = 'x64'; Broker = @('Microsoft.Identity.Client.dll', 'Microsoft.Identity.Client.Broker.dll', 'Microsoft.Identity.Client.NativeInterop.dll', 'msalruntime.dll') }
+    $values = @{ Name = 'BinaryCompanion.TimeTug'; Publisher = 'CN=Binary Companion'; Version = '1.2.3.0'; Alias = ''; Capability = ''; Assemblies = @{ 'TimeTug.dll' = 'plain'; 'TimeTug.Presentation.dll' = 'plain' }; Logos = $true; Licences = $true; Arch = 'x64'; Broker = @('Microsoft.Identity.Client.dll', 'Microsoft.Identity.Client.Broker.dll', 'Microsoft.Identity.Client.NativeInterop.dll', 'msalruntime.dll') }
     foreach ($key in $Options.Keys) { $values[$key] = $Options[$key] }
     $root = Join-Path ([IO.Path]::GetTempPath()) ('release-check-fixture-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path (Join-Path $root 'Assets') | Out-Null
@@ -45,13 +45,17 @@ function New-Fixture([hashtable]$Options) {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
         [System.IO.File]::WriteAllBytes($target, [byte[]](77, 90, 1, 2))
     }
+    if ($values.Licences) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $root 'Assets/Licenses') | Out-Null
+        foreach ($name in 'LICENSE.txt', 'THIRD-PARTY-NOTICES.md') { Set-Content -LiteralPath (Join-Path $root "Assets/Licenses/$name") -Value ('licence text ' * 80) }
+    }
     foreach ($name in $values.Assemblies.Keys) {
         [System.IO.File]::WriteAllBytes((Join-Path $root $name), [System.Text.Encoding]::UTF8.GetBytes('MZ-----' + $values.Assemblies[$name] + '-----'))
     }
     return $root
 }
 function Problems([string]$Root, [string]$ExpectedVersion = '', [string[]]$Sentinels = @()) {
-    $all = @(Get-ManifestProblems $Root $ExpectedVersion) + @(Get-AssemblyProblems $Root) + @(Get-BrokerProblems $Root $false)
+    $all = @(Get-ManifestProblems $Root $ExpectedVersion) + @(Get-AssemblyProblems $Root) + @(Get-LicenceProblems $Root) + @(Get-BrokerProblems $Root $false)
     if ($Sentinels.Count -gt 0) { $all += @(Get-SentinelProblems $Root $Sentinels 'TimeTug.Presentation.dll') }
     return $all
 }
@@ -60,6 +64,14 @@ Check 'a clean release package passes' {
     $root = New-Fixture @{}
     $problems = @(Problems $root '1.2.3.0')
     Assert-True ($problems.Count -eq 0) ("unexpected problems: " + ($problems -join ' | '))
+    Remove-Item -Recurse -Force $root
+}
+
+Check 'a package without the licence notices is refused' {
+    $root = New-Fixture @{ Licences = $false }
+    $problems = @(Problems $root)
+    Assert-HasProblem $problems 'THIRD-PARTY-NOTICES.md is missing'
+    Assert-HasProblem $problems 'LICENSE.txt is missing'
     Remove-Item -Recurse -Force $root
 }
 

@@ -17,6 +17,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Direct reference only for GeneratePathProperty: $(PkgTimeTug_Engine) names the package folder, which holds the engine's third-party notices. -->
+    <PackageReference Include="TimeTug.Engine" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
@@ -28,6 +30,13 @@
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="app.manifest" />
+  </ItemGroup>
+  <!-- The licence notices the app must carry (docs/third-party.md): this repository's LICENSE, and THIRD-PARTY-NOTICES.md of the engine package, which holds the
+       licence text of every crate in the engine (MIT, Apache-2.0, Unicode-3.0, ...). Both go into the MSIX under Assets\Licenses; check-release-package.ps1 fails a release
+       package without them. -->
+  <ItemGroup>
+    <Content Include="..\..\LICENSE" Link="Assets\Licenses\LICENSE.txt" />
+    <Content Include="$(PkgTimeTug_Engine)\contentFiles\any\any\include\THIRD-PARTY-NOTICES.md" Link="Assets\Licenses\THIRD-PARTY-NOTICES.md" />
   </ItemGroup>
   <!-- The package manifest follows the flavour (-p:Flavour=Dev|Store|Direct): Package.appxmanifest for Dev, Package.<Flavour>.appxmanifest otherwise.
        scripts/release/build-release-msix.ps1 passes -p:ReleaseManifestPath with the Partner Center values and the version filled in. -->

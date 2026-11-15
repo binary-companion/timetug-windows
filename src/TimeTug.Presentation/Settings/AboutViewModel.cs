@@ -15,6 +15,9 @@ public sealed class AboutViewModel : ObservableObject
 
     public const string LicenceUrl = "https://github.com/binary-companion/timetug-windows/blob/main/LICENSE";
 
+    /// <summary>The licences of the engine's crates (the file also ships in the package, under Assets\Licenses).</summary>
+    public const string ThirdPartyNoticesUrl = "https://github.com/binary-companion/timetug-shared/blob/main/THIRD-PARTY-NOTICES.md";
+
     public const string StoreUpdatesUrl = "ms-windows-store://downloadsandupdates";
 
     private readonly string _version;
@@ -65,6 +68,10 @@ public sealed class AboutViewModel : ObservableObject
 
     public string LicencesAutomationName => _text.GetString("About_LicencesAutomation");
 
+    public string ThirdPartyNoticesText => _text.GetString("About_ThirdPartyNotices");
+
+    public string ThirdPartyNoticesAutomationName => _text.GetString("About_ThirdPartyNoticesAutomation");
+
     /// <summary>Why the last link did not open, or null.</summary>
     public string? Error
     {
@@ -101,6 +108,8 @@ public sealed class AboutViewModel : ObservableObject
     public Task OpenWebsiteAsync() => OpenAsync(WebsiteUrl);
 
     public Task OpenLicenceAsync() => OpenAsync(LicenceUrl);
+
+    public Task OpenThirdPartyNoticesAsync() => OpenAsync(ThirdPartyNoticesUrl);
 
     public Task OpenStoreUpdatesAsync() => OpenAsync(StoreUpdatesUrl);
 
