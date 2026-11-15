@@ -24,6 +24,7 @@
     <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Center">
       <HyperlinkButton x:Name="WebsiteLink" Click="OnWebsite" />
       <HyperlinkButton x:Name="LicenceLink" Click="OnLicence" />
+      <HyperlinkButton x:Name="NoticesLink" Click="OnNotices" />
     </StackPanel>
     <TextBlock x:Name="ErrorText" HorizontalAlignment="Center" Style="{StaticResource CaptionTextBlockStyle}"
                Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="Collapsed" AutomationProperties.LiveSetting="Assertive" />

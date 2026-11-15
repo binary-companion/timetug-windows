@@ -43,6 +43,18 @@ public sealed class AboutViewModelTests
     }
 
     [Fact]
+    public async Task The_third_party_notices_link_opens_the_engine_notices()
+    {
+        var model = Model();
+
+        await model.OpenThirdPartyNoticesAsync();
+
+        model.ThirdPartyNoticesText.Should().Be("Third-party notices");
+        _launcher.Opened.Should().Equal("https://github.com/binary-companion/timetug-shared/blob/main/THIRD-PARTY-NOTICES.md");
+        model.Error.Should().BeNull();
+    }
+
+    [Fact]
     public async Task A_link_that_cannot_be_opened_says_so_and_the_next_one_clears_it()
     {
         var model = Model();

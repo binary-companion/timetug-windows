@@ -9,6 +9,14 @@ TimeTug for Windows shows two vendors' logos beside accounts. They belong to the
 
 Sources, dates and the rules we follow are in `src/TimeTug.App/Assets/Providers/README.md`. The Mac app draws its own marks.
 
+## Licence notices in the app
+
+The app is a binary that contains the engine, so the licence texts of the engine's crates travel with it. The MSIX carries them under `Assets\Licenses` (`LICENSE.txt`, this repository's licence, and `THIRD-PARTY-NOTICES.md`, the engine package's file with every crate's licence text); `TimeTug.App.csproj` takes the second from the `TimeTug.Engine` package folder, so it always matches the pinned engine version, and `scripts/ci/check-release-package.ps1` (run by the release dry run and the release) fails a package without them. Settings > General > About has a "Third-party notices" link to the same file on GitHub.
+
+### MPL-2.0 (UniFFI)
+
+The `uniffi` crates are under the Mozilla Public License 2.0; the owner accepted that licence on 2026-11-15. The Windows engine library (`TimeTugEngineC.dll`, crate `timetug-engine-c`) does **not** link them: they belong to the Swift and Kotlin bindings library, which the Mac, iOS and Android builds use. They are listed in the file because one notices file serves both libraries, and the file carries the MPL-2.0 text (engine releases after 2026-11-15 also say where the source is: upstream tag `v0.32.2`, crates.io), so the package is covered even if a later engine version links them. Nothing in this app is under MPL-2.0 and no app source has to be published for it. What MPL-2.0 requires, clause by clause, and where each is met: `docs/licensing.md` in [timetug-shared](https://github.com/binary-companion/timetug-shared/blob/main/docs/licensing.md).
+
 ## Rust crates in the engine
 
 The engine (`TimeTug.Engine` 2.x, the Rust library `TimeTugEngineC.dll`) is built from the crates below. The package ships the full licence texts in `THIRD-PARTY-NOTICES.md` (NuGet content file `contentFiles/any/any/include/THIRD-PARTY-NOTICES.md` of the `TimeTug.Engine` package); this table is that file's list of crates, version and licence expression, for package `2.0.0`. Since 2.0.0 that file also covers the crates of the Swift bindings library (`timetug-engine-ffi`, among them the `uniffi` crates under MPL-2.0), which the Windows DLL does not link; the list is kept whole so it matches the package. The engine carries no Swift runtime and no Foundation libraries. `calendar-*` crates and this table's engine are under the `calendar-connectors` and `timetug-shared` licences (MIT). Regenerate this table from the package's file when the pinned version changes.
