@@ -96,6 +96,23 @@ PACKAGES = '''<Project>
 </Project>
 '''
 
+TRACK = f'''name: Track issue
+on:
+  issues:
+    types: [opened, closed, reopened]
+permissions:
+  contents: read
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    environment: tracking
+    steps:
+      - uses: binary-companion/.github/.github/actions/track@32921506f15cf31f0d587298b895b3323992a855
+        with:
+          app-id: ${{{{ vars.APP_ID }}}}
+          private-key: ${{{{ secrets.APP_PRIVATE_KEY }}}}
+'''
+
 def make(root: Path, **overrides):
     files = {
         'LICENSE': 'MIT License ... Commons Clause License Condition v1.0\n',
@@ -105,6 +122,7 @@ def make(root: Path, **overrides):
         '.github/workflows/ci.yml': CI,
         '.github/workflows/windows-release.yml': RELEASE,
         '.github/workflows/windows-release-dryrun.yml': DRYRUN,
+        '.github/workflows/track.yml': TRACK,
         'Directory.Packages.props': PACKAGES.format(version='2.0.0'),
         '.gitignore': '*.pfx\n*.p12\n*.pvk\n*.key\n*.snk\n',
         'scripts/ci/selftest-scenarios.txt': SCENARIOS,
@@ -244,6 +262,24 @@ class RepositoryContracts(unittest.TestCase):
 
     def test_no_other_secret_is_allowed_in_the_release_workflow(self):
         self.fails('uses secret PARTNER_CENTER_TOKEN', **self.release(RELEASE.replace('MICROSOFT_OAUTH_CLIENT_ID }}', 'MICROSOFT_OAUTH_CLIENT_ID }} ${{ secrets.PARTNER_CENTER_TOKEN }}')))
+
+    def track(self, text):
+        return {'.github/workflows/track.yml': text}
+
+    def test_the_track_workflow_may_read_the_app_key_in_the_tracking_environment(self):
+        self.assertEqual(run(**self.track(TRACK)).returncode, 0)
+
+    def test_the_app_key_is_refused_outside_the_tracking_environment(self):
+        self.fails('uses secret APP_PRIVATE_KEY in job track', **self.track(TRACK.replace('    environment: tracking\n', '')))
+        other = 'name: X\non: [push]\njobs:\n  x:\n    runs-on: ubuntu-latest\n    environment: tracking\n    steps:\n      - run: echo "${{ secrets.APP_PRIVATE_KEY }}"\n'
+        self.fails('other.yml: uses secret APP_PRIVATE_KEY', **{'.github/workflows/other.yml': other})
+
+    def test_no_other_secret_is_allowed_in_the_track_workflow(self):
+        self.fails('uses secret PARTNER_CENTER_TOKEN', **self.track(TRACK.replace('secrets.APP_PRIVATE_KEY }}', 'secrets.APP_PRIVATE_KEY }} ${{ secrets.PARTNER_CENTER_TOKEN }}')))
+
+    def test_the_track_workflow_runs_only_on_issue_events(self):
+        self.fails('track.yml must run only on issue events', **self.track(TRACK.replace('on:\n  issues:', 'on:\n  pull_request:\n  issues:')))
+        self.fails('track.yml must run only on issue events', **self.track(TRACK.replace('on:\n  issues:', 'on:\n  push:\n  issues:')))
 
     def test_the_release_workflow_runs_only_on_a_release_or_by_hand(self):
         self.fails('must run only on a published release or by hand', **self.release(RELEASE.replace('  workflow_dispatch:\n', '  workflow_dispatch:\n  pull_request:\n')))
