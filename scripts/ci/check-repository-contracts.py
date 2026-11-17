@@ -210,6 +210,10 @@ for path in tracked_files():
 # windows-release.yml that run in the `release` environment (owner approval required) may read the three OAuth client values.
 RELEASE_WORKFLOW = 'windows-release.yml'
 DRYRUN_WORKFLOW = 'windows-release-dryrun.yml'
+# The tracking caller keeps the project board right when an issue changes. It runs only on issue events (which run from the default
+# branch) and reads the GitHub App key only in a job that runs in the `tracking` environment (default branch only).
+TRACK_WORKFLOW = 'track.yml'
+TRACK_SECRETS = {'APP_PRIVATE_KEY'}
 RELEASE_SECRETS = {'GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'MICROSOFT_OAUTH_CLIENT_ID'}
 
 def environment_name(job):
@@ -221,6 +225,8 @@ for workflow in workflows:
     triggers = data.get(True, data.get('on')) or {}
     names = triggers if isinstance(triggers, (list, dict)) else [triggers]
     require('pull_request_target' not in names, f'{workflow.name}: pull_request_target is banned')
+    if workflow.name == TRACK_WORKFLOW:
+        require(set(names) == {'issues'}, f'{TRACK_WORKFLOW} must run only on issue events (it may read the App key)')
     jobs = data.get('jobs') or {}
     outside_jobs = {key: value for key, value in data.items() if key != 'jobs'}
     scopes = [('workflow level', outside_jobs, {'GITHUB_TOKEN'})]
@@ -228,6 +234,8 @@ for workflow in workflows:
         allowed = {'GITHUB_TOKEN'}
         if workflow.name == RELEASE_WORKFLOW and environment_name(job) == 'release':
             allowed |= RELEASE_SECRETS
+        if workflow.name == TRACK_WORKFLOW and environment_name(job) == 'tracking':
+            allowed |= TRACK_SECRETS
         scopes.append((f'job {job_name}', job, allowed))
     for scope, node, allowed in scopes:
         used, whole = secret_use(node)
