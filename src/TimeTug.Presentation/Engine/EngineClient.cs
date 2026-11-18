@@ -49,9 +49,23 @@ public sealed class EngineClient : IEngineClient, IAsyncDisposable
 
         // Read both streams before the engine starts so that nothing it says first is missed.
         _pumps = Task.WhenAll(
-            Task.Run(() => PumpAsync(_engine.State, state => _state.OnNext(EngineMapping.ToAppState(state, _text)), "state")),
+            Task.Run(() => PumpAsync(_engine.State, PublishState, "state")),
             Task.Run(() => PumpAsync(_engine.Events, Handle, "events")));
         await _engine.SendAsync(new Pkg.EngineCommand.Start()).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Passes an engine state on. A new engine hands every subscriber its placeholder state first (revision 0: no accounts, nothing loaded),
+    /// before it has read the saved accounts. That is not a state the engine published, and the Welcome window must never be decided from it.
+    /// </summary>
+    private void PublishState(Pkg.EngineState state)
+    {
+        if (state.Revision == 0)
+        {
+            return;
+        }
+
+        _state.OnNext(EngineMapping.ToAppState(state, _text));
     }
 
     public ValueTask AddAccountAsync(string kindId) => _engine.SendAsync(new Pkg.EngineCommand.AddAccount(kindId));
