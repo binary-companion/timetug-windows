@@ -11,12 +11,24 @@ namespace TimeTug.App;
 /// Shows the credential form as a dialog over the welcome window. The engine asks from its own thread; this hops to the UI
 /// thread, shows one dialog at a time, and closes the dialog when the engine cancels the request.
 /// </summary>
-public sealed class AccountFormService(DispatcherQueue queue, ILocalizer text) : IAccountFormService, IDisposable
+public sealed class AccountFormService(DispatcherQueue queue, ILocalizer text, IDiagnostics? diagnostics = null) : IAccountFormService, IDisposable
 {
     private readonly SemaphoreSlim _one = new(1, 1);
 
-    /// <summary>The root the dialog opens over. Set by the window on the UI thread; null when no window can host it (the form is then cancelled).</summary>
+    /// <summary>The root the dialog opens over. Set by the window the person is using, on the UI thread; null when no window can host it (the form is then cancelled).</summary>
     public XamlRoot? XamlRoot { get; set; }
+
+    /// <summary>
+    /// A window that closes gives the root up, but only when it is still the current one: a Welcome window closing must not
+    /// take away the root of a Settings window that was used after it (and the other way round).
+    /// </summary>
+    public void Release(XamlRoot root)
+    {
+        if (ReferenceEquals(XamlRoot, root))
+        {
+            XamlRoot = null;
+        }
+    }
 
     public async ValueTask<IReadOnlyDictionary<string, string>?> ShowAsync(AccountFormRequest request, CancellationToken cancellationToken)
     {
@@ -52,6 +64,7 @@ public sealed class AccountFormService(DispatcherQueue queue, ILocalizer text) :
 
             if (XamlRoot is not { } root)
             {
+                diagnostics?.Record("warning", "accounts", "a sign-in form was asked for but no window can show it; the sign-in is cancelled");
                 result.SetResult(null);
                 return;
             }
