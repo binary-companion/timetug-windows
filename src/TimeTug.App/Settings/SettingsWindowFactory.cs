@@ -26,7 +26,7 @@ internal sealed class SettingsWindowSurface : ISettingsWindow
 /// <summary>Makes a Settings window around a shell, each time the window opens.</summary>
 internal sealed class SettingsWindowFactory(
     SettingsText text, ILocalizer localizer, IPresentationSettingsStore store, IMonitorService monitors, IUiSettings ui,
-    SettingsPaneModels models, ThemeService theme, BrokerParentWindow? brokerParent = null) : ISettingsWindowFactory
+    SettingsPaneModels models, ThemeService theme, BrokerParentWindow? brokerParent = null, AccountFormService? forms = null) : ISettingsWindowFactory
 {
     /// <summary>How many windows have been made (for the self-test).</summary>
     public int Created { get; private set; }
@@ -49,6 +49,38 @@ internal sealed class SettingsWindowFactory(
                 if (args.WindowActivationState != Microsoft.UI.Xaml.WindowActivationState.Deactivated)
                 {
                     brokerParent.Touch(handle);
+                }
+            };
+        }
+
+        if (forms is not null)
+        {
+            // The sign-in form (iCloud, Other (CalDAV)) opens over the window the person is using. Settings > Accounts asks for it too, so
+            // this window takes the form root when it is activated and gives it back when it closes.
+            Microsoft.UI.Xaml.XamlRoot? formsRoot = null;
+            void TakeFormRoot()
+            {
+                if (window.RootElement.XamlRoot is { } root)
+                {
+                    formsRoot = root;
+                    forms.XamlRoot = root;
+                }
+            }
+
+            // The first activation can come before the content has a root, so the load takes it too.
+            window.RootElement.Loaded += (_, _) => TakeFormRoot();
+            window.Activated += (_, args) =>
+            {
+                if (args.WindowActivationState != Microsoft.UI.Xaml.WindowActivationState.Deactivated)
+                {
+                    TakeFormRoot();
+                }
+            };
+            window.WindowClosed += () =>
+            {
+                if (formsRoot is not null)
+                {
+                    forms.Release(formsRoot);
                 }
             };
         }

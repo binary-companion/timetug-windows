@@ -23,6 +23,7 @@ public sealed partial class WelcomeWindow : Window
     private const int WidthInDips = 560;
     private const int HeightInDips = 700;
     private readonly AccountFormService _forms;
+    private Microsoft.UI.Xaml.XamlRoot? _formsRoot;
     private readonly IDisposable? _theme;
     private readonly IUiSettings? _uiSettings;
     private string? _guideAsset;
@@ -211,7 +212,8 @@ public sealed partial class WelcomeWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        _forms.XamlRoot = Root.XamlRoot;
+        _formsRoot = Root.XamlRoot;
+        _forms.XamlRoot = _formsRoot;
         var scale = Root.XamlRoot.RasterizationScale;
         var size = new SizeInt32((int)(WidthInDips * scale), (int)(HeightInDips * scale));
         var work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
@@ -271,6 +273,11 @@ public sealed partial class WelcomeWindow : Window
         if (args.WindowActivationState != WindowActivationState.Deactivated)
         {
             _brokerParent?.Touch(_handle);
+            if (_formsRoot is not null)
+            {
+                // The window the person is using hosts the sign-in form (Settings does the same when it is activated).
+                _forms.XamlRoot = _formsRoot;
+            }
         }
     }
 
@@ -282,7 +289,10 @@ public sealed partial class WelcomeWindow : Window
             _uiSettings.Changed -= OnUiSettingsChanged;
         }
 
-        _forms.XamlRoot = null;
+        if (_formsRoot is not null)
+        {
+            _forms.Release(_formsRoot);
+        }
         _theme?.Dispose();
         // Closing the window mid sign-in cancels it, so the engine is not left waiting for a browser or a form.
         _ = ViewModel.Accounts.CancelAsync();

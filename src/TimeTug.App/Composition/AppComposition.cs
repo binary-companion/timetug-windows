@@ -64,7 +64,7 @@ internal static class AppComposition
         services.AddSingleton<IMinuteTicker>(sp => new MinuteTicker(sp.GetRequiredService<TimeProvider>()));
 
         // ---- the engine -----------------------------------------------------------------------------------------
-        services.AddSingleton(sp => new AccountFormService(queue, sp.GetRequiredService<ILocalizer>()));
+        services.AddSingleton(sp => new AccountFormService(queue, sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<IDiagnostics>()));
         services.AddSingleton<IAccountFormService>(sp => sp.GetRequiredService<AccountFormService>());
         services.AddSingleton(sp => DefaultEngineStartup(sp.GetRequiredService<IDiagnostics>()));
         // Sign-in through the Windows account broker (phase 6): the intent is what the person chose, the parent window is what the Windows dialog opens in front of.
@@ -237,7 +237,7 @@ internal static class AppComposition
         services.AddSingleton(sp => new SettingsWindowFactory(
             sp.GetRequiredService<SettingsText>(), sp.GetRequiredService<ILocalizer>(), sp.GetRequiredService<IPresentationSettingsStore>(),
             sp.GetRequiredService<IMonitorService>(), sp.GetRequiredService<IUiSettings>(), sp.GetRequiredService<SettingsPaneModels>(),
-            sp.GetRequiredService<ThemeService>(), sp.GetRequiredService<BrokerParentWindow>()));
+            sp.GetRequiredService<ThemeService>(), sp.GetRequiredService<BrokerParentWindow>(), sp.GetRequiredService<AccountFormService>()));
         services.AddSingleton<ISettingsWindowFactory>(sp => sp.GetRequiredService<SettingsWindowFactory>());
         services.AddSingleton(sp => new SettingsHost(
             sp.GetRequiredService<ISettingsWindowFactory>(),
