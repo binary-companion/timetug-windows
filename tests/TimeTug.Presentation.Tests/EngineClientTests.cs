@@ -35,6 +35,25 @@ public class EngineClientTests
     }
 
     [Fact]
+    public async Task The_engines_initial_empty_state_is_not_published()
+    {
+        var (engine, client) = await StartedAsync();
+        await using (client)
+        {
+            using var states = new Collector<AppState>(client.State);
+
+            // A new engine hands every subscriber its placeholder state (revision 0, no accounts) before it has loaded anything. The
+            // first thing the app sees must be a state the engine really published, or the Welcome window opens for a person who has accounts.
+            engine.Push(new Pkg.EngineState { Revision = 0 });
+            engine.Push(StateWith(enabled: false));
+
+            var seen = await states.WaitForAsync(1);
+            seen[0].Revision.Should().Be(1UL);
+            seen[0].Enabled.Should().BeFalse();
+        }
+    }
+
+    [Fact]
     public async Task Disposing_twice_is_harmless_and_disposes_the_engine_once()
     {
         var (engine, client) = await StartedAsync();
