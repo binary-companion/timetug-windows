@@ -13,6 +13,7 @@
     <EmbeddedResource Include="..\TimeTug.App\Assets\Tray\Glyphs\digits.txt" LogicalName="TimeTug.Platform.Tray.digits.txt" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" VersionOverride="10.0.28000.2957" />
     <PackageReference Include="TimeTug.Engine" />
     <!-- Sign-in through the Windows account broker (WAM). Only this project references MSAL (an architecture test enforces it); everything above it sees IBrokerClient. -->
     <PackageReference Include="Microsoft.Identity.Client" />
