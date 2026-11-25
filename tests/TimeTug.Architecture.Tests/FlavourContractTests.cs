@@ -155,8 +155,18 @@ public partial class FlavourContractTests
         // docs/spikes/2026-10-store-packaging.md: .NET always bundled outside Dev; the Windows App SDK runtime for Direct, and for Store only on request.
         var project = File.ReadAllText(Path.Combine(Root, "src", "TimeTug.App", "TimeTug.App.csproj"));
 
-        project.Should().MatchRegex(@"Condition=""'\$\(Flavour\)' != 'Dev'"">\s*<SelfContained>true</SelfContained>");
+        // The development package is framework-dependent unless -p:DevSelfContained=true, which only the CI package build passes.
+        project.Should().MatchRegex(@"Condition=""'\$\(Flavour\)' != 'Dev' Or '\$\(DevSelfContained\)' == 'true'"">\s*<SelfContained>true</SelfContained>");
         project.Should().Contain("'$(Flavour)' == 'Direct' Or '$(ReleaseWindowsAppSdkSelfContained)' == 'true'");
+    }
+
+    [Fact]
+    public void The_ci_development_package_bundles_the_dotnet_runtime()
+    {
+        // Issue #81: a framework-dependent package does not start on a machine without the .NET 10 desktop runtime.
+        var script = File.ReadAllText(Path.Combine(Root, "scripts", "ci", "build-msix.ps1"));
+
+        script.Should().Contain("-p:DevSelfContained=true");
     }
 
     [Fact]
