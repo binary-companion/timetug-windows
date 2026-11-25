@@ -180,8 +180,7 @@ function Get-BrokerProblems([string]$Root, [bool]$DevelopmentLayout) {
     $native = switch ($architecture) { 'x64' { 'msalruntime.dll' } 'arm64' { 'msalruntime_arm64.dll' } default { $null } }
     if ($DevelopmentLayout) {
         # A self-contained development package (-p:DevSelfContained=true) is RID-specific and, like a release package, carries the native library of its own
-        # architecture at the package root. The framework-dependent layout carries both under runtimes\<rid>
-ative.
+        # architecture at the package root. The framework-dependent layout carries both under runtimes\<rid>\native.
         if ($native -and (Test-Path -LiteralPath (Join-Path $Root $native))) { return $problems }
         foreach ($runtimeNative in 'runtimes\win-x64\native\msalruntime.dll', 'runtimes\win-arm64\native\msalruntime_arm64.dll') {
             if (-not (Test-Path -LiteralPath (Join-Path $Root $runtimeNative))) { $problems.Add("$runtimeNative is missing (the Windows account broker needs it)") }
