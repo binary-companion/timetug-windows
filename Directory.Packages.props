@@ -15,7 +15,7 @@
     <PackageVersion Include="Microsoft.Identity.Client.Broker" Version="4.92.0" />
 
     <!-- App -->
-    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.7.0" />
     <!-- The Foundation component Microsoft.WindowsAppSDK 2.5.1 depends on (AppNotificationManager), referenced alone by TimeTug.Platform. -->
     <PackageVersion Include="Microsoft.WindowsAppSDK.Foundation" Version="2.3.12" />
     <PackageVersion Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.9" />
