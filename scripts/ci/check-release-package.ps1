@@ -12,7 +12,7 @@
     - The Windows account broker (MSAL, phase 6): Microsoft.Identity.Client.dll, Microsoft.Identity.Client.Broker.dll and
       Microsoft.Identity.Client.NativeInterop.dll, and the native runtime for the package's architecture: msalruntime.dll (x64) or
       msalruntime_arm64.dll (ARM64) at the package root of a Store or Direct package (the manifest's ProcessorArchitecture says which), or, with
-      -Development, under runtimes\win-x64\native and runtimes\win-arm64\native (the development package is not RID-specific and carries
+      -Development, under runtimes\win-x64\native and runtimes\win-arm64\native (the framework-dependent development package is not RID-specific and carries
       both; the other platforms' libraries in it are harmless). See docs/spikes/2026-11-wam-broker.md (S1).
     - With -Sentinel: none of the given texts appears in any file of the package except in -SentinelHome (the one assembly the release
       script embeds the ids in), and each appears there (so the check cannot pass because the injection silently did nothing).
@@ -24,7 +24,7 @@
 .PARAMETER ExpectedVersion
   The version the package must have (for example 1.2.3.0).
 .PARAMETER Development
-  The package is a development package (build-msix.ps1): the broker's native libraries are looked for in runtimes\<rid>\native.
+  The package is a development package (build-msix.ps1): the broker's native library is looked for at the package root (self-contained development package) or, failing that, both in runtimes\<rid>\native.
 .PARAMETER OnlyBroker
   Run only the broker file check (for the development package, which fails the other checks by design).
 .PARAMETER Sentinel
@@ -170,12 +170,6 @@ function Get-BrokerProblems([string]$Root, [bool]$DevelopmentLayout) {
     foreach ($name in 'Microsoft.Identity.Client.dll', 'Microsoft.Identity.Client.Broker.dll', 'Microsoft.Identity.Client.NativeInterop.dll') {
         if (-not (Test-Path -LiteralPath (Join-Path $Root $name))) { $problems.Add("$name is missing (the Windows account broker needs it)") }
     }
-    if ($DevelopmentLayout) {
-        foreach ($native in 'runtimes\win-x64\native\msalruntime.dll', 'runtimes\win-arm64\native\msalruntime_arm64.dll') {
-            if (-not (Test-Path -LiteralPath (Join-Path $Root $native))) { $problems.Add("$native is missing (the Windows account broker needs it)") }
-        }
-        return $problems
-    }
     $path = Join-Path $Root 'AppxManifest.xml'
     $architecture = ''
     if (Test-Path -LiteralPath $path) {
@@ -184,6 +178,16 @@ function Get-BrokerProblems([string]$Root, [bool]$DevelopmentLayout) {
         if ($identity) { $architecture = $identity.GetAttribute('ProcessorArchitecture').ToLowerInvariant() }
     }
     $native = switch ($architecture) { 'x64' { 'msalruntime.dll' } 'arm64' { 'msalruntime_arm64.dll' } default { $null } }
+    if ($DevelopmentLayout) {
+        # A self-contained development package (-p:DevSelfContained=true) is RID-specific and, like a release package, carries the native library of its own
+        # architecture at the package root. The framework-dependent layout carries both under runtimes\<rid>
+ative.
+        if ($native -and (Test-Path -LiteralPath (Join-Path $Root $native))) { return $problems }
+        foreach ($runtimeNative in 'runtimes\win-x64\native\msalruntime.dll', 'runtimes\win-arm64\native\msalruntime_arm64.dll') {
+            if (-not (Test-Path -LiteralPath (Join-Path $Root $runtimeNative))) { $problems.Add("$runtimeNative is missing (the Windows account broker needs it)") }
+        }
+        return $problems
+    }
     if (-not $native) { $problems.Add("the manifest's ProcessorArchitecture is '$architecture', so the check cannot tell which msalruntime the package needs (expected x64 or arm64)") }
     elseif (-not (Test-Path -LiteralPath (Join-Path $Root $native))) { $problems.Add("$native is missing from the package root (the Windows account broker needs it on $architecture)") }
     return $problems

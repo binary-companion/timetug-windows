@@ -43,8 +43,10 @@
   <!-- Release packages carry their runtimes (docs/spikes/2026-10-store-packaging.md). The .NET runtime is always bundled: a Store customer has no .NET 10
        desktop runtime. The Windows App SDK runtime is bundled in the Direct package (a sideloaded package has no Store to resolve the framework dependency)
        and, in the Store package, only with -p:ReleaseWindowsAppSdkSelfContained=true (the fallback if the Store cannot resolve the dependency). Set here and not
-       on the command line: a global property would also reach the class libraries, which refuse it. -->
-  <PropertyGroup Condition="'$(Flavour)' != 'Dev'">
+       on the command line: a global property would also reach the class libraries, which refuse it.
+       The development package is framework-dependent unless -p:DevSelfContained=true (a custom property the class libraries ignore): scripts/ci/build-msix.ps1 sets it,
+       so the CI package starts on a machine with no .NET installed; Debug builds and tests stay framework-dependent and fast. -->
+  <PropertyGroup Condition="'$(Flavour)' != 'Dev' Or '$(DevSelfContained)' == 'true'">
     <SelfContained>true</SelfContained>
     <!-- Explicit, so that a build for the other architecture than the machine's (the x64 package from an ARM64 PC) still works. -->
     <RuntimeIdentifier Condition="'$(Platform)' == 'x64'">win-x64</RuntimeIdentifier>

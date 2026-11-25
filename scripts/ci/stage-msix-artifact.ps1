@@ -84,7 +84,7 @@ Install (elevated PowerShell, once, trusts the certificate and installs for you)
 Remove it again:
     powershell -ExecutionPolicy Bypass -File .\vm-install.ps1 -Stage Uninstall
 
-It needs the .NET 10 desktop runtime for $Platform. Details: docs/development.md in the repository.
+It carries the .NET runtime, so it starts on a machine with no .NET installed. Details: docs/development.md in the repository.
 "@
 
 Assert-Staged $Destination
