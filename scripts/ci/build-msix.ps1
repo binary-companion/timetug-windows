@@ -56,7 +56,7 @@ if ($Stage -in 'Build', 'All') {
     Invoke-Step 'publish' {
         Push-Location $repo
         try {
-            dotnet publish src/TimeTug.App/TimeTug.App.csproj -c $Configuration "-p:Platform=$Platform" `
+            dotnet publish src/TimeTug.App/TimeTug.App.csproj -c $Configuration "-p:Platform=$Platform" -p:DevSelfContained=true `
                 -p:GenerateAppxPackageOnBuild=true -p:AppxPackageSigningEnabled=true `
                 "-p:PackageCertificateThumbprint=$($script:cert.Thumbprint)" `
                 "-p:AppxPackageDir=$layout\" -p:AppxBundle=Never --nologo

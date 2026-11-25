@@ -204,6 +204,16 @@ Check 'a development package needs both native libraries under runtimes' {
     Remove-Item -Recurse -Force $root
 }
 
+Check 'a self-contained development package carries its own native library at the root' {
+    $root = New-Fixture @{ Arch = 'arm64'; Broker = $managed + 'msalruntime_arm64.dll' }
+    $problems = @(Get-BrokerProblems $root $true)
+    Assert-True ($problems.Count -eq 0) ("unexpected problems: " + ($problems -join ' | '))
+    Remove-Item -Recurse -Force $root
+    $root = New-Fixture @{ Arch = 'arm64'; Broker = $managed + 'msalruntime.dll' }
+    Assert-HasProblem (Get-BrokerProblems $root $true) 'win-arm64'
+    Remove-Item -Recurse -Force $root
+}
+
 Check 'the script exits 1 on a bad package and 0 on a clean one' {
     $shell = (Get-Process -Id $PID).Path
     $bad = New-Fixture @{ Alias = $aliasXml }

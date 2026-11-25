@@ -234,7 +234,7 @@ Names are not case sensitive; a family can be left out. A Google desktop client 
 
 `scripts\ci\build-msix.ps1` builds and installs the development package; start it like a person would, from the Start menu or with `Start-Process "shell:AppsFolder\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew!App"` in the user session (`prlctl exec "Windows 11" --current-user ...`). The engine keeps its files in the package’s `LocalState` folder (`%LOCALAPPDATA%\Packages\BinaryCompanion.TimeTug.Dev_68z4tsj3tx7ew\LocalState`); `LocalState\logs\timetug.log` is the rolling diagnostics log. The `startup` self-test (`run-selftest.ps1 -Scenario startup`) runs the same composition root against the real native engine with a scripted host.
 
-The package is framework-dependent: a machine needs the .NET 10 desktop runtime for the app’s architecture (the VM has ARM64 only, so the x64 package cannot be run there).
+The CI package is self-contained (`build-msix.ps1` passes `-p:DevSelfContained=true`): it carries the .NET runtime and starts on a machine with no .NET installed (issue #81). A Debug build or a test run is still framework-dependent and needs the .NET 10 desktop runtime for the app’s architecture.
 
 ## The tray icon on the VM
 
